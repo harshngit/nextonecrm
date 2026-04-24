@@ -14,6 +14,7 @@ const pageTitles = {
   '/follow-ups': 'Follow-Ups',
   '/projects': 'Projects',
   '/team': 'Team',
+  '/users': 'User Management',
   '/notifications': 'Notifications',
 }
 

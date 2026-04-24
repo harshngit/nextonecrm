@@ -22,11 +22,12 @@ export default function Modal({ isOpen, onClose, title, children, footer, size =
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      style={{ margin: 0 }}
       onClick={onClose}
     >
       <div
-        className={`w-full ${sizeClasses[size]} bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl border border-[#e0d8ce] dark:border-[#2a2a2a] animate-scale-in overflow-hidden`}
+        className={`w-full ${sizeClasses[size]} bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl border border-[#e0d8ce] dark:border-[#2a2a2a] overflow-hidden`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

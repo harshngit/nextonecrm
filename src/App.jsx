@@ -15,6 +15,7 @@ import FollowUps from './pages/FollowUps'
 import Projects from './pages/Projects'
 import Team from './pages/Team'
 import Notifications from './pages/Notifications'
+import UserManagement from './pages/UserManagement'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useSelector((state) => state.auth)
@@ -59,6 +60,7 @@ function AppRoutes() {
       <Route path="/projects" element={<ProtectedRoute><Layout><Projects /></Layout></ProtectedRoute>} />
       <Route path="/team" element={<ProtectedRoute><Layout><Team /></Layout></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
+      <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
       <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
     </Routes>
   )

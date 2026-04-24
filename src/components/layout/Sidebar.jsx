@@ -2,10 +2,11 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   LayoutDashboard, Users, CalendarCheck, PhoneCall,
-  Building2, UserCog, Bell, LogOut, ChevronLeft, ChevronRight, X
+  Building2, UserCog, Bell, LogOut, ChevronLeft, ChevronRight, X, Settings
 } from 'lucide-react'
 import { logout } from '../../store/authSlice'
 import Avatar from '../ui/Avatar'
+import logo from '../../asset/image.png'
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -14,6 +15,7 @@ const navItems = [
   { path: '/follow-ups', label: 'Follow-Ups', icon: PhoneCall },
   { path: '/projects', label: 'Projects', icon: Building2 },
   { path: '/team', label: 'Team', icon: UserCog },
+  { path: '/users', label: 'Users', icon: Settings },
   { path: '/notifications', label: 'Notifications', icon: Bell },
 ]
 
@@ -21,7 +23,6 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
   const { user } = useSelector((state) => state.auth)
   const dispatch = useDispatch()
   const navigate = useNavigate()
-console.log(user)
   const handleLogout = () => {
     dispatch(logout())
     navigate('/login')
@@ -31,8 +32,8 @@ console.log(user)
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className={`flex items-center gap-3 px-4 py-5 border-b border-[#e0d8ce] dark:border-[#2a2a2a] ${collapsed ? 'justify-center' : ''}`}>
-        <div className="w-9 h-9 rounded-xl bg-brand flex items-center justify-center flex-shrink-0 shadow-sm">
-          <span className="font-display font-bold text-white text-sm">N1</span>
+        <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1a1a1a] flex items-center justify-center flex-shrink-0 shadow-sm border border-[#e0d8ce] dark:border-[#2a2a2a] overflow-hidden">
+          <img src={logo} alt="Next One" className="w-full h-full object-contain" />
         </div>
         {!collapsed && (
           <div>
