@@ -65,9 +65,11 @@ const SidebarContent = ({ collapsed, logo, navItems, setMobileOpen, user, handle
     <div className={`border-t border-gray-200 dark:border-gray-800 p-3 ${collapsed ? 'items-center' : ''}`}>
       {!collapsed ? (
         <div className="flex items-center gap-3 px-2 py-2">
-          <Avatar name={user?.first_name} size="sm" />
+          <Avatar name={user?.first_name || user?.name || 'User'} size="sm" />
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{user?.first_name} {user?.last_name}</div>
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+              {user?.first_name ? `${user.first_name} ${user.last_name || ''}` : (user?.name || 'User')}
+            </div>
           </div>
           <button
             onClick={handleLogout}

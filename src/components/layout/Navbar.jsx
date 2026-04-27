@@ -156,16 +156,19 @@ export default function Navbar({ collapsed, setMobileOpen }) {
           onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false) }}
           className="flex items-center gap-2 rounded-xl px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
         >
-          <Avatar name={user?.first_name} size="sm" />
-          <span className="hidden sm:block text-sm font-medium text-gray-700 dark:text-gray-300 max-w-[100px] truncate">{user?.first_name} {user?.last_name}</span>
+          <Avatar name={user?.first_name || user?.name || 'User'} size="sm" />
+          <span className="hidden sm:block text-sm font-medium text-gray-700 dark:text-gray-300 max-w-[100px] truncate">
+            {user?.first_name ? `${user.first_name} ${user.last_name || ''}` : (user?.name || 'User')}
+          </span>
           <ChevronDown size={14} className="text-gray-400" />
         </button>
 
         {showUserMenu && (
           <div className="absolute right-0 top-full mt-2 w-48 bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl shadow-lg py-1 z-50 animate-scale-in">
             <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-800">
-              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{user?.first_name} {user?.last_name}</div>
-              
+              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                {user?.first_name ? `${user.first_name} ${user.last_name || ''}` : (user?.name || 'User')}
+              </div>
             </div>
             <button
               onClick={handleLogout}
