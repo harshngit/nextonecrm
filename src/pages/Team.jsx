@@ -6,6 +6,21 @@ import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
+import CustomSelect from '../components/ui/CustomSelect'
+
+const roles = [
+  { value: 'sales_manager', label: 'Sales Manager' },
+  { value: 'sales_executive', label: 'Sales Executive' },
+  { value: 'external_caller', label: 'External Caller' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'super_admin', label: 'Super Admin' },
+]
+
+const statusOptions = [
+  { value: 'true', label: 'Active Only' },
+  { value: 'false', label: 'Inactive Only' },
+  { value: '', label: 'All Statuses' },
+]
 
 const roleColors = {
   super_admin:    'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30',
@@ -81,48 +96,39 @@ export default function Team() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search members..."
-              className="pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50"
+              className="pl-9 pr-4 py-2 text-sm bg-background border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400 shadow-sm transition-all duration-200"
             />
           </div>
 
           {/* Role filter */}
-          <div className="relative">
-            <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
-              <option value="">All Roles</option>
-              <option value="sales_manager">Sales Manager</option>
-              <option value="sales_executive">Sales Executive</option>
-              <option value="external_caller">External Caller</option>
-              <option value="admin">Admin</option>
-              <option value="super_admin">Super Admin</option>
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="w-48">
+            <CustomSelect
+              value={filterRole}
+              onChange={val => setFilterRole(val)}
+              options={[{ value: '', label: 'All Roles' }, ...roles]}
+              placeholder="Filter by Role"
+            />
           </div>
 
           {/* Active filter */}
-          <div className="relative">
-            <select value={filterActive} onChange={e => setFilterActive(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-              <option value="">All</option>
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="w-44">
+            <CustomSelect
+              value={filterActive}
+              onChange={val => setFilterActive(val)}
+              options={statusOptions}
+              placeholder="Filter Status"
+            />
           </div>
-
-          {/* Refresh */}
-          <button
-            onClick={() => dispatch(fetchUsers({ role: filterRole, is_active: filterActive }))}
-            className="w-9 h-9 flex items-center justify-center rounded-xl border border-[#e0d8ce] dark:border-[#2a2a2a] text-gray-400 hover:text-brand hover:border-brand transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw size={14} />
-          </button>
         </div>
 
-        <div className="text-sm text-gray-500 dark:text-[#888]">
-          <span className="font-semibold text-gray-900 dark:text-white">{filtered.length}</span> members
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-xl border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50"
+          onClick={() => dispatch(fetchUsers({ role: filterRole, is_active: filterActive }))}
+        >
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+        </Button>
       </div>
 
       {/* Team Table */}

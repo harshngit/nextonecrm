@@ -12,9 +12,11 @@ import ListSkeleton from '../components/loaders/ListSkeleton'
 import Button from '../components/ui/Button'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
+import CustomSelect from '../components/ui/CustomSelect'
 
 const visitStatuses = ['scheduled', 'done', 'cancelled', 'rescheduled', 'no_show']
 const statusLabel = { scheduled: 'Scheduled', done: 'Completed', cancelled: 'Cancelled', rescheduled: 'Rescheduled', no_show: 'No Show' }
+const statusOptions = visitStatuses.map(s => ({ value: s, label: statusLabel[s] }))
 const statusColor = {
   scheduled:   'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
   done:        'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
@@ -37,47 +39,46 @@ const defaultFeedback = { status: 'done', feedback: '' }
 // ── Forms defined OUTSIDE to prevent typing/focus loss bug ───────────────────
 
 function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit }) {
-  const ic = "w-full px-3 py-2 text-sm bg-background border-input rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
+  const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+
+  const leadOptions = leads.map(l => ({
+    value: l.id,
+    label: `${l.name} ${l.phone ? `— ${l.phone}` : ''}`
+  }))
+
+  const projectOptions = projects.map(p => ({
+    value: p.id,
+    label: `${p.name} ${p.locality ? `— ${p.locality}` : p.location ? `— ${p.location}` : ''}`
+  }))
+
+  const execOptions = salesExecs.map(u => ({
+    value: u.id,
+    label: `${u.first_name} ${u.last_name}`
+  }))
 
   return (
     <div className="space-y-4">
 
       {/* Lead dropdown */}
-      <div>
-        <label className={lc}>Lead *</label>
-        <div className="relative">
-          <select required value={formData.lead_id}
-            onChange={e => setFormData(p => ({ ...p, lead_id: e.target.value }))}
-            className={ic + ' appearance-none pr-8'}>
-            <option value="">Select lead...</option>
-            {leads.map(l => (
-              <option key={l.id} value={l.id}>
-                {l.name} {l.phone ? `— ${l.phone}` : ''}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
+      <CustomSelect
+        label="Lead"
+        required
+        value={formData.lead_id}
+        onChange={val => setFormData(p => ({ ...p, lead_id: val }))}
+        options={leadOptions}
+        placeholder="Select lead..."
+      />
 
       {/* Project dropdown */}
-      <div>
-        <label className={lc}>Project *</label>
-        <div className="relative">
-          <select required value={formData.project_id}
-            onChange={e => setFormData(p => ({ ...p, project_id: e.target.value }))}
-            className={ic + ' appearance-none pr-8'}>
-            <option value="">Select project...</option>
-            {projects.map(p => (
-              <option key={p.id} value={p.id}>
-                {p.name} {p.locality ? `— ${p.locality}` : p.location ? `— ${p.location}` : ''}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
+      <CustomSelect
+        label="Project"
+        required
+        value={formData.project_id}
+        onChange={val => setFormData(p => ({ ...p, project_id: val }))}
+        options={projectOptions}
+        placeholder="Select project..."
+      />
 
       {/* Date + Time */}
       <div className="grid grid-cols-2 gap-3">
@@ -96,48 +97,34 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit 
       </div>
 
       {/* Assign To */}
-      <div>
-        <label className={lc}>Assign To</label>
-        <div className="relative">
-          <select value={formData.assigned_to}
-            onChange={e => setFormData(p => ({ ...p, assigned_to: e.target.value }))}
-            className={ic + ' appearance-none pr-8'}>
-            <option value="">Select team member</option>
-            {salesExecs.map(u => (
-              <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-            ))}
-          </select>
-          <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
+      <CustomSelect
+        label="Assign To"
+        value={formData.assigned_to}
+        onChange={val => setFormData(p => ({ ...p, assigned_to: val }))}
+        options={execOptions}
+        placeholder="Select team member"
+      />
 
       {/* Status (edit only) */}
       {isEdit && (
-        <div>
-          <label className={lc}>Status</label>
-          <div className="relative">
-            <select value={formData.status || 'scheduled'}
-              onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}
-              className={ic + ' appearance-none pr-8'}>
-              {visitStatuses.map(s => (
-                <option key={s} value={s}>{statusLabel[s]}</option>
-              ))}
-            </select>
-            <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
+        <CustomSelect
+          label="Status"
+          value={formData.status || 'scheduled'}
+          onChange={val => setFormData(p => ({ ...p, status: val }))}
+          options={statusOptions}
+        />
       )}
 
       {/* Transport arranged */}
-      <div className="flex items-center gap-3 p-3 bg-[#f5f2ee] dark:bg-[#0f0f0f] rounded-xl">
+      <div className="flex items-center gap-3 p-3 bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl">
         <input
           type="checkbox"
           id="transport"
           checked={formData.transport_arranged}
           onChange={e => setFormData(p => ({ ...p, transport_arranged: e.target.checked }))}
-          className="w-4 h-4 accent-brand rounded"
+          className="w-4 h-4 accent-brand rounded border-gray-300"
         />
-        <label htmlFor="transport" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+        <label htmlFor="transport" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none font-medium">
           Transport arranged for client
         </label>
       </div>
@@ -148,7 +135,7 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit 
         <textarea rows={3} value={formData.notes}
           onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
           placeholder="Client wants to see 2BHK and 3BHK units. Prefers upper floors."
-          className={ic + ' resize-none'} />
+          className={ic} />
       </div>
     </div>
   )

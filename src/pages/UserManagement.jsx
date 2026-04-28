@@ -7,6 +7,7 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
+import CustomSelect from '../components/ui/CustomSelect'
 
 const roles = [
   { value: 'super_admin', label: 'Super Admin' },
@@ -30,7 +31,7 @@ const defaultForm = {
 }
 
 function UserForm({ form, setForm, editMode, showPassword, setShowPassword }) {
-  const inputClass = "w-full px-3 py-2 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-colors disabled:opacity-50"
+  const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200 disabled:opacity-50"
   const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
   return (
@@ -89,16 +90,13 @@ function UserForm({ form, setForm, editMode, showPassword, setShowPassword }) {
         </div>
       )}
 
-      <div>
-        <label className={labelClass}>Role *</label>
-        <div className="relative">
-          <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
-            className={inputClass + " appearance-none"}>
-            {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-          </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
+      <CustomSelect
+        label="Role"
+        required
+        value={form.role}
+        onChange={val => setForm({ ...form, role: val })}
+        options={roles}
+      />
     </div>
   )
 }

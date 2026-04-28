@@ -6,12 +6,27 @@ import CardSkeleton from '../components/loaders/CardSkeleton'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
+import CustomSelect from '../components/ui/CustomSelect'
 
 const projectColors = [
   'from-amber-400/20 to-orange-400/20',
   'from-green-400/20 to-teal-400/20',
   'from-blue-400/20 to-purple-400/20',
   'from-rose-400/20 to-pink-400/20',
+]
+
+const projectTypes = [
+  { value: 'Residential', label: 'Residential' },
+  { value: 'Commercial', label: 'Commercial' },
+  { value: 'Mixed', label: 'Mixed Use' },
+  { value: 'Plots', label: 'Plots / Land' },
+]
+
+const projectStatuses = [
+  { value: 'active', label: 'Active' },
+  { value: 'upcoming', label: 'Upcoming' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'inactive', label: 'Inactive' },
 ]
 
 const defaultForm = {
@@ -31,7 +46,7 @@ const defaultForm = {
 
 // ── Form defined OUTSIDE to prevent typing/focus loss bug ────────────────────
 function ProjectForm({ formData, setFormData }) {
-  const ic = "w-full px-3 py-2 text-sm bg-background border-input rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
+  const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
   return (
@@ -75,34 +90,18 @@ function ProjectForm({ formData, setFormData }) {
 
       {/* Type + Status */}
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={lc}>Type</label>
-          <div className="relative">
-            <select value={formData.type}
-              onChange={e => setFormData(p => ({ ...p, type: e.target.value }))}
-              className={ic + ' appearance-none pr-8'}>
-              <option value="Residential">Residential</option>
-              <option value="Commercial">Commercial</option>
-              <option value="Mixed">Mixed Use</option>
-              <option value="Plots">Plots / Land</option>
-            </select>
-            <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
-        <div>
-          <label className={lc}>Status</label>
-          <div className="relative">
-            <select value={formData.status}
-              onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}
-              className={ic + ' appearance-none pr-8'}>
-              <option value="active">Active</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="completed">Completed</option>
-              <option value="inactive">Inactive</option>
-            </select>
-            <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
+        <CustomSelect
+          label="Type"
+          value={formData.type}
+          onChange={val => setFormData(p => ({ ...p, type: val }))}
+          options={projectTypes}
+        />
+        <CustomSelect
+          label="Status"
+          value={formData.status}
+          onChange={val => setFormData(p => ({ ...p, status: val }))}
+          options={projectStatuses}
+        />
       </div>
 
       {/* Configurations */}
@@ -155,8 +154,8 @@ function ProjectForm({ formData, setFormData }) {
         <label className={lc}>Description</label>
         <textarea rows={3} value={formData.description}
           onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
-          placeholder="Premium residential project with world-class amenities..."
-          className={ic + ' resize-none'} />
+          placeholder="Brief overview of project features, amenities..."
+          className={ic} />
       </div>
     </div>
   )

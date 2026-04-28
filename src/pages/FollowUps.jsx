@@ -14,8 +14,10 @@ import ListSkeleton from '../components/loaders/ListSkeleton'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
+import CustomSelect from '../components/ui/CustomSelect'
 
 const priorities = ['low', 'medium', 'high']
+const priorityOptions = priorities.map(p => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))
 const priorityStyle = {
   high:   'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
   medium: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400',
@@ -49,8 +51,18 @@ function formatDue(task) {
 
 // ── Form — defined OUTSIDE to prevent typing/focus bug ────────────────────────
 function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit }) {
-  const ic = "w-full px-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
+  const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+
+  const leadOptions = leads.map(l => ({
+    value: l.id,
+    label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}`
+  }))
+
+  const execOptions = salesExecs.map(u => ({
+    value: u.id,
+    label: `${u.first_name} ${u.last_name}`
+  }))
 
   return (
     <div className="space-y-4">
@@ -68,25 +80,14 @@ function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit }) {
       </div>
 
       {/* Lead */}
-      <div>
-        <label className={lc}>Lead *</label>
-        <div className="relative">
-          <select
-            required
-            value={formData.lead_id}
-            onChange={e => setFormData(p => ({ ...p, lead_id: e.target.value }))}
-            className={ic + ' appearance-none pr-8'}
-          >
-            <option value="">Select lead...</option>
-            {leads.map(l => (
-              <option key={l.id} value={l.id}>
-                {l.name}{l.phone ? ` — ${l.phone}` : ''}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
+      <CustomSelect
+        label="Lead"
+        required
+        value={formData.lead_id}
+        onChange={val => setFormData(p => ({ ...p, lead_id: val }))}
+        options={leadOptions}
+        placeholder="Select lead..."
+      />
 
       {/* Due Date + Time */}
       <div className="grid grid-cols-2 gap-3">
@@ -113,37 +114,19 @@ function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit }) {
 
       {/* Priority + Assign To */}
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={lc}>Priority</label>
-          <div className="relative">
-            <select
-              value={formData.priority}
-              onChange={e => setFormData(p => ({ ...p, priority: e.target.value }))}
-              className={ic + ' appearance-none pr-8 capitalize'}
-            >
-              {priorities.map(p => (
-                <option key={p} value={p} className="capitalize">{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-              ))}
-            </select>
-            <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
-        <div>
-          <label className={lc}>Assign To</label>
-          <div className="relative">
-            <select
-              value={formData.assigned_to}
-              onChange={e => setFormData(p => ({ ...p, assigned_to: e.target.value }))}
-              className={ic + ' appearance-none pr-8'}
-            >
-              <option value="">Default (lead's executive)</option>
-              {salesExecs.map(u => (
-                <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-              ))}
-            </select>
-            <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
+        <CustomSelect
+          label="Priority"
+          value={formData.priority}
+          onChange={val => setFormData(p => ({ ...p, priority: val }))}
+          options={priorityOptions}
+        />
+        <CustomSelect
+          label="Assign To"
+          value={formData.assigned_to}
+          onChange={val => setFormData(p => ({ ...p, assigned_to: val }))}
+          options={execOptions}
+          placeholder="Default (lead's executive)"
+        />
       </div>
 
       {/* Notes */}
@@ -153,8 +136,8 @@ function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit }) {
           rows={3}
           value={formData.notes}
           onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
-          placeholder="Client asked to call after 10am. Discuss pricing options."
-          className={ic + ' resize-none'}
+          placeholder="Additional context about the follow-up..."
+          className={ic}
         />
       </div>
     </div>

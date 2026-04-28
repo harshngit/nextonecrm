@@ -9,11 +9,14 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
+import CustomSelect from '../components/ui/CustomSelect'
 
 const leadStages = [
   'New', 'Contacted', 'Interested', 'Follow-up',
   'Site Visit Scheduled', 'Site Visit Done', 'Negotiation', 'Booked', 'Lost',
 ]
+
+const stageOptions = leadStages.map(s => ({ value: s, label: s }))
 
 const defaultSources = [
   { id: 'facebook', name: 'Facebook' },
@@ -45,8 +48,11 @@ const defaultForm = {
 // component causes React to treat it as a new component on every render,
 // unmounting and remounting it, which kills input focus.
 function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
-  const inputClass = "w-full px-3 py-2 text-sm bg-background border-input rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
+  const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+
+  const sourceOptions = sourceList.map(s => ({ value: s.id, label: s.name }))
+  const execOptions = salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
 
   return (
     <div className="space-y-4">
@@ -99,29 +105,20 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
 
       {/* Source + Location */}
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelClass}>Lead Source</label>
-          <div className="relative">
-            <select
-              value={formData.source_id || formData.source}
-              onChange={e => {
-                const selected = sourceList.find(s => s.id === e.target.value)
-                setFormData(prev => ({
-                  ...prev,
-                  source_id: selected?.id || e.target.value,
-                  source: selected?.name || e.target.value,
-                }))
-              }}
-              className={inputClass + ' appearance-none pr-8'}
-            >
-              <option value="">Select Platform</option>
-              {sourceList.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-            <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
+        <CustomSelect
+          label="Lead Source"
+          value={formData.source_id || formData.source}
+          onChange={val => {
+            const selected = sourceList.find(s => s.id === val)
+            setFormData(prev => ({
+              ...prev,
+              source_id: selected?.id || val,
+              source: selected?.name || val,
+            }))
+          }}
+          options={sourceOptions}
+          placeholder="Select Platform"
+        />
         <div>
           <label className={labelClass}>Location Preference</label>
           <div className="relative">
@@ -138,36 +135,20 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
 
       {/* Assign To + Status (status only in edit) */}
       <div className={`grid gap-3 ${isEdit ? 'grid-cols-2' : 'grid-cols-1'}`}>
-        <div>
-          <label className={labelClass}>Assign To</label>
-          <div className="relative">
-            <select
-              value={formData.assigned_to}
-              onChange={e => setFormData(prev => ({ ...prev, assigned_to: e.target.value }))}
-              className={inputClass + ' appearance-none pr-8'}
-            >
-              <option value="">Select team member</option>
-              {salesExecs.map(u => (
-                <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-              ))}
-            </select>
-            <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-        </div>
+        <CustomSelect
+          label="Assign To"
+          value={formData.assigned_to}
+          onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))}
+          options={execOptions}
+          placeholder="Select team member"
+        />
         {isEdit && (
-          <div>
-            <label className={labelClass}>Status</label>
-            <div className="relative">
-              <select
-                value={formData.status}
-                onChange={e => setFormData(prev => ({ ...prev, status: e.target.value }))}
-                className={inputClass + ' appearance-none pr-8'}
-              >
-                {leadStages.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
+          <CustomSelect
+            label="Stage"
+            value={formData.status}
+            onChange={val => setFormData(prev => ({ ...prev, status: val }))}
+            options={stageOptions}
+          />
         )}
       </div>
 
@@ -178,8 +159,8 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
           rows={3}
           value={formData.notes}
           onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-          placeholder="Interested in 2BHK, wants sea view..."
-          className={inputClass + ' resize-none'}
+          placeholder="Client is looking for 2BHK in a gated community. Ready for site visit next week."
+          className={inputClass}
         />
       </div>
     </div>
