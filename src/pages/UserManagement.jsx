@@ -29,6 +29,80 @@ const defaultForm = {
   phone_number: '', password: '', role: 'sales_executive',
 }
 
+function UserForm({ form, setForm, editMode, showPassword, setShowPassword }) {
+  const inputClass = "w-full px-3 py-2 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-colors disabled:opacity-50"
+  const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>First Name *</label>
+          <input required value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })}
+            placeholder="Priya"
+            className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>Last Name *</label>
+          <input required value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })}
+            placeholder="Mehta"
+            className={inputClass} />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Email *</label>
+        <div className="relative">
+          <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input required type="email" disabled={editMode} value={form.email}
+            onChange={e => setForm({ ...form, email: e.target.value })}
+            placeholder="priya@nextonerealty.com"
+            className={inputClass + " pl-9"} />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Phone Number *</label>
+        <div className="relative">
+          <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input required={!editMode} value={form.phone_number}
+            onChange={e => setForm({ ...form, phone_number: e.target.value })}
+            placeholder="+919123456789"
+            className={inputClass + " pl-9"} />
+        </div>
+      </div>
+
+      {!editMode && (
+        <div>
+          <label className={labelClass}>Password *</label>
+          <div className="relative">
+            <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input required type={showPassword ? 'text' : 'password'} value={form.password}
+              onChange={e => setForm({ ...form, password: e.target.value })}
+              placeholder="Min 8 characters" minLength={8}
+              className={inputClass + " pl-9 pr-10"} />
+            <button type="button" onClick={() => setShowPassword(!showPassword)} tabIndex={-1}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+              {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div>
+        <label className={labelClass}>Role *</label>
+        <div className="relative">
+          <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
+            className={inputClass + " appearance-none"}>
+            {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+          </select>
+          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function UserManagement() {
   const dispatch = useDispatch()
   const { list, loading, actionLoading, actionError } = useSelector(s => s.users)
@@ -98,7 +172,7 @@ export default function UserManagement() {
         <div className="flex flex-wrap gap-2 flex-1">
           <div className="relative">
             <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
               <option value="">All Roles</option>
               {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
@@ -106,7 +180,7 @@ export default function UserManagement() {
           </div>
           <div className="relative">
             <select value={filterActive} onChange={e => setFilterActive(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
               <option value="">All Status</option>
               <option value="true">Active</option>
               <option value="false">Inactive</option>
@@ -114,7 +188,7 @@ export default function UserManagement() {
             <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           </div>
           <button onClick={() => dispatch(fetchUsers({ role: filterRole, is_active: filterActive }))}
-            className="w-9 h-9 flex items-center justify-center rounded-xl border border-[#e0d8ce] dark:border-[#2a2a2a] text-gray-400 hover:text-brand hover:border-brand transition-colors">
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 bg-white dark:bg-[#1a1a1a]">
             <RefreshCw size={14} />
           </button>
         </div>
@@ -126,7 +200,7 @@ export default function UserManagement() {
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl overflow-hidden">
+      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl overflow-hidden shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
         {loading ? <div className="p-4"><ListSkeleton rows={5} /></div>
           : list.length === 0 ? (
             <div className="py-16 text-center text-gray-400 dark:text-[#888]">
@@ -137,15 +211,15 @@ export default function UserManagement() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[#e0d8ce] dark:border-[#2a2a2a] bg-[#f5f2ee] dark:bg-[#0f0f0f]">
+                  <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-[#0f0f0f]">
                     {['User', 'Email', 'Phone', 'Role', 'Status', ...(canManage ? ['Actions'] : [])].map(h => (
                       <th key={h} className="py-3 px-4 text-left text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#e0d8ce] dark:divide-[#2a2a2a]">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                   {list.map(user => (
-                    <tr key={user.id} className="hover:bg-[#f5f2ee] dark:hover:bg-[#0f0f0f] transition-colors">
+                    <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <Avatar name={`${user.first_name} ${user.last_name}`} size="sm" />
@@ -197,70 +271,13 @@ export default function UserManagement() {
       {/* Modal */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editMode ? 'Edit User' : 'Register New User'}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">First Name *</label>
-              <input required value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })}
-                placeholder="Priya"
-                className="w-full px-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Last Name *</label>
-              <input required value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })}
-                placeholder="Mehta"
-                className="w-full px-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Email *</label>
-            <div className="relative">
-              <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input required type="email" disabled={editMode} value={form.email}
-                onChange={e => setForm({ ...form, email: e.target.value })}
-                placeholder="priya@nextonerealty.com"
-                className="w-full pl-9 pr-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand disabled:opacity-50 text-gray-900 dark:text-gray-100" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Phone Number *</label>
-            <div className="relative">
-              <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input required={!editMode} value={form.phone_number}
-                onChange={e => setForm({ ...form, phone_number: e.target.value })}
-                placeholder="+919123456789"
-                className="w-full pl-9 pr-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100" />
-            </div>
-          </div>
-
-          {!editMode && (
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Password *</label>
-              <div className="relative">
-                <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input required type={showPassword ? 'text' : 'password'} value={form.password}
-                  onChange={e => setForm({ ...form, password: e.target.value })}
-                  placeholder="Min 8 characters" minLength={8}
-                  className="w-full pl-9 pr-10 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} tabIndex={-1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Role *</label>
-            <div className="relative">
-              <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
-                className="w-full appearance-none px-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100">
-                {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
+          <UserForm
+            form={form}
+            setForm={setForm}
+            editMode={editMode}
+            showPassword={showPassword}
+            setShowPassword={setShowPassword}
+          />
 
           {success && <p className="text-center text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 py-2 rounded-xl">{success}</p>}
           {actionError && <p className="text-center text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 rounded-xl">{actionError}</p>}

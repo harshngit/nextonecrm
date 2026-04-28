@@ -4,7 +4,7 @@ export default function ListSkeleton({ rows = 6 }) {
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="flex items-center gap-4 px-4 py-3 bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl animate-pulse"
+          className="flex items-center gap-4 px-4 py-3 bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 animate-pulse"
         >
           {/* Avatar */}
           <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
@@ -22,3 +22,4 @@ export default function ListSkeleton({ rows = 6 }) {
     </div>
   )
 }
+

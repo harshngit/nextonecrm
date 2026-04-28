@@ -31,7 +31,7 @@ const defaultForm = {
 
 // ── Form defined OUTSIDE to prevent typing/focus loss bug ────────────────────
 function ProjectForm({ formData, setFormData }) {
-  const ic = "w-full px-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
+  const ic = "w-full px-3 py-2 text-sm bg-background border-input rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
   return (
@@ -288,13 +288,13 @@ export default function Projects() {
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
               placeholder="Search projects..."
-              className="pl-9 pr-4 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand w-48 text-gray-900 dark:text-gray-100 placeholder-gray-400" />
+              className="pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand w-48 text-gray-900 dark:text-gray-100 placeholder-gray-400" />
           </div>
 
           {/* Status filter */}
           <div className="relative">
             <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
               <option value="">All Status</option>
               <option value="active">Active</option>
               <option value="upcoming">Upcoming</option>
@@ -308,11 +308,11 @@ export default function Projects() {
           <div className="relative">
             <input value={filterCity} onChange={e => { setFilterCity(e.target.value); setPage(1) }}
               placeholder="City..."
-              className="px-3 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand w-28 text-gray-900 dark:text-gray-100 placeholder-gray-400" />
+              className="px-3 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand w-28 text-gray-900 dark:text-gray-100 placeholder-gray-400" />
           </div>
 
           <button onClick={() => dispatch(fetchProjects({ page, per_page: 20 }))}
-            className="w-9 h-9 flex items-center justify-center rounded-xl border border-[#e0d8ce] dark:border-[#2a2a2a] text-gray-400 hover:text-brand hover:border-brand transition-colors">
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors">
             <RefreshCw size={14} />
           </button>
         </div>
@@ -337,7 +337,7 @@ export default function Projects() {
         <CardSkeleton count={4} />
       ) : list.length === 0 ? (
         <div className="py-20 text-center text-gray-400 dark:text-[#888]">
-          <div className="text-5xl mb-4">🏗️</div>
+          <Building2 size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" strokeWidth={1.5} />
           <p className="font-medium text-lg">No projects found</p>
           <p className="text-sm mt-1">Add your first project to get started</p>
         </div>
@@ -349,7 +349,7 @@ export default function Projects() {
             const sold  = project.sold_units  || project.soldUnits  || 0
             return (
               <div key={project.id}
-                className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl overflow-hidden flex flex-col">
+                className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl overflow-hidden flex flex-col shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
 
                 {/* Header gradient */}
                 <div className={`h-24 bg-gradient-to-br ${projectColors[i % projectColors.length]} flex items-center justify-center relative flex-shrink-0`}>

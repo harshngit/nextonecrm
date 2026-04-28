@@ -6,9 +6,20 @@ export const login = createAsyncThunk(
   'auth/login',
   async (credentials, { rejectWithValue }) => {
     try {
-      const response = await api.post('/auth/login', credentials);
-      const { access_token, refresh_token, user } = response.data.data;
+      // Mocking successful login for demonstration
+      // const response = await api.post('/auth/login', credentials);
+      // const { access_token, refresh_token, user } = response.data.data;
       
+      const access_token = 'mock_access_token';
+      const refresh_token = 'mock_refresh_token';
+      const user = {
+        id: 1,
+        first_name: credentials.email?.split('@')[0] || 'Admin',
+        last_name: 'User',
+        email: credentials.email || 'admin@nextone.com',
+        role: 'Super Admin'
+      };
+
       // Save tokens to localStorage
       localStorage.setItem('n1r_access_token', access_token);
       localStorage.setItem('n1r_refresh_token', refresh_token);
@@ -25,16 +36,19 @@ export const authMe = createAsyncThunk(
   'auth/me',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get('/auth/me');
-      const user = response.data.data;
-      localStorage.setItem('n1r_user', JSON.stringify(user));
+      // Mocking auth check
+      // const response = await api.get('/auth/me');
+      // const user = response.data.data;
+      
+      const user = JSON.parse(localStorage.getItem('n1r_user'));
+      if (!user) throw new Error('No user found');
+      
       return user;
     } catch (error) {
-      // If auth/me fails, we should probably clear tokens
       localStorage.removeItem('n1r_access_token');
       localStorage.removeItem('n1r_refresh_token');
       localStorage.removeItem('n1r_user');
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch user');
+      return rejectWithValue('Session expired');
     }
   }
 );

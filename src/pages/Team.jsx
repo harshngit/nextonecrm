@@ -57,13 +57,15 @@ export default function Team() {
           { label: 'Sales Executives', value: execCount, icon: Calendar, color: 'text-green-600 bg-green-100 dark:bg-green-900/30' },
           { label: 'External Callers', value: callerCount, icon: BookOpen, color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' },
         ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl p-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
-              <Icon size={18} />
-            </div>
-            <div>
-              <div className="text-2xl font-display font-bold text-gray-900 dark:text-white">{value}</div>
-              <div className="text-xs text-gray-400 dark:text-[#888]">{label}</div>
+          <div key={label} className="bg-card text-card-foreground flex flex-col gap-6 rounded-xl border border-gray-200 dark:border-gray-700 py-6 px-4 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
+                <Icon size={18} />
+              </div>
+              <div>
+                <div className="text-2xl font-display font-bold text-gray-900 dark:text-white">{value}</div>
+                <div className="text-xs text-gray-400 dark:text-[#888]">{label}</div>
+              </div>
             </div>
           </div>
         ))}
@@ -79,14 +81,14 @@ export default function Team() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search members..."
-              className="pl-9 pr-4 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400"
+              className="pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50"
             />
           </div>
 
           {/* Role filter */}
           <div className="relative">
             <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
               <option value="">All Roles</option>
               <option value="sales_manager">Sales Manager</option>
               <option value="sales_executive">Sales Executive</option>
@@ -100,7 +102,7 @@ export default function Team() {
           {/* Active filter */}
           <div className="relative">
             <select value={filterActive} onChange={e => setFilterActive(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
               <option value="true">Active</option>
               <option value="false">Inactive</option>
               <option value="">All</option>
@@ -124,7 +126,7 @@ export default function Team() {
       </div>
 
       {/* Team Table */}
-      <div className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl overflow-hidden">
+      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
         {loading ? (
           <div className="p-4"><ListSkeleton rows={6} /></div>
         ) : filtered.length === 0 ? (

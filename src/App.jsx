@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
-import { ThemeProvider } from './context/ThemeContext'
 import { authMe } from './store/authSlice'
 import Layout from './components/layout/Layout'
 import PageLoader from './components/loaders/PageLoader'
@@ -36,7 +35,6 @@ function AppRoutes() {
   }, [dispatch, isAuthenticated])
 
   useEffect(() => {
-    // Show loader on every route change for 2.5 seconds
     setPageLoading(true)
     const t = setTimeout(() => {
       setPageLoading(false)
@@ -45,33 +43,31 @@ function AppRoutes() {
     return () => clearTimeout(t)
   }, [location.pathname])
 
-  // Only show loader for the fixed duration on route change
-  if (pageLoading) return <PageLoader />
-
   return (
-    <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
-      <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
-      <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
-      <Route path="/leads" element={<ProtectedRoute><Layout><Leads /></Layout></ProtectedRoute>} />
-      <Route path="/leads/:id" element={<ProtectedRoute><Layout><LeadDetail /></Layout></ProtectedRoute>} />
-      <Route path="/site-visits" element={<ProtectedRoute><Layout><SiteVisits /></Layout></ProtectedRoute>} />
-      <Route path="/follow-ups" element={<ProtectedRoute><Layout><FollowUps /></Layout></ProtectedRoute>} />
-      <Route path="/projects" element={<ProtectedRoute><Layout><Projects /></Layout></ProtectedRoute>} />
-      <Route path="/team" element={<ProtectedRoute><Layout><Team /></Layout></ProtectedRoute>} />
-      <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
-      <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
-    </Routes>
+    <div className="relative min-h-screen">
+      {pageLoading && <PageLoader />}
+      <Routes>
+        <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
+        <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+        <Route path="/leads" element={<ProtectedRoute><Layout><Leads /></Layout></ProtectedRoute>} />
+        <Route path="/leads/:id" element={<ProtectedRoute><Layout><LeadDetail /></Layout></ProtectedRoute>} />
+        <Route path="/site-visits" element={<ProtectedRoute><Layout><SiteVisits /></Layout></ProtectedRoute>} />
+        <Route path="/follow-ups" element={<ProtectedRoute><Layout><FollowUps /></Layout></ProtectedRoute>} />
+        <Route path="/projects" element={<ProtectedRoute><Layout><Projects /></Layout></ProtectedRoute>} />
+        <Route path="/team" element={<ProtectedRoute><Layout><Team /></Layout></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
+        <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
+      </Routes>
+    </div>
   )
 }
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </ThemeProvider>
+    <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
   )
 }

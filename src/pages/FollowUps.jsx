@@ -7,14 +7,14 @@ import { mockFollowUps } from '../mockData'
 
 function FollowUpCard({ item, onComplete }) {
   const statusStyle = {
-    overdue: 'border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-900/10',
-    pending: 'border-[#e0d8ce] dark:border-[#2a2a2a] bg-white dark:bg-[#1a1a1a]',
-    upcoming: 'border-[#e0d8ce] dark:border-[#2a2a2a] bg-white dark:bg-[#1a1a1a]',
+    overdue: 'border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-900/10 shadow-sm',
+    pending: 'border-gray-200 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] shadow-sm',
+    upcoming: 'border-gray-200 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] shadow-sm',
     completed: 'border-green-200 dark:border-green-900/50 bg-green-50/50 dark:bg-green-900/10 opacity-60',
   }
 
   return (
-    <div className={`border rounded-xl p-4 ${statusStyle[item.status]} transition-all`}>
+    <div className={`border rounded-xl p-4 ${statusStyle[item.status]} hover:shadow-md transition-all duration-200`}>
       <div className="flex items-start gap-3">
         <Avatar name={item.leadName} size="sm" />
         <div className="flex-1 min-w-0">
@@ -46,6 +46,23 @@ function FollowUpCard({ item, onComplete }) {
   )
 }
 
+const Section = ({ title, items, icon: Icon, iconColor, accent, onComplete }) => (
+  items.length > 0 && (
+    <div className={`bg-white dark:bg-[#1a1a1a] border ${accent || 'border-gray-200 dark:border-gray-800'} rounded-2xl p-5 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Icon size={16} className={iconColor} />
+          <h3 className={`font-display text-sm font-semibold ${iconColor}`}>{title}</h3>
+          <span className="w-5 h-5 bg-gray-100 dark:bg-gray-800 rounded-full text-xs flex items-center justify-center font-bold text-gray-600 dark:text-gray-400">{items.length}</span>
+        </div>
+      </div>
+      <div className="space-y-3">
+        {items.map(item => <FollowUpCard key={item.id} item={item} onComplete={onComplete} />)}
+      </div>
+    </div>
+  )
+)
+
 export default function FollowUps() {
   const [loading, setLoading] = useState(false)
   const [followUps, setFollowUps] = useState(mockFollowUps)
@@ -66,29 +83,12 @@ export default function FollowUps() {
   if (loading) return (
     <div className="space-y-4">
       {[1, 2, 3].map(i => (
-        <div key={i} className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl p-4">
+        <div key={i} className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-4">
           <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-3 animate-pulse" />
           <ListSkeleton rows={2} />
         </div>
       ))}
     </div>
-  )
-
-  const Section = ({ title, items, icon: Icon, iconColor, accent }) => (
-    items.length > 0 && (
-      <div className={`bg-white dark:bg-[#1a1a1a] border ${accent || 'border-[#e0d8ce] dark:border-[#2a2a2a]'} rounded-2xl p-5`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Icon size={16} className={iconColor} />
-            <h3 className={`font-display text-sm font-semibold ${iconColor}`}>{title}</h3>
-            <span className="w-5 h-5 bg-gray-100 dark:bg-gray-800 rounded-full text-xs flex items-center justify-center font-bold text-gray-600 dark:text-gray-400">{items.length}</span>
-          </div>
-        </div>
-        <div className="space-y-3">
-          {items.map(item => <FollowUpCard key={item.id} item={item} onComplete={handleComplete} />)}
-        </div>
-      </div>
-    )
   )
 
   return (
@@ -108,10 +108,10 @@ export default function FollowUps() {
         ))}
       </div>
 
-      <Section title="⚠️ Overdue" items={overdue} icon={AlertCircle} iconColor="text-red-600 dark:text-red-400" accent="border-red-200 dark:border-red-900/50" />
-      <Section title="📞 Today's Follow-ups" items={today} icon={Phone} iconColor="text-blue-600 dark:text-blue-400" />
-      <Section title="📅 Upcoming" items={upcoming} icon={Clock} iconColor="text-brand" />
-      <Section title="✅ Completed" items={completed} icon={CheckCircle} iconColor="text-green-600 dark:text-green-400" />
+      <Section title="⚠️ Overdue" items={overdue} icon={AlertCircle} iconColor="text-red-600 dark:text-red-400" accent="border-red-200 dark:border-red-900/50" onComplete={handleComplete} />
+      <Section title="📞 Today's Follow-ups" items={today} icon={Phone} iconColor="text-blue-600 dark:text-blue-400" onComplete={handleComplete} />
+      <Section title="📅 Upcoming" items={upcoming} icon={Clock} iconColor="text-brand" onComplete={handleComplete} />
+      <Section title="✅ Completed" items={completed} icon={CheckCircle} iconColor="text-green-600 dark:text-green-400" onComplete={handleComplete} />
 
       {followUps.length === 0 && (
         <div className="text-center py-20 text-gray-400 dark:text-[#888]">
@@ -123,3 +123,4 @@ export default function FollowUps() {
     </div>
   )
 }
+

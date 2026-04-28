@@ -50,30 +50,17 @@ export const mockNotifications = [
 ]
 
 export const mockActivities = [
-  { id: 1, leadId: 1, type: 'status_change', description: 'Status changed from New to Contacted', user: 'Priya Mehta', timestamp: '2024-01-20 10:30 AM' },
-  { id: 2, leadId: 1, type: 'note', description: 'Called and discussed 3BHK options. Client interested in tower A.', user: 'Priya Mehta', timestamp: '2024-01-20 10:35 AM' },
-  { id: 3, leadId: 1, type: 'followup', description: 'Follow-up scheduled for 22nd Jan', user: 'Priya Mehta', timestamp: '2024-01-20 10:40 AM' },
-  { id: 4, leadId: 2, type: 'status_change', description: 'Status changed from New to Contacted', user: 'Rahul Singh', timestamp: '2024-01-19 02:15 PM' },
-  { id: 5, leadId: 2, type: 'note', description: 'Client looking for investment property. Wants 2BHK in Green Valley.', user: 'Rahul Singh', timestamp: '2024-01-19 02:20 PM' },
-  { id: 6, leadId: 3, type: 'status_change', description: 'Status changed to Interested', user: 'Priya Mehta', timestamp: '2024-01-18 11:00 AM' },
-  { id: 7, leadId: 5, type: 'visit_scheduled', description: 'Site visit scheduled at Green Valley on 25 Jan 2024', user: 'Sneha Joshi', timestamp: '2024-01-16 03:00 PM' },
-  { id: 8, leadId: 6, type: 'visit_done', description: 'Site visit completed. Client liked corner unit on 8th floor.', user: 'Rahul Singh', timestamp: '2024-01-15 04:30 PM' },
-  { id: 9, leadId: 7, type: 'status_change', description: 'Entered negotiation stage', user: 'Priya Mehta', timestamp: '2024-01-14 05:00 PM' },
-  { id: 10, leadId: 8, type: 'status_change', description: 'BOOKED! Booking amount of ₹5L received', user: 'Amit Kumar', timestamp: '2024-01-13 06:00 PM' },
-  { id: 11, leadId: 1, type: 'status_change', description: 'Lead created and assigned to Priya Mehta', user: 'System', timestamp: '2024-01-15 09:00 AM' },
-  { id: 12, leadId: 4, type: 'followup', description: 'Follow-up: Discuss home loan options', user: 'Amit Kumar', timestamp: '2024-01-17 10:00 AM' },
-  { id: 13, leadId: 9, type: 'status_change', description: 'Lead marked as Lost - client chose competitor project', user: 'Sneha Joshi', timestamp: '2024-01-12 02:00 PM' },
-  { id: 14, leadId: 10, type: 'note', description: 'First time buyer, needs guidance. Very interested in Marina Bay.', user: 'Rahul Singh', timestamp: '2024-01-11 11:30 AM' },
-  { id: 15, leadId: 1, type: 'note', description: 'Sent brochure via WhatsApp. Awaiting response.', user: 'Priya Mehta', timestamp: '2024-01-21 09:00 AM' },
+  { id: 1, type: 'booking', description: 'New booking', details: 'Karthik Menon - Unit T-301', time: '2 hours ago', icon: 'MessageSquare', iconColor: 'text-blue-500', bgColor: 'bg-blue-50 dark:bg-blue-900/20' },
+  { id: 2, type: 'payment', description: 'Payment received', details: '₹10,00,000 - Token amount', time: '3 hours ago', icon: 'DollarSign', iconColor: 'text-green-500', bgColor: 'bg-green-50 dark:bg-green-900/20' },
+  { id: 3, type: 'commission', description: 'Commission credited', details: '₹92,400 - BK-2024-0001', time: '5 hours ago', icon: 'CreditCard', iconColor: 'text-purple-500', bgColor: 'bg-purple-50 dark:bg-purple-900/20' },
+  { id: 4, type: 'booking', description: 'New booking', details: 'Priya Sharma - Unit A-102', time: '1 day ago', icon: 'MessageSquare', iconColor: 'text-blue-500', bgColor: 'bg-blue-50 dark:bg-blue-900/20' },
+  { id: 5, type: 'payment', description: 'Payment received', details: '₹5,00,000 - Advance payment', time: '2 days ago', icon: 'DollarSign', iconColor: 'text-green-500', bgColor: 'bg-green-50 dark:bg-green-900/20' },
 ]
 
 export const mockSiteVisits = [
-  { id: 1, leadName: 'Rohan Gupta', project: 'Green Valley', date: '2024-01-25', time: '03:00 PM', assignedTo: 'Sneha Joshi', status: 'Scheduled', feedback: '', phone: '+91 54321 09876' },
-  { id: 2, leadName: 'Manish Yadav', project: 'Skyline Heights', date: '2024-01-26', time: '11:00 AM', assignedTo: 'Rahul Singh', status: 'Scheduled', feedback: '', phone: '+91 55432 10987' },
-  { id: 3, leadName: 'Meena Krishnan', project: 'Skyline Heights', date: '2024-01-15', time: '02:00 PM', assignedTo: 'Rahul Singh', status: 'Completed', feedback: 'Liked corner unit on 8th floor. Considering 3BHK.', phone: '+91 43210 98765' },
-  { id: 4, leadName: 'Vikram Nair', project: 'Green Valley', date: '2024-01-18', time: '04:00 PM', assignedTo: 'Priya Mehta', status: 'Completed', feedback: 'Positive visit. Wants to bring family next time.', phone: '+91 76543 21098' },
-  { id: 5, leadName: 'Nita Jain', project: 'Skyline Heights', date: '2024-01-20', time: '10:00 AM', assignedTo: 'Sneha Joshi', status: 'Completed', feedback: 'Very interested. Following up with pricing.', phone: '+91 22109 87654' },
-  { id: 6, leadName: 'Kavya Reddy', project: 'Marina Bay', date: '2024-01-22', time: '01:00 PM', assignedTo: 'Amit Kumar', status: 'Rescheduled', feedback: '', phone: '+91 65432 10987' },
+  { id: 1, name: 'Rajesh Khanna', location: 'Lodha Park', time: '10:00 AM', status: 'confirmed' },
+  { id: 2, name: 'Priya Nair', location: 'Godrej Emerald', time: '2:00 PM', status: 'scheduled' },
+  { id: 3, name: 'Vikram Shah', location: 'Prestige Global', time: '11:30 AM', status: 'scheduled' },
 ]
 
 export const mockFollowUps = [
@@ -86,6 +73,53 @@ export const mockFollowUps = [
   { id: 7, leadName: 'Pooja Agarwal', phone: '+91 99876 54321', lastInteraction: 'First call - very interested', dueDate: '2024-01-26', dueTime: '04:00 PM', status: 'upcoming', assignedTo: 'Rahul Singh', project: 'Marina Bay' },
 ]
 
-export const leadStages = ['New', 'Contacted', 'Interested', 'Follow-up', 'Site Visit Scheduled', 'Site Visit Done', 'Negotiation', 'Booked', 'Lost']
+export const statCardsData = [
+  { label: 'Total Leads', value: '1250', change: '+12.5%', up: true, icon: 'Users' },
+  { label: 'Active Leads', value: '420', change: '+8.2%', up: true, icon: 'Phone' },
+  { label: 'Site Visits', value: '145', change: '+15.3%', up: true, icon: 'MapPin' },
+  { label: 'Bookings', value: '12', change: '+5.7%', up: true, icon: 'Book' },
+  { label: 'Revenue', value: '₹4.50 Cr', change: '+18.9%', up: true, icon: 'IndianRupee' },
+  { label: 'Commission', value: '₹85.00 L', change: '-3.2%', up: false, icon: 'Percent' },
+]
+
+export const leadPipelineData = [
+  { stage: 'Qualified', count: 150 },
+  { stage: 'Site Visit', count: 145 },
+  { stage: 'Negotiation', count: 80 },
+  { stage: 'Booking', count: 45 },
+  { stage: 'Closed Won', count: 89 },
+  { stage: 'Closed Lost', count: 341 },
+]
+
+export const leadStages = ['Qualified', 'Site Visit', 'Negotiation', 'Booking', 'Closed Won', 'Closed Lost']
 export const leadSources = ['Website', 'Referral', 'Facebook', 'Google Ads', 'IVR', 'Walk-in']
 export const roles = ['Super Admin', 'Admin', 'Sales Manager', 'Sales Executive', 'External Caller']
+
+export const revenueBookingsData = [
+  { name: 'Jan', revenue: 4, bookings: 8 },
+  { name: 'Feb', revenue: 5, bookings: 9 },
+  { name: 'Mar', revenue: 7, bookings: 12 },
+  { name: 'Apr', revenue: 6, bookings: 10 },
+  { name: 'May', revenue: 8, bookings: 15 },
+  { name: 'Jun', revenue: 10, bookings: 18 },
+]
+
+export const leadSourcesData = [
+  { name: 'Website', value: 400 },
+  { name: 'Facebook', value: 300 },
+  { name: 'Google Ads', value: 300 },
+  { name: 'Referral', value: 200 },
+  { name: '99acres', value: 278 },
+  { name: 'MagicBricks', value: 189 },
+  { name: 'Walk-in', value: 100 },
+  { name: 'Other', value: 50 },
+]
+
+export const commissionOverviewData = [
+  { name: 'Jan', earned: 1200000, pending: 600000 },
+  { name: 'Feb', earned: 1500000, pending: 750000 },
+  { name: 'Mar', earned: 1800000, pending: 900000 },
+  { name: 'Apr', earned: 1600000, pending: 800000 },
+  { name: 'May', earned: 2000000, pending: 1000000 },
+  { name: 'Jun', earned: 2200000, pending: 1100000 },
+]

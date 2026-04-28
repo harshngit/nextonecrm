@@ -45,7 +45,7 @@ const defaultForm = {
 // component causes React to treat it as a new component on every render,
 // unmounting and remounting it, which kills input focus.
 function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
-  const inputClass = "w-full px-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
+  const inputClass = "w-full px-3 py-2 text-sm bg-background border-input rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
   const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
   return (
@@ -300,12 +300,12 @@ export default function Leads() {
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
               placeholder="Search leads..."
-              className="pl-9 pr-4 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400"
+              className="pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400"
             />
           </div>
           <div className="relative">
             <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
               <option value="">All Status</option>
               {leadStages.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -313,7 +313,7 @@ export default function Leads() {
           </div>
           <div className="relative">
             <select value={filterSource} onChange={e => { setFilterSource(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
               <option value="">All Sources</option>
               {sourceList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
@@ -321,7 +321,7 @@ export default function Leads() {
           </div>
           <div className="relative">
             <select value={filterAssigned} onChange={e => { setFilterAssigned(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
               <option value="">All Team</option>
               {salesExecs.map(u => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
             </select>
@@ -329,7 +329,7 @@ export default function Leads() {
           </div>
           <button
             onClick={() => dispatch(fetchLeads({ page, per_page: 20 }))}
-            className="w-9 h-9 flex items-center justify-center rounded-xl border border-[#e0d8ce] dark:border-[#2a2a2a] text-gray-400 hover:text-brand hover:border-brand transition-colors"
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors"
           >
             <RefreshCw size={14} />
           </button>
@@ -350,12 +350,12 @@ export default function Leads() {
       )}
 
       {/* Table */}
-      <div className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl overflow-hidden">
+      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl overflow-hidden shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
         {loading ? (
           <div className="p-4"><ListSkeleton rows={8} /></div>
         ) : list.length === 0 ? (
           <div className="py-16 text-center text-gray-400 dark:text-[#888]">
-            <div className="text-4xl mb-3">🔍</div>
+            <Search size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" strokeWidth={1.5} />
             <p className="font-medium">No leads found</p>
             <p className="text-sm mt-1">Try adjusting your filters or add a new lead</p>
           </div>
@@ -363,11 +363,11 @@ export default function Leads() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#e0d8ce] dark:border-[#2a2a2a] bg-[#f5f2ee] dark:bg-[#0f0f0f]">
+                <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-[#0f0f0f]">
                   <th className="py-3 pl-4 pr-2 w-8">
                     <input type="checkbox"
                       checked={selectedLeads.length === list.length && list.length > 0}
-                      onChange={toggleAll} className="rounded" />
+                      onChange={toggleAll} className="rounded border-gray-300" />
                   </th>
                   {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Location', 'Actions'].map(h => (
                     <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wide whitespace-nowrap
@@ -379,12 +379,12 @@ export default function Leads() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e0d8ce] dark:divide-[#2a2a2a]">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {list.map(lead => (
-                  <tr key={lead.id} className="hover:bg-[#f5f2ee] dark:hover:bg-[#0f0f0f] transition-colors">
+                  <tr key={lead.id} className="hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-colors">
                     <td className="py-3 pl-4 pr-2">
                       <input type="checkbox" checked={selectedLeads.includes(lead.id)}
-                        onChange={() => toggleSelect(lead.id)} className="rounded" />
+                        onChange={() => toggleSelect(lead.id)} className="rounded border-gray-300" />
                     </td>
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-2.5">
@@ -494,7 +494,7 @@ export default function Leads() {
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Assign To</label>
             <div className="relative">
               <select value={reassignTo} onChange={e => setReassignTo(e.target.value)}
-                className="w-full appearance-none px-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100">
+                className="w-full appearance-none px-3 py-2 text-sm bg-background border-input rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100">
                 <option value="">Select team member...</option>
                 {salesExecs.map(u => (
                   <option key={u.id} value={u.id}>{u.first_name} {u.last_name} ({u.role.replace('_', ' ')})</option>

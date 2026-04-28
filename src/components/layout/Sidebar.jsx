@@ -19,6 +19,79 @@ const navItems = [
   { path: '/notifications', label: 'Notifications', icon: Bell },
 ]
 
+const SidebarContent = ({ collapsed, logo, navItems, setMobileOpen, user, handleLogout }) => (
+  <div className="flex flex-col h-full bg-white dark:bg-[#1a1a1a] border-r border-gray-200 dark:border-gray-800 shadow-sm">
+    {/* Logo */}
+    <div className={`flex items-center gap-3 px-4 py-5 border-b border-gray-200 dark:border-gray-800 ${collapsed ? 'justify-center' : ''}`}>
+      <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1a1a1a] flex items-center justify-center flex-shrink-0 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <img src={logo} alt="Next One" className="w-full h-full object-contain" />
+      </div>
+      {!collapsed && (
+        <div>
+          <div className="font-display font-semibold text-gray-900 dark:text-white text-sm leading-tight">Next One</div>
+          <div className="text-[10px] text-[#777] dark:text-[#888] tracking-wider uppercase">Realty CRM</div>
+        </div>
+      )}
+    </div>
+
+    {/* Nav */}
+    <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
+      {navItems.map(({ path, label, icon: Icon }) => (
+        <NavLink
+          key={path}
+          to={path}
+          onClick={() => setMobileOpen && setMobileOpen(false)}
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group relative
+            ${isActive
+              ? 'bg-brand/10 dark:bg-brand/15 text-brand border-l-2 border-brand pl-[10px]'
+              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/60 hover:text-gray-900 dark:hover:text-gray-200'
+            }
+            ${collapsed ? 'justify-center' : ''}`
+          }
+        >
+          <Icon size={18} className="flex-shrink-0" />
+          {!collapsed && <span>{label}</span>}
+          {collapsed && (
+            <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
+              {label}
+            </div>
+          )}
+        </NavLink>
+      ))}
+    </nav>
+
+    {/* User */}
+    <div className={`border-t border-gray-200 dark:border-gray-800 p-3 ${collapsed ? 'items-center' : ''}`}>
+      {!collapsed ? (
+        <div className="flex items-center gap-3 px-2 py-2">
+          <Avatar name={user?.first_name || user?.name || 'User'} size="sm" />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+              {user?.first_name ? `${user.first_name} ${user.last_name || ''}` : (user?.name || 'User')}
+            </div>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            title="Logout"
+          >
+            <LogOut size={14} />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={handleLogout}
+          className="w-full flex justify-center p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          title="Logout"
+        >
+          <LogOut size={18} />
+        </button>
+      )}
+    </div>
+  </div>
+)
+
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { user } = useSelector((state) => state.auth)
   const dispatch = useDispatch()
@@ -28,89 +101,25 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
     navigate('/login')
   }
 
-  const SidebarContent = () => (
-    <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className={`flex items-center gap-3 px-4 py-5 border-b border-[#e0d8ce] dark:border-[#2a2a2a] ${collapsed ? 'justify-center' : ''}`}>
-        <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1a1a1a] flex items-center justify-center flex-shrink-0 shadow-sm border border-[#e0d8ce] dark:border-[#2a2a2a] overflow-hidden">
-          <img src={logo} alt="Next One" className="w-full h-full object-contain" />
-        </div>
-        {!collapsed && (
-          <div>
-            <div className="font-display font-semibold text-gray-900 dark:text-white text-sm leading-tight">Next One</div>
-            <div className="text-[10px] text-[#777] dark:text-[#888] tracking-wider uppercase">Realty CRM</div>
-          </div>
-        )}
-      </div>
-
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
-        {navItems.map(({ path, label, icon: Icon }) => (
-          <NavLink
-            key={path}
-            to={path}
-            onClick={() => setMobileOpen && setMobileOpen(false)}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group relative
-              ${isActive
-                ? 'bg-brand/10 dark:bg-brand/15 text-brand border-l-2 border-brand pl-[10px]'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/60 hover:text-gray-900 dark:hover:text-gray-200'
-              }
-              ${collapsed ? 'justify-center' : ''}`
-            }
-          >
-            <Icon size={18} className="flex-shrink-0" />
-            {!collapsed && <span>{label}</span>}
-            {collapsed && (
-              <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity">
-                {label}
-              </div>
-            )}
-          </NavLink>
-        ))}
-      </nav>
-
-      {/* User */}
-      <div className={`border-t border-[#e0d8ce] dark:border-[#2a2a2a] p-3 ${collapsed ? 'items-center' : ''}`}>
-        {!collapsed ? (
-          <div className="flex items-center gap-3 px-2 py-2">
-            <Avatar name={user?.first_name} size="sm" />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{user?.first_name} {user?.last_name}</div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-              title="Logout"
-            >
-              <LogOut size={14} />
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={handleLogout}
-            className="w-full flex justify-center p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-            title="Logout"
-          >
-            <LogOut size={18} />
-          </button>
-        )}
-      </div>
-    </div>
-  )
-
   return (
     <>
       {/* Desktop sidebar */}
       <aside
-        className={`hidden lg:flex flex-col fixed left-0 top-0 h-screen bg-white dark:bg-[#1a1a1a] border-r border-[#e0d8ce] dark:border-[#2a2a2a] transition-all duration-300 z-30
+        className={`hidden lg:flex flex-col fixed left-0 top-0 h-screen bg-white dark:bg-[#1a1a1a] border-r border-gray-200 dark:border-gray-800 transition-all duration-300 z-30
           ${collapsed ? 'w-[60px]' : 'w-[240px]'}`}
       >
-        <SidebarContent />
+        <SidebarContent
+          collapsed={collapsed}
+          logo={logo}
+          navItems={navItems}
+          setMobileOpen={setMobileOpen}
+          user={user}
+          handleLogout={handleLogout}
+        />
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="absolute -right-3 top-16 w-6 h-6 bg-white dark:bg-[#2a2a2a] border border-[#e0d8ce] dark:border-[#3a3a3a] rounded-full flex items-center justify-center shadow-sm text-gray-500 hover:text-brand transition-colors z-40"
+          className="absolute -right-3 top-16 w-6 h-6 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-full flex items-center justify-center shadow-sm text-gray-500 hover:text-brand transition-colors z-40"
         >
           {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
         </button>
@@ -120,14 +129,21 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
           <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <aside className="relative w-[240px] h-full bg-white dark:bg-[#1a1a1a] border-r border-[#e0d8ce] dark:border-[#2a2a2a] z-50 animate-slide-up">
+          <aside className="relative w-[240px] h-full bg-white dark:bg-[#1a1a1a] border-r border-gray-200 dark:border-gray-800 z-50 animate-slide-up">
             <button
               onClick={() => setMobileOpen(false)}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               <X size={16} />
             </button>
-            <SidebarContent />
+            <SidebarContent
+              collapsed={collapsed}
+              logo={logo}
+              navItems={navItems}
+              setMobileOpen={setMobileOpen}
+              user={user}
+              handleLogout={handleLogout}
+            />
           </aside>
         </div>
       )}

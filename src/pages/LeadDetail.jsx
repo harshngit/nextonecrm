@@ -98,7 +98,7 @@ export default function LeadDetail() {
           <div className="lg:col-span-3 space-y-4">
 
             {/* Lead Info Card */}
-            <div className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl p-6">
+            <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-6 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
               <div className="flex items-start gap-4 mb-5">
                 <Avatar name={lead.name} size="xl" />
                 <div className="flex-1">
@@ -120,7 +120,7 @@ export default function LeadDetail() {
                   { icon: Building2, label: 'Project', value: lead.project_name || '—' },
                   { icon: Calendar, label: 'Created', value: lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '—' },
                 ].map(({ icon: Icon, label, value }) => (
-                  <div key={label} className="flex items-center gap-3 p-3 bg-[#f5f2ee] dark:bg-[#0f0f0f] rounded-xl">
+                  <div key={label} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#0f0f0f] rounded-xl border border-gray-100 dark:border-gray-800">
                     <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center flex-shrink-0">
                       <Icon size={14} className="text-brand" />
                     </div>
@@ -148,7 +148,7 @@ export default function LeadDetail() {
             </div>
 
             {/* Activity Timeline */}
-            <div className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl p-6">
+            <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-6 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
               <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white mb-4">Activity Timeline</h3>
 
               {/* Add Note */}
@@ -159,7 +159,7 @@ export default function LeadDetail() {
                     onChange={e => { setNote(e.target.value); setNoteError('') }}
                     placeholder="Add a note or update..."
                     rows={2}
-                    className="flex-1 px-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand resize-none text-gray-900 dark:text-gray-100 placeholder-gray-400"
+                    className="flex-1 px-3 py-2 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-brand resize-none text-gray-900 dark:text-gray-100 placeholder-gray-400"
                   />
                   <Button icon={actionLoading ? undefined : Send} loading={actionLoading} onClick={handleAddNote} className="self-end" />
                 </div>
@@ -173,7 +173,7 @@ export default function LeadDetail() {
                 </div>
               ) : (
                 <div className="relative">
-                  <div className="absolute left-4 top-0 bottom-0 w-px bg-[#e0d8ce] dark:bg-[#2a2a2a]" />
+                  <div className="absolute left-4 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-800" />
                   <div className="space-y-4">
                     {activities.map(activity => {
                       const { emoji, color } = activityIconMap[activity.type] || { emoji: '📌', color: 'bg-gray-50 dark:bg-gray-800' }
@@ -202,7 +202,7 @@ export default function LeadDetail() {
           <div className="lg:col-span-2 space-y-4">
 
             {/* Stage Progress */}
-            <div className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl p-5">
+            <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-5 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
               <h3 className="font-display text-sm font-semibold text-gray-900 dark:text-white mb-3">Stage Progress</h3>
               <div className="space-y-1.5">
                 {leadStages.filter(s => s !== 'Lost').map((stage, i) => (
@@ -218,14 +218,14 @@ export default function LeadDetail() {
             </div>
 
             {/* Quick Actions */}
-            <div className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl p-5">
+            <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-5 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
               <h3 className="font-display text-sm font-semibold text-gray-900 dark:text-white mb-3">Update Status</h3>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <select
                     value={newStatus}
                     onChange={e => setNewStatus(e.target.value)}
-                    className="w-full appearance-none px-3 py-2 text-xs bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
+                    className="w-full appearance-none px-3 py-2 text-xs bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
                   >
                     {leadStages.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -238,7 +238,7 @@ export default function LeadDetail() {
             </div>
 
             {/* Assigned To */}
-            <div className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl p-5">
+            <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-5 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
               <h3 className="font-display text-sm font-semibold text-gray-900 dark:text-white mb-3">Assigned To</h3>
               {assignedUser ? (
                 <div className="flex items-center gap-3">
@@ -265,7 +265,7 @@ export default function LeadDetail() {
 
             {/* Lead Source */}
             {(lead.source_name || lead.source) && (
-              <div className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl p-5">
+              <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-5 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
                 <h3 className="font-display text-sm font-semibold text-gray-900 dark:text-white mb-2">Source</h3>
                 <span className="text-sm px-3 py-1.5 bg-brand/10 dark:bg-brand/15 text-brand rounded-xl font-medium">
                   {lead.source_name || lead.source}

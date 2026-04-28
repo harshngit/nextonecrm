@@ -5,7 +5,7 @@ const variants = {
   secondary: 'border-2 border-brand text-brand hover:bg-brand hover:text-white',
   ghost: 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800',
   danger: 'bg-red-500 hover:bg-red-600 text-white shadow-sm',
-  outline: 'border border-[#e0d8ce] dark:border-[#2a2a2a] text-gray-700 dark:text-gray-300 hover:border-brand dark:hover:border-brand hover:text-brand',
+  outline: 'border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-brand dark:hover:border-brand hover:text-brand',
 }
 
 const sizes = {

@@ -1,12 +1,22 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../api/axios'
+import { mockNotifications } from '../mockData'
 
 export const fetchNotifications = createAsyncThunk(
   'notifications/fetchAll',
   async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await api.get('/notifications', { params })
-      return response.data
+      // Using mock data instead of real API for dummy notifications
+      const mappedData = mockNotifications.map(n => ({
+        ...n,
+        is_read: n.read,
+        created_at: new Date(Date.now() - Math.random() * 100000000).toISOString()
+      }))
+      
+      return {
+        data: mappedData,
+        pagination: { total: mappedData.length, page: 1, per_page: 20, total_pages: 1 }
+      }
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch notifications')
     }
@@ -41,7 +51,7 @@ export const markAllRead = createAsyncThunk(
   'notifications/markAll',
   async (_, { rejectWithValue }) => {
     try {
-      await api.patch('/notifications/read-all')
+      // await api.patch('/notifications/read-all')
       return true
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to mark all read')

@@ -22,16 +22,16 @@ export default function Modal({ isOpen, onClose, title, children, footer, size =
 
   return (
     <div
-      className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
       style={{ margin: 0 }}
       onClick={onClose}
     >
       <div
-        className={`w-full ${sizeClasses[size]} bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl border border-[#e0d8ce] dark:border-[#2a2a2a] overflow-hidden`}
+        className={`w-full ${sizeClasses[size]} bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e0d8ce] dark:border-[#2a2a2a]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800">
           <h3 className="font-display text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
           <button
             onClick={onClose}
@@ -48,7 +48,7 @@ export default function Modal({ isOpen, onClose, title, children, footer, size =
 
         {/* Footer */}
         {footer && (
-          <div className="px-6 py-4 border-t border-[#e0d8ce] dark:border-[#2a2a2a] flex items-center justify-end gap-3">
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-end gap-3">
             {footer}
           </div>
         )}

@@ -4,7 +4,7 @@ export default function CardSkeleton({ count = 4 }) {
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl p-5 animate-pulse"
+          className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-5 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 animate-pulse"
         >
           <div className="flex items-start justify-between mb-4">
             <div className="w-10 h-10 rounded-xl bg-gray-200 dark:bg-gray-700" />
@@ -18,3 +18,4 @@ export default function CardSkeleton({ count = 4 }) {
     </div>
   )
 }
+

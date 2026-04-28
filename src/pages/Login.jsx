@@ -86,11 +86,11 @@ export default function Login() {
   return (
     <>
       <style>{swiperPaginationStyles}</style>
-      <div className="h-screen w-screen bg-[#f5f2ee] dark:bg-[#0f0f0f] flex items-center justify-center relative overflow-hidden">
+      <div className="h-screen w-screen bg-white dark:bg-[#0f0f0f] flex items-center justify-center relative overflow-hidden">
       {/* Theme toggle */}
       <button
         onClick={toggleTheme}
-        className="absolute top-5 right-5 z-50 w-9 h-9 flex items-center justify-center rounded-xl bg-white/80 dark:bg-[#1a1a1a]/80 backdrop-blur-sm border border-[#e0d8ce] dark:border-[#2a2a2a] text-gray-500 hover:text-brand shadow-brand/10 shadow-lg transition-all"
+        className="absolute top-5 right-5 z-50 w-9 h-9 flex items-center justify-center rounded-xl bg-white/80 dark:bg-[#1a1a1a]/80 backdrop-blur-sm border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-brand shadow-brand/10 shadow-lg transition-all"
       >
         {isDark ? <Sun size={16} /> : <Moon size={16} />}
       </button>
@@ -140,16 +140,16 @@ export default function Login() {
           <div className="w-full max-w-[420px] relative py-8">
             {/* Logo */}
             <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white dark:bg-[#1a1a1a] shadow-brand/20 shadow-2xl mb-1 overflow-hidden border border-[#e0d8ce] dark:border-[#2a2a2a]">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white dark:bg-[#1a1a1a] shadow-brand/20 shadow-2xl mb-1 overflow-hidden border border-gray-200 dark:border-gray-800">
                 <img src={logo} alt="Next One Realty" className="w-full h-full object-contain" />
               </div>
               <h1 className="font-display text-3xl font-semibold text-gray-900 dark:text-white mb-1">Next One Realty</h1>
               <p className="text-sm text-gray-500 dark:text-[#888]">Sign in to your CRM workspace</p>
             </div>
 
-            <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-[#e0d8ce] dark:border-[#2a2a2a] shadow-brand/10 shadow-2xl p-8">
+            <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-brand/10 shadow-2xl p-8">
               {/* Login Method Toggle */}
-              <div className="flex p-1 bg-[#f5f2ee] dark:bg-[#0f0f0f] rounded-xl mb-6">
+              <div className="flex p-1 bg-gray-50 dark:bg-[#0f0f0f] rounded-xl mb-6 border border-gray-100 dark:border-gray-800">
                 <button
                   type="button"
                   onClick={() => setLoginMethod('email')}
@@ -184,7 +184,7 @@ export default function Login() {
                         value={email}
                         onChange={e => setEmail(e.target.value)}
                         placeholder="you@n1r.com"
-                        className="w-full pl-10 pr-4 py-2.5 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand dark:focus:border-brand transition-colors text-gray-900 dark:text-gray-100 placeholder-gray-400"
+                        className="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-brand dark:focus:border-brand transition-colors text-gray-900 dark:text-gray-100 placeholder-gray-400"
                       />
                     </div>
                   </div>
@@ -198,7 +198,7 @@ export default function Login() {
                         value={phone}
                         onChange={e => setPhone(e.target.value)}
                         placeholder="+91 00000 00000"
-                        className="w-full pl-10 pr-4 py-2.5 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand dark:focus:border-brand transition-colors text-gray-900 dark:text-gray-100 placeholder-gray-400"
+                        className="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-brand dark:focus:border-brand transition-colors text-gray-900 dark:text-gray-100 placeholder-gray-400"
                       />
                     </div>
                   </div>
@@ -214,7 +214,7 @@ export default function Login() {
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-10 pr-10 py-2.5 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand dark:focus:border-brand transition-colors text-gray-900 dark:text-gray-100 placeholder-gray-400"
+                      className="w-full pl-10 pr-10 py-2.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-brand dark:focus:border-brand transition-colors text-gray-900 dark:text-gray-100 placeholder-gray-400"
                     />
                     <button
                       type="button"

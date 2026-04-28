@@ -7,7 +7,7 @@ export default function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <div className="min-h-screen bg-[#f5f2ee] dark:bg-[#0f0f0f]">
+    <div className="min-h-screen bg-white dark:bg-[#0f0f0f]">
       <Sidebar
         collapsed={collapsed}
         setCollapsed={setCollapsed}

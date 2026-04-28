@@ -102,7 +102,7 @@ export default function Notifications() {
   const groups = groupByDate(list)
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="w-full min-h-[calc(100vh-160px)] flex flex-col space-y-4">
 
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -117,7 +117,7 @@ export default function Notifications() {
           {/* Read filter */}
           <div className="relative">
             <select value={filterRead} onChange={e => { setFilterRead(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
               <option value="">All</option>
               <option value="false">Unread</option>
               <option value="true">Read</option>
@@ -128,7 +128,7 @@ export default function Notifications() {
           {/* Type filter */}
           <div className="relative">
             <select value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
               <option value="">All Types</option>
               <option value="lead_assigned">Lead Assigned</option>
               <option value="status_change">Status Change</option>
@@ -145,7 +145,7 @@ export default function Notifications() {
           {/* Refresh */}
           <button
             onClick={() => dispatch(fetchNotifications({ page, per_page: 30 }))}
-            className="w-8 h-8 flex items-center justify-center rounded-xl border border-[#e0d8ce] dark:border-[#2a2a2a] text-gray-400 hover:text-brand hover:border-brand transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors"
           >
             <RefreshCw size={13} />
           </button>
@@ -160,10 +160,11 @@ export default function Notifications() {
       </div>
 
       {/* List */}
+      <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col space-y-4">
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex gap-3 p-4 bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl animate-pulse">
+            <div key={i} className="flex gap-3 p-4 bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl animate-pulse">
               <div className="w-9 h-9 rounded-xl bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
               <div className="flex-1 space-y-2 pt-1">
                 <div className="h-3.5 w-4/5 rounded bg-gray-200 dark:bg-gray-700" />
@@ -173,7 +174,7 @@ export default function Notifications() {
           ))}
         </div>
       ) : list.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 dark:text-[#888]">
+        <div className="flex-1 flex flex-col items-center justify-center text-center text-gray-400 dark:text-[#888]">
           <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
             <BellOff size={28} className="opacity-50" />
           </div>
@@ -197,11 +198,7 @@ export default function Notifications() {
                       <div
                         key={notif.id}
                         onClick={() => handleClick(notif)}
-                        className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all group relative
-                          ${notif.is_read
-                            ? 'bg-white dark:bg-[#1a1a1a] border-[#e0d8ce] dark:border-[#2a2a2a] hover:border-brand/30'
-                            : 'bg-brand/5 dark:bg-brand/10 border-brand/20 dark:border-brand/20 hover:border-brand/40'
-                          }`}
+                        className="flex items-start gap-3 p-4 rounded-xl border bg-white dark:bg-[#1a1a1a] border-gray-200 dark:border-gray-800 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 cursor-pointer transition-all group relative hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 duration-200"
                       >
                         {/* Icon */}
                         <div className={`w-9 h-9 rounded-xl ${color} flex items-center justify-center flex-shrink-0 mt-0.5`}>
@@ -215,7 +212,7 @@ export default function Notifications() {
                               {notif.title}
                             </p>
                           )}
-                          <p className={`text-sm leading-snug ${notif.is_read ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100 font-medium'}`}>
+                          <p className="text-sm leading-snug text-gray-900 dark:text-gray-100 font-medium">
                             {notif.message}
                           </p>
                           <div className="flex items-center gap-2 mt-1.5">
@@ -285,6 +282,7 @@ export default function Notifications() {
           )}
         </div>
       )}
+      </div>
     </div>
   )
 }
