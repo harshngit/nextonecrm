@@ -9,7 +9,7 @@ export default function RevenueBookingsChart() {
     <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-5 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="font-display text-base font-semibold text-gray-900 dark:text-white">Revenue & Bookings</h2>
+          <h2 className="font-display text-base font-semibold text-gray-900 dark:text-white">Revenue</h2>
           <p className="text-sm text-gray-500 dark:text-[#888]">Monthly performance overview</p>
         </div>
         <div className="flex items-center space-x-2 bg-gray-50 dark:bg-gray-800 rounded-lg p-1 border border-gray-100 dark:border-gray-700">
@@ -50,7 +50,6 @@ export default function RevenueBookingsChart() {
               itemStyle={{ color: '#333' }}
             />
             <Line type="monotone" dataKey="revenue" stroke="#b1916c" strokeWidth={2} dot={false} name="Revenue (Cr)" />
-            <Line type="monotone" dataKey="bookings" stroke="#82ca9d" strokeWidth={2} dot={false} name="Bookings" />
           </LineChart>
         </ResponsiveContainer>
       </div>

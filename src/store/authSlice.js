@@ -6,19 +6,8 @@ export const login = createAsyncThunk(
   'auth/login',
   async (credentials, { rejectWithValue }) => {
     try {
-      // Mocking successful login for demonstration
-      // const response = await api.post('/auth/login', credentials);
-      // const { access_token, refresh_token, user } = response.data.data;
-      
-      const access_token = 'mock_access_token';
-      const refresh_token = 'mock_refresh_token';
-      const user = {
-        id: 1,
-        first_name: credentials.email?.split('@')[0] || 'Admin',
-        last_name: 'User',
-        email: credentials.email || 'admin@nextone.com',
-        role: 'Super Admin'
-      };
+      const response = await api.post('/auth/login', credentials);
+      const { access_token, refresh_token, user } = response.data.data;
 
       // Save tokens to localStorage
       localStorage.setItem('n1r_access_token', access_token);
@@ -36,13 +25,10 @@ export const authMe = createAsyncThunk(
   'auth/me',
   async (_, { rejectWithValue }) => {
     try {
-      // Mocking auth check
-      // const response = await api.get('/auth/me');
-      // const user = response.data.data;
+      const response = await api.get('/auth/me');
+      const user = response.data.data;
       
-      const user = JSON.parse(localStorage.getItem('n1r_user'));
-      if (!user) throw new Error('No user found');
-      
+      localStorage.setItem('n1r_user', JSON.stringify(user));
       return user;
     } catch (error) {
       localStorage.removeItem('n1r_access_token');

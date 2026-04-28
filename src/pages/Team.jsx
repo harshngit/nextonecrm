@@ -22,7 +22,7 @@ export default function Team() {
 
   const [search,      setSearch]      = useState('')
   const [filterRole,  setFilterRole]  = useState('')
-  const [filterActive,setFilterActive]= useState('true') // default: show active only
+  const [filterActive,setFilterActive]= useState('true')
 
   useEffect(() => {
     dispatch(fetchUsers({ role: filterRole, is_active: filterActive }))

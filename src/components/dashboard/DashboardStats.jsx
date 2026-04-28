@@ -1,4 +1,4 @@
-import { Users, UserPlus, Calendar, TrendingUp } from 'lucide-react'
+import { Users, Calendar, Phone, Building2 } from 'lucide-react'
 
 export default function DashboardStats({ loading }) {
   const stats = [
@@ -10,24 +10,24 @@ export default function DashboardStats({ loading }) {
       color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400',
     },
     {
-      label: 'New Leads',
-      value: '124',
-      change: '+18.2%',
-      icon: UserPlus,
-      color: 'text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400',
-    },
-    {
-      label: 'Site Visits',
+      label: 'Total Site Visits',
       value: '45',
       change: '-4.3%',
       icon: Calendar,
       color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400',
     },
     {
-      label: 'Total Bookings',
+      label: 'Total Follow ups',
+      value: '156',
+      change: '+18.2%',
+      icon: Phone,
+      color: 'text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400',
+    },
+    {
+      label: 'Total Projects',
       value: '12',
       change: '+5.7%',
-      icon: TrendingUp,
+      icon: Building2,
       color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400',
     },
   ]

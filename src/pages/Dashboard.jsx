@@ -46,7 +46,7 @@ export default function Dashboard() {
       <DashboardStats loading={loading} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue & Bookings */}
+        {/* Revenue */}
         <RevenueBookingsChart />
 
         {/* Lead Sources */}

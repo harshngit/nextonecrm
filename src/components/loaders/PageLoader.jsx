@@ -25,9 +25,9 @@ export default function PageLoader() {
       </div>
 
       <div className="text-center">
-        <h1 className="font-display text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
+        {/* <h1 className="font-display text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
           NiR <span className="text-brand/40 font-light mx-1">|</span> <span className="font-medium text-gray-600 dark:text-gray-400">Next One Realty</span>
-        </h1>
+        </h1> */}
         <p className="text-[11px] font-medium text-gray-400 dark:text-[#666] uppercase tracking-[0.2em] animate-pulse">
           Initializing Workspace
         </p>

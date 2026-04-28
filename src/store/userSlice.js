@@ -7,10 +7,10 @@ export const fetchUsers = createAsyncThunk(
   'users/fetchAll',
   async (params = {}, { rejectWithValue }) => {
     try {
-      // Only send role and is_active — the API only supports these two filters
       const allowedParams = {}
       if (params.role && params.role !== '--') allowedParams.role = params.role
       if (params.is_active !== '' && params.is_active !== undefined) allowedParams.is_active = params.is_active
+      
       const response = await api.get('/users', { params: allowedParams })
       return response.data
     } catch (error) {
