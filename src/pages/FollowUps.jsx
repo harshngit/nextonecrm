@@ -1,44 +1,239 @@
 import { useState, useEffect } from 'react'
-import { CheckCircle, Clock, AlertCircle, Phone } from 'lucide-react'
+import { useDispatch, useSelector } from 'react-redux'
+import {
+  CheckCircle, Clock, AlertCircle, Phone, Plus,
+  Edit2, Trash2, RefreshCw, ChevronDown, Filter,
+} from 'lucide-react'
+import {
+  fetchFollowUps, createFollowUp, updateFollowUp,
+  completeFollowUp, deleteFollowUp, clearFollowUpError, markCompleted,
+} from '../store/followUpSlice'
+import { fetchLeads } from '../store/leadSlice'
+import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
-import { mockFollowUps } from '../mockData'
+import Modal from '../components/ui/Modal'
 
-function FollowUpCard({ item, onComplete }) {
-  const statusStyle = {
-    overdue: 'border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-900/10 shadow-sm',
-    pending: 'border-gray-200 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] shadow-sm',
-    upcoming: 'border-gray-200 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] shadow-sm',
-    completed: 'border-green-200 dark:border-green-900/50 bg-green-50/50 dark:bg-green-900/10 opacity-60',
+const priorities = ['low', 'medium', 'high']
+const priorityStyle = {
+  high:   'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
+  medium: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400',
+  low:    'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
+}
+
+const defaultForm = {
+  title: '', lead_id: '', due_date: '', due_time: '10:00',
+  assigned_to: '', priority: 'medium', notes: '',
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function classifyTask(task) {
+  if (task.is_completed) return 'completed'
+  const now = new Date()
+  const due = new Date(task.due_date)
+  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+  if (due < todayStart) return 'overdue'
+  if (due <= todayEnd) return 'today'
+  return 'upcoming'
+}
+
+function formatDue(task) {
+  if (!task.due_date) return '—'
+  const d = new Date(task.due_date)
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) +
+    (task.due_time ? ` at ${task.due_time}` : '')
+}
+
+// ── Form — defined OUTSIDE to prevent typing/focus bug ────────────────────────
+function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit }) {
+  const ic = "w-full px-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
+  const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+
+  return (
+    <div className="space-y-4">
+
+      {/* Title */}
+      <div>
+        <label className={lc}>Task Title *</label>
+        <input
+          required
+          value={formData.title}
+          onChange={e => setFormData(p => ({ ...p, title: e.target.value }))}
+          placeholder="Follow up call with Suresh Patel"
+          className={ic}
+        />
+      </div>
+
+      {/* Lead */}
+      <div>
+        <label className={lc}>Lead *</label>
+        <div className="relative">
+          <select
+            required
+            value={formData.lead_id}
+            onChange={e => setFormData(p => ({ ...p, lead_id: e.target.value }))}
+            className={ic + ' appearance-none pr-8'}
+          >
+            <option value="">Select lead...</option>
+            {leads.map(l => (
+              <option key={l.id} value={l.id}>
+                {l.name}{l.phone ? ` — ${l.phone}` : ''}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        </div>
+      </div>
+
+      {/* Due Date + Time */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={lc}>Due Date *</label>
+          <input
+            required
+            type="date"
+            value={formData.due_date}
+            onChange={e => setFormData(p => ({ ...p, due_date: e.target.value }))}
+            className={ic}
+          />
+        </div>
+        <div>
+          <label className={lc}>Due Time</label>
+          <input
+            type="time"
+            value={formData.due_time}
+            onChange={e => setFormData(p => ({ ...p, due_time: e.target.value }))}
+            className={ic}
+          />
+        </div>
+      </div>
+
+      {/* Priority + Assign To */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={lc}>Priority</label>
+          <div className="relative">
+            <select
+              value={formData.priority}
+              onChange={e => setFormData(p => ({ ...p, priority: e.target.value }))}
+              className={ic + ' appearance-none pr-8 capitalize'}
+            >
+              {priorities.map(p => (
+                <option key={p} value={p} className="capitalize">{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
+        </div>
+        <div>
+          <label className={lc}>Assign To</label>
+          <div className="relative">
+            <select
+              value={formData.assigned_to}
+              onChange={e => setFormData(p => ({ ...p, assigned_to: e.target.value }))}
+              className={ic + ' appearance-none pr-8'}
+            >
+              <option value="">Default (lead's executive)</option>
+              {salesExecs.map(u => (
+                <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div>
+        <label className={lc}>Notes</label>
+        <textarea
+          rows={3}
+          value={formData.notes}
+          onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
+          placeholder="Client asked to call after 10am. Discuss pricing options."
+          className={ic + ' resize-none'}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── Task Card — defined OUTSIDE to prevent focus bug ─────────────────────────
+function TaskCard({ task, onComplete, onEdit, onDelete, canManage }) {
+  const category = classifyTask(task)
+
+  const cardStyle = {
+    overdue:   'border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-900/10',
+    today:     'border-blue-200 dark:border-blue-900/40 bg-white dark:bg-[#1a1a1a]',
+    upcoming:  'border-[#e0d8ce] dark:border-[#2a2a2a] bg-white dark:bg-[#1a1a1a]',
+    completed: 'border-green-200 dark:border-green-900/40 bg-green-50/30 dark:bg-green-900/10 opacity-60',
   }
 
   return (
-    <div className={`border rounded-xl p-4 ${statusStyle[item.status]} hover:shadow-md transition-all duration-200`}>
+    <div className={`border rounded-xl p-4 transition-all ${cardStyle[category]}`}>
       <div className="flex items-start gap-3">
-        <Avatar name={item.leadName} size="sm" />
+        <Avatar name={task.lead_name || task.title} size="sm" />
+
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">{item.leadName}</span>
-            {item.status === 'overdue' && (
-              <span className="flex items-center gap-1 text-[10px] font-medium text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full">
-                <AlertCircle size={10} /> Overdue
+          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+            <span className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">
+              {task.lead_name || '—'}
+            </span>
+            {category === 'overdue' && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full flex-shrink-0">
+                <AlertCircle size={9} /> Overdue
               </span>
             )}
-          </div>
-          <div className="text-xs text-gray-400 dark:text-[#888] mt-0.5">{item.phone} · {item.project}</div>
-          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic">"{item.lastInteraction}"</div>
-          <div className="flex items-center gap-1 mt-1.5">
-            <Clock size={11} className={item.status === 'overdue' ? 'text-red-500' : 'text-brand'} />
-            <span className={`text-xs font-medium ${item.status === 'overdue' ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-[#888]'}`}>
-              {item.dueDate} at {item.dueTime}
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${priorityStyle[task.priority] || priorityStyle.medium}`}>
+              {task.priority || 'medium'}
             </span>
           </div>
+
+          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 truncate">{task.title}</p>
+
+          {task.notes && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 italic mb-1 line-clamp-1">"{task.notes}"</p>
+          )}
+
+          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+            <div className="flex items-center gap-1">
+              <Clock size={11} className={category === 'overdue' ? 'text-red-500' : 'text-brand'} />
+              <span className={`text-xs font-medium ${category === 'overdue' ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-[#888]'}`}>
+                {formatDue(task)}
+              </span>
+            </div>
+            {task.assigned_to_name && (
+              <span className="text-xs text-gray-400">→ {task.assigned_to_name}</span>
+            )}
+          </div>
         </div>
+
+        {/* Actions */}
         <div className="flex flex-col gap-1.5 flex-shrink-0">
-          <Button size="sm" variant="ghost" icon={Phone} className="text-xs">Call</Button>
-          {item.status !== 'completed' && (
-            <Button size="sm" variant="secondary" onClick={() => onComplete(item.id)} className="text-xs">Done</Button>
+          {task.lead_phone && (
+            <a href={`tel:${task.lead_phone}`}>
+              <Button size="sm" variant="ghost" icon={Phone} className="text-xs">Call</Button>
+            </a>
+          )}
+          {!task.is_completed && (
+            <Button size="sm" variant="secondary" onClick={() => onComplete(task)} className="text-xs">
+              Done
+            </Button>
+          )}
+          {canManage && !task.is_completed && (
+            <div className="flex gap-1 justify-end">
+              <button onClick={() => onEdit(task)}
+                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                <Edit2 size={11} />
+              </button>
+              <button onClick={() => onDelete(task)}
+                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                <Trash2 size={11} />
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -46,60 +241,231 @@ function FollowUpCard({ item, onComplete }) {
   )
 }
 
-const Section = ({ title, items, icon: Icon, iconColor, accent, onComplete }) => (
-  items.length > 0 && (
-    <div className={`bg-white dark:bg-[#1a1a1a] border ${accent || 'border-gray-200 dark:border-gray-800'} rounded-2xl p-5 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50`}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Icon size={16} className={iconColor} />
-          <h3 className={`font-display text-sm font-semibold ${iconColor}`}>{title}</h3>
-          <span className="w-5 h-5 bg-gray-100 dark:bg-gray-800 rounded-full text-xs flex items-center justify-center font-bold text-gray-600 dark:text-gray-400">{items.length}</span>
-        </div>
-      </div>
-      <div className="space-y-3">
-        {items.map(item => <FollowUpCard key={item.id} item={item} onComplete={onComplete} />)}
-      </div>
-    </div>
-  )
-)
-
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function FollowUps() {
-  const [loading, setLoading] = useState(false)
-  const [followUps, setFollowUps] = useState(mockFollowUps)
+  const dispatch = useDispatch()
+  const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.followUps)
+  const { list: leadList } = useSelector(s => s.leads)
+  const { list: userList } = useSelector(s => s.users)
+  const { user: currentUser } = useSelector(s => s.auth)
 
-  useEffect(() => {
-    // No artificial delays
-  }, [])
+  const [filterStatus,   setFilterStatus]   = useState('pending') // pending | overdue | all | completed
+  const [filterAssigned, setFilterAssigned] = useState('')
+  const [page, setPage] = useState(1)
 
-  const handleComplete = (id) => {
-    setFollowUps(prev => prev.map(f => f.id === id ? { ...f, status: 'completed' } : f))
+  const [showAddModal,      setShowAddModal]      = useState(false)
+  const [showEditModal,     setShowEditModal]      = useState(false)
+  const [showCompleteModal, setShowCompleteModal]  = useState(false)
+  const [selectedTask,      setSelectedTask]       = useState(null)
+  const [completeNotes,     setCompleteNotes]      = useState('')
+
+  const [addForm,  setAddForm]  = useState(defaultForm)
+  const [editForm, setEditForm] = useState(defaultForm)
+  const [success,  setSuccess]  = useState('')
+
+  const salesExecs = userList.filter(u =>
+    ['sales_executive', 'sales_manager'].includes(u.role) && u.is_active
+  )
+  const canManage = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
+
+  // ── Load data ───────────────────────────────────────────────────────────────
+  const loadTasks = () => {
+    const params = { page, per_page: 50 }
+    if (filterStatus === 'pending')   { params.is_completed = false }
+    if (filterStatus === 'completed') { params.is_completed = true }
+    if (filterStatus === 'overdue')   { params.overdue = true; params.is_completed = false }
+    if (filterAssigned) params.assigned_to = filterAssigned
+    dispatch(fetchFollowUps(params))
   }
 
-  const today = followUps.filter(f => f.status === 'pending')
-  const overdue = followUps.filter(f => f.status === 'overdue')
-  const upcoming = followUps.filter(f => f.status === 'upcoming')
-  const completed = followUps.filter(f => f.status === 'completed')
+  useEffect(() => { loadTasks() }, [dispatch, filterStatus, filterAssigned, page])
 
-  if (loading) return (
-    <div className="space-y-4">
-      {[1, 2, 3].map(i => (
-        <div key={i} className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-4">
-          <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-3 animate-pulse" />
-          <ListSkeleton rows={2} />
+  useEffect(() => {
+    dispatch(fetchLeads({ per_page: 100 }))
+    dispatch(fetchUsers())
+  }, [dispatch])
+
+  // ── Classify tasks into buckets ─────────────────────────────────────────────
+  const overdueTasks   = list.filter(t => classifyTask(t) === 'overdue')
+  const todayTasks     = list.filter(t => classifyTask(t) === 'today')
+  const upcomingTasks  = list.filter(t => classifyTask(t) === 'upcoming')
+  const completedTasks = list.filter(t => classifyTask(t) === 'completed')
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
+  const handleAdd = async (e) => {
+    e.preventDefault()
+    dispatch(clearFollowUpError())
+    // Build ISO datetime from date + time
+    const due_date = formData => {
+      if (!formData.due_date) return ''
+      const time = formData.due_time || '10:00'
+      return `${formData.due_date}T${time}:00`
+    }
+    const payload = {
+      title:       addForm.title,
+      lead_id:     addForm.lead_id,
+      due_date:    due_date(addForm),
+      priority:    addForm.priority,
+      notes:       addForm.notes,
+      ...(addForm.assigned_to && { assigned_to: addForm.assigned_to }),
+    }
+    const result = await dispatch(createFollowUp(payload))
+    if (createFollowUp.fulfilled.match(result)) {
+      setSuccess('Follow-up created!')
+      loadTasks()
+      setTimeout(() => { setShowAddModal(false); setSuccess(''); setAddForm(defaultForm) }, 800)
+    }
+  }
+
+  const handleEdit = async (e) => {
+    e.preventDefault()
+    dispatch(clearFollowUpError())
+    const due_date = editForm.due_date
+      ? `${editForm.due_date}T${editForm.due_time || '10:00'}:00`
+      : undefined
+    const payload = {
+      title:    editForm.title,
+      due_date,
+      priority: editForm.priority,
+      notes:    editForm.notes,
+      ...(editForm.assigned_to && { assigned_to: editForm.assigned_to }),
+    }
+    const result = await dispatch(updateFollowUp({ id: selectedTask.id, data: payload }))
+    if (updateFollowUp.fulfilled.match(result)) {
+      setSuccess('Follow-up updated!')
+      loadTasks()
+      setTimeout(() => { setShowEditModal(false); setSuccess('') }, 800)
+    }
+  }
+
+  const handleComplete = async (e) => {
+    e.preventDefault()
+    // Optimistic UI update
+    dispatch(markCompleted(selectedTask.id))
+    const result = await dispatch(completeFollowUp({ id: selectedTask.id, notes: completeNotes }))
+    if (completeFollowUp.fulfilled.match(result)) {
+      setSuccess('Task marked as done!')
+      loadTasks()
+      setTimeout(() => { setShowCompleteModal(false); setSuccess(''); setCompleteNotes('') }, 600)
+    }
+  }
+
+  const handleDelete = async (task) => {
+    if (window.confirm(`Delete this follow-up task?`)) {
+      const result = await dispatch(deleteFollowUp(task.id))
+      if (deleteFollowUp.fulfilled.match(result)) loadTasks()
+    }
+  }
+
+  const openEdit = (task) => {
+    setSelectedTask(task)
+    const dueDate = task.due_date ? task.due_date.split('T')[0] : ''
+    const dueTime = task.due_date ? task.due_date.split('T')[1]?.slice(0, 5) : '10:00'
+    setEditForm({
+      title:       task.title || '',
+      lead_id:     task.lead_id || '',
+      due_date:    dueDate,
+      due_time:    dueTime || '10:00',
+      assigned_to: task.assigned_to || '',
+      priority:    task.priority || 'medium',
+      notes:       task.notes || '',
+    })
+    setShowEditModal(true)
+  }
+
+  const openComplete = (task) => {
+    setSelectedTask(task)
+    setCompleteNotes('')
+    setShowCompleteModal(true)
+  }
+
+  // ── Section Component ────────────────────────────────────────────────────────
+  const Section = ({ title, tasks, icon: Icon, iconColor, accent }) => {
+    if (tasks.length === 0) return null
+    return (
+      <div className={`bg-white dark:bg-[#1a1a1a] border ${accent || 'border-[#e0d8ce] dark:border-[#2a2a2a]'} rounded-2xl p-5`}>
+        <div className="flex items-center gap-2 mb-4">
+          <Icon size={16} className={iconColor} />
+          <h3 className={`font-display text-sm font-semibold ${iconColor}`}>{title}</h3>
+          <span className="w-5 h-5 bg-gray-100 dark:bg-gray-800 rounded-full text-xs flex items-center justify-center font-bold text-gray-600 dark:text-gray-400">
+            {tasks.length}
+          </span>
         </div>
-      ))}
-    </div>
-  )
+        <div className="space-y-3">
+          {tasks.map(task => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              onComplete={openComplete}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+              canManage={canManage}
+            />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
+
+      {/* Controls */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex flex-wrap gap-2">
+
+          {/* Status tabs */}
+          <div className="flex bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl p-1 gap-1">
+            {[
+              { key: 'pending',   label: 'Active' },
+              { key: 'overdue',   label: 'Overdue' },
+              { key: 'completed', label: 'Done' },
+              { key: 'all',       label: 'All' },
+            ].map(tab => (
+              <button key={tab.key}
+                onClick={() => { setFilterStatus(tab.key); setPage(1) }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                  ${filterStatus === tab.key
+                    ? 'bg-brand text-white'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Assign filter */}
+          {canManage && (
+            <div className="relative">
+              <select value={filterAssigned} onChange={e => { setFilterAssigned(e.target.value); setPage(1) }}
+                className="appearance-none pl-3 pr-8 py-2 text-xs bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+                <option value="">All Team</option>
+                {salesExecs.map(u => (
+                  <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                ))}
+              </select>
+              <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          )}
+
+          <button onClick={loadTasks}
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-[#e0d8ce] dark:border-[#2a2a2a] text-gray-400 hover:text-brand hover:border-brand transition-colors">
+            <RefreshCw size={14} />
+          </button>
+        </div>
+
+        <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearFollowUpError()); setShowAddModal(true) }}>
+          Add Follow-up
+        </Button>
+      </div>
+
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Today's Tasks", count: today.length, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-          { label: 'Overdue', count: overdue.length, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20' },
-          { label: 'Upcoming', count: upcoming.length, color: 'text-brand', bg: 'bg-brand/10 dark:bg-brand/15' },
-          { label: 'Completed', count: completed.length, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
+          { label: "Today's Tasks",  count: todayTasks.length,    color: 'text-blue-600',  bg: 'bg-blue-50 dark:bg-blue-900/20' },
+          { label: 'Overdue',        count: overdueTasks.length,   color: 'text-red-600',   bg: 'bg-red-50 dark:bg-red-900/20' },
+          { label: 'Upcoming',       count: upcomingTasks.length,  color: 'text-brand',     bg: 'bg-brand/10 dark:bg-brand/15' },
+          { label: 'Completed',      count: completedTasks.length, color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl px-4 py-3`}>
             <div className={`text-2xl font-display font-bold ${s.color}`}>{s.count}</div>
@@ -108,19 +474,94 @@ export default function FollowUps() {
         ))}
       </div>
 
-      <Section title="⚠️ Overdue" items={overdue} icon={AlertCircle} iconColor="text-red-600 dark:text-red-400" accent="border-red-200 dark:border-red-900/50" onComplete={handleComplete} />
-      <Section title="📞 Today's Follow-ups" items={today} icon={Phone} iconColor="text-blue-600 dark:text-blue-400" onComplete={handleComplete} />
-      <Section title="📅 Upcoming" items={upcoming} icon={Clock} iconColor="text-brand" onComplete={handleComplete} />
-      <Section title="✅ Completed" items={completed} icon={CheckCircle} iconColor="text-green-600 dark:text-green-400" onComplete={handleComplete} />
-
-      {followUps.length === 0 && (
+      {/* Content */}
+      {loading ? (
+        <div className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl p-4">
+          <ListSkeleton rows={4} />
+        </div>
+      ) : list.length === 0 ? (
         <div className="text-center py-20 text-gray-400 dark:text-[#888]">
           <div className="text-4xl mb-3">☀️</div>
           <p className="font-medium">All caught up!</p>
-          <p className="text-sm">No follow-ups due.</p>
+          <p className="text-sm mt-1">No follow-ups here.</p>
+        </div>
+      ) : (
+        <>
+          <Section title="⚠️ Overdue"           tasks={overdueTasks}   icon={AlertCircle}  iconColor="text-red-600 dark:text-red-400"   accent="border-red-200 dark:border-red-900/50" />
+          <Section title="📞 Today's Follow-ups" tasks={todayTasks}     icon={Phone}        iconColor="text-blue-600 dark:text-blue-400" accent="border-blue-200 dark:border-blue-900/40" />
+          <Section title="📅 Upcoming"           tasks={upcomingTasks}  icon={Clock}        iconColor="text-brand" />
+          <Section title="✅ Completed"           tasks={completedTasks} icon={CheckCircle}  iconColor="text-green-600 dark:text-green-400" />
+        </>
+      )}
+
+      {/* Pagination */}
+      {pagination?.total_pages > 1 && (
+        <div className="flex items-center justify-between px-2 text-xs text-gray-500">
+          <span>Page {pagination.page} of {pagination.total_pages} · {pagination.total} total</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
+            <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(p => p + 1)}>Next</Button>
+          </div>
         </div>
       )}
+
+      {/* Add Modal */}
+      <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setSuccess('') }} title="Add Follow-up Task">
+        <form onSubmit={handleAdd} className="space-y-4">
+          <FollowUpForm formData={addForm} setFormData={setAddForm} leads={leadList} salesExecs={salesExecs} isEdit={false} />
+          {success    && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
+          {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowAddModal(false)}>Cancel</Button>
+            <Button type="submit" className="flex-1" loading={actionLoading}>Create Follow-up</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSuccess('') }} title="Edit Follow-up Task">
+        <form onSubmit={handleEdit} className="space-y-4">
+          <FollowUpForm formData={editForm} setFormData={setEditForm} leads={leadList} salesExecs={salesExecs} isEdit={true} />
+          {success    && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
+          {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowEditModal(false)}>Cancel</Button>
+            <Button type="submit" className="flex-1" loading={actionLoading}>Update</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Complete Modal */}
+      <Modal isOpen={showCompleteModal} onClose={() => setShowCompleteModal(false)} title="Mark as Done">
+        <form onSubmit={handleComplete} className="space-y-4">
+          {selectedTask && (
+            <div className="p-3 bg-[#f5f2ee] dark:bg-[#0f0f0f] rounded-xl">
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{selectedTask.title}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{selectedTask.lead_name} · {formatDue(selectedTask)}</p>
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Completion Notes <span className="text-gray-400">(optional)</span>
+            </label>
+            <textarea
+              rows={3}
+              value={completeNotes}
+              onChange={e => setCompleteNotes(e.target.value)}
+              placeholder="Spoke with client, discussed pricing. Will call back next week."
+              className="w-full px-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand resize-none text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          {success    && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
+          {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowCompleteModal(false)}>Cancel</Button>
+            <Button type="submit" className="flex-1" loading={actionLoading}>
+              ✓ Mark as Done
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }
-

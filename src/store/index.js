@@ -5,6 +5,7 @@ import leadReducer from './leadSlice'
 import siteVisitReducer from './siteVisitSlice'
 import projectReducer from './projectSlice'
 import notificationReducer from './notificationSlice'
+import followUpReducer from './followUpSlice'
 
 const store = configureStore({
   reducer: {
@@ -14,6 +15,7 @@ const store = configureStore({
     siteVisits: siteVisitReducer,
     projects: projectReducer,
     notifications: notificationReducer,
+    followUps: followUpReducer,
   },
 })
 
