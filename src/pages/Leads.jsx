@@ -48,7 +48,7 @@ const defaultForm = {
 // component causes React to treat it as a new component on every render,
 // unmounting and remounting it, which kills input focus.
 function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
-  const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
+  const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
   const sourceOptions = sourceList.map(s => ({ value: s.id, label: s.name }))

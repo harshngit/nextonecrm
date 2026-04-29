@@ -39,7 +39,7 @@ const defaultFeedback = { status: 'done', feedback: '' }
 // ── Forms defined OUTSIDE to prevent typing/focus loss bug ───────────────────
 
 function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit }) {
-  const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
+  const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
   const leadOptions = leads.map(l => ({
@@ -116,7 +116,7 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit 
       )}
 
       {/* Transport arranged */}
-      <div className="flex items-center gap-3 p-3 bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl">
+      <div className="flex items-center gap-3 p-3 bg-[#f8fafc] dark:bg-[#0f0f0f] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl">
         <input
           type="checkbox"
           id="transport"
@@ -505,7 +505,7 @@ export default function SiteVisits() {
       <Modal isOpen={showFeedbackModal} onClose={() => { setShowFeedbackModal(false); setSuccess('') }} title="Visit Outcome & Feedback">
         <form onSubmit={handleFeedback} className="space-y-4">
           {selectedVisit && (
-            <div className="flex items-center gap-3 p-3 bg-[#f5f2ee] dark:bg-[#0f0f0f] rounded-xl">
+            <div className="flex items-center gap-3 p-3 bg-[#f8fafc] dark:bg-[#0f0f0f] rounded-xl">
               <Avatar name={selectedVisit.lead_name || '?'} size="sm" />
               <div>
                 <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{selectedVisit.lead_name}</div>

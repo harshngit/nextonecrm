@@ -113,7 +113,7 @@ export default function Login() {
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Password
                   </label>
-                  <button type="button" className="text-xs font-semibold text-[#b1916c] hover:text-[#8e7456] transition-colors">
+                  <button type="button" className="text-xs font-semibold text-[#b1916c] hover:text-[#9a7a58] transition-colors">
                     Forgot?
                   </button>
                 </div>
@@ -143,7 +143,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-4 bg-[#b1916c] hover:bg-[#8e7456] disabled:opacity-70 text-white font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-3 text-sm shadow-[0_10px_20px_rgba(177,145,108,0.2)] hover:shadow-[0_15px_25px_rgba(177,145,108,0.3)] mt-2"
+                className="w-full py-4 bg-[#b1916c] hover:bg-[#9a7a58] disabled:opacity-70 text-white font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-3 text-sm shadow-[0_10px_20px_rgba(177,145,108,0.2)] hover:shadow-[0_15px_25px_rgba(177,145,108,0.3)] mt-2"
               >
                 {loading ? (
                   <>

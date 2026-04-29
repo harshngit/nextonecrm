@@ -1,6 +1,9 @@
+import { useNavigate } from 'react-router-dom'
 import { Users, Calendar, Phone, Building2 } from 'lucide-react'
 
 export default function DashboardStats({ loading }) {
+  const navigate = useNavigate()
+
   const stats = [
     {
       label: 'Total Leads',
@@ -8,6 +11,7 @@ export default function DashboardStats({ loading }) {
       change: '+12.5%',
       icon: Users,
       color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400',
+      path: '/leads'
     },
     {
       label: 'Total Site Visits',
@@ -15,6 +19,7 @@ export default function DashboardStats({ loading }) {
       change: '-4.3%',
       icon: Calendar,
       color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30 dark:text-purple-400',
+      path: '/site-visits'
     },
     {
       label: 'Total Follow ups',
@@ -22,6 +27,7 @@ export default function DashboardStats({ loading }) {
       change: '+18.2%',
       icon: Phone,
       color: 'text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400',
+      path: '/follow-ups'
     },
     {
       label: 'Total Projects',
@@ -29,6 +35,7 @@ export default function DashboardStats({ loading }) {
       change: '+5.7%',
       icon: Building2,
       color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400',
+      path: '/projects'
     },
   ]
 
@@ -52,9 +59,13 @@ export default function DashboardStats({ loading }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {stats.map((stat, i) => (
-        <div key={i} className="bg-white dark:bg-[#1a1a1a] p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
+        <div 
+          key={i} 
+          onClick={() => navigate(stat.path)}
+          className="bg-white dark:bg-[#1a1a1a] p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-xl hover:shadow-gray-400/20 dark:hover:shadow-black/50 transition-all duration-300 cursor-pointer group active:scale-[0.98]"
+        >
           <div className="flex items-center justify-between mb-4">
-            <div className={`p-2.5 rounded-xl ${stat.color}`}>
+            <div className={`p-2.5 rounded-xl transition-transform duration-300 group-hover:scale-110 ${stat.color}`}>
               <stat.icon size={20} />
             </div>
             <span className={`text-xs font-medium px-2 py-1 rounded-full ${
@@ -65,10 +76,12 @@ export default function DashboardStats({ loading }) {
               {stat.change}
             </span>
           </div>
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">{stat.label}</h3>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">{stat.label}</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white group-hover:text-[#0082f3] transition-colors">{stat.value}</p>
         </div>
       ))}
     </div>
   )
 }
+
+

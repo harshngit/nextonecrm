@@ -27,7 +27,7 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
       <div
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full px-3 py-2 text-sm bg-background border rounded-xl outline-none cursor-pointer flex items-center justify-between transition-all duration-200 ${
-          isOpen ? 'border-brand ring-1 ring-brand/20' : 'border-[#e0d8ce] dark:border-[#2a2a2a]'
+          isOpen ? 'border-brand ring-1 ring-brand/20' : 'border-[#e2e8f0] dark:border-[#2a2a2a]'
         } text-gray-900 dark:text-gray-100 shadow-sm`}
       >
         <span className={!selectedOption ? 'text-gray-400' : ''}>

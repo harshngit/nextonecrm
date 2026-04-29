@@ -96,7 +96,7 @@ export default function Team() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search members..."
-              className="pl-9 pr-4 py-2 text-sm bg-background border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400 shadow-sm transition-all duration-200"
+              className="pl-9 pr-4 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400 shadow-sm transition-all duration-200"
             />
           </div>
 
@@ -145,16 +145,16 @@ export default function Team() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#e0d8ce] dark:border-[#2a2a2a] bg-[#f5f2ee] dark:bg-[#0f0f0f]">
+                <tr className="border-b border-[#e2e8f0] dark:border-[#2a2a2a] bg-[#f8fafc] dark:bg-[#0f0f0f]">
                   {['Member', 'Email', 'Phone', 'Role', 'Status', 'Last Login'].map(h => (
                     <th key={h} className="py-3 px-4 text-left text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e0d8ce] dark:divide-[#2a2a2a]">
+              <tbody className="divide-y divide-[#e2e8f0] dark:divide-[#2a2a2a]">
                 {filtered.map(member => (
                   <tr key={member.id}
-                    className={`hover:bg-[#f5f2ee] dark:hover:bg-[#0f0f0f] transition-colors ${member.id === currentUser?.id ? 'bg-brand/3 dark:bg-brand/5' : ''}`}>
+                    className={`hover:bg-[#f8fafc] dark:hover:bg-[#0f0f0f] transition-colors ${member.id === currentUser?.id ? 'bg-brand/3 dark:bg-brand/5' : ''}`}>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         <div className="relative">

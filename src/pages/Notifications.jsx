@@ -238,7 +238,7 @@ export default function Notifications() {
                           {!notif.is_read && (
                             <button
                               onClick={(e) => handleMarkOne(e, notif.id)}
-                              className="w-6 h-6 flex items-center justify-center rounded-lg bg-white dark:bg-[#2a2a2a] border border-[#e0d8ce] dark:border-[#3a3a3a] text-gray-400 hover:text-brand hover:border-brand transition-colors"
+                              className="w-6 h-6 flex items-center justify-center rounded-lg bg-white dark:bg-[#2a2a2a] border border-[#e2e8f0] dark:border-[#3a3a3a] text-gray-400 hover:text-brand hover:border-brand transition-colors"
                               title="Mark as read"
                             >
                               <CheckCheck size={11} />
@@ -246,7 +246,7 @@ export default function Notifications() {
                           )}
                           <button
                             onClick={(e) => handleDelete(e, notif.id)}
-                            className="w-6 h-6 flex items-center justify-center rounded-lg bg-white dark:bg-[#2a2a2a] border border-[#e0d8ce] dark:border-[#3a3a3a] text-gray-400 hover:text-red-500 hover:border-red-300 transition-colors"
+                            className="w-6 h-6 flex items-center justify-center rounded-lg bg-white dark:bg-[#2a2a2a] border border-[#e2e8f0] dark:border-[#3a3a3a] text-gray-400 hover:text-red-500 hover:border-red-300 transition-colors"
                             title="Delete"
                             disabled={deletingId === notif.id}
                           >

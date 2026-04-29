@@ -11,7 +11,7 @@ export default function UpcomingSiteVisits() {
     <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-5 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-display text-base font-semibold text-gray-900 dark:text-white">Upcoming Site Visits</h2>
-        <a href="#" className="text-sm text-brand hover:underline">View All</a>
+        <a href="#" className="text-sm text-[#0082f3] hover:underline">View All</a>
       </div>
 
       <div className="space-y-4">

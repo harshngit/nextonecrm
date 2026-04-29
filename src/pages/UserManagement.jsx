@@ -31,7 +31,7 @@ const defaultForm = {
 }
 
 function UserForm({ form, setForm, editMode, showPassword, setShowPassword }) {
-  const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200 disabled:opacity-50"
+  const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200 disabled:opacity-50"
   const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
   return (

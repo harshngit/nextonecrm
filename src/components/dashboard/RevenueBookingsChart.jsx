@@ -49,7 +49,7 @@ export default function RevenueBookingsChart() {
               labelStyle={{ color: '#333' }}
               itemStyle={{ color: '#333' }}
             />
-            <Line type="monotone" dataKey="revenue" stroke="#b1916c" strokeWidth={2} dot={false} name="Revenue (Cr)" />
+            <Line type="monotone" dataKey="revenue" stroke="#0082f3" strokeWidth={2} dot={false} name="Revenue (Cr)" />
           </LineChart>
         </ResponsiveContainer>
       </div>

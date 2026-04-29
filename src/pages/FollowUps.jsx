@@ -51,7 +51,7 @@ function formatDue(task) {
 
 // ── Form — defined OUTSIDE to prevent typing/focus bug ────────────────────────
 function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit }) {
-  const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
+  const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
   const leadOptions = leads.map(l => ({
@@ -151,7 +151,7 @@ function TaskCard({ task, onComplete, onEdit, onDelete, canManage }) {
   const cardStyle = {
     overdue:   'border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-900/10',
     today:     'border-blue-200 dark:border-blue-900/40 bg-white dark:bg-[#1a1a1a]',
-    upcoming:  'border-[#e0d8ce] dark:border-[#2a2a2a] bg-white dark:bg-[#1a1a1a]',
+    upcoming:  'border-[#e2e8f0] dark:border-[#2a2a2a] bg-white dark:bg-[#1a1a1a]',
     completed: 'border-green-200 dark:border-green-900/40 bg-green-50/30 dark:bg-green-900/10 opacity-60',
   }
 
@@ -366,7 +366,7 @@ export default function FollowUps() {
   const Section = ({ title, tasks, icon: Icon, iconColor, accent }) => {
     if (tasks.length === 0) return null
     return (
-      <div className={`bg-white dark:bg-[#1a1a1a] border ${accent || 'border-[#e0d8ce] dark:border-[#2a2a2a]'} rounded-2xl p-5`}>
+      <div className={`bg-white dark:bg-[#1a1a1a] border ${accent || 'border-[#e2e8f0] dark:border-[#2a2a2a]'} rounded-2xl p-5`}>
         <div className="flex items-center gap-2 mb-4">
           <Icon size={16} className={iconColor} />
           <h3 className={`font-display text-sm font-semibold ${iconColor}`}>{title}</h3>
@@ -398,7 +398,7 @@ export default function FollowUps() {
         <div className="flex flex-wrap gap-2">
 
           {/* Status tabs */}
-          <div className="flex bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl p-1 gap-1">
+          <div className="flex bg-white dark:bg-[#1a1a1a] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl p-1 gap-1">
             {[
               { key: 'pending',   label: 'Active' },
               { key: 'overdue',   label: 'Overdue' },
@@ -421,7 +421,7 @@ export default function FollowUps() {
           {canManage && (
             <div className="relative">
               <select value={filterAssigned} onChange={e => { setFilterAssigned(e.target.value); setPage(1) }}
-                className="appearance-none pl-3 pr-8 py-2 text-xs bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+                className="appearance-none pl-3 pr-8 py-2 text-xs bg-white dark:bg-[#1a1a1a] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
                 <option value="">All Team</option>
                 {salesExecs.map(u => (
                   <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
@@ -432,7 +432,7 @@ export default function FollowUps() {
           )}
 
           <button onClick={loadTasks}
-            className="w-9 h-9 flex items-center justify-center rounded-xl border border-[#e0d8ce] dark:border-[#2a2a2a] text-gray-400 hover:text-brand hover:border-brand transition-colors">
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-[#e2e8f0] dark:border-[#2a2a2a] text-gray-400 hover:text-brand hover:border-brand transition-colors">
             <RefreshCw size={14} />
           </button>
         </div>
@@ -459,7 +459,7 @@ export default function FollowUps() {
 
       {/* Content */}
       {loading ? (
-        <div className="bg-white dark:bg-[#1a1a1a] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-2xl p-4">
+        <div className="bg-white dark:bg-[#1a1a1a] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-2xl p-4">
           <ListSkeleton rows={4} />
         </div>
       ) : list.length === 0 ? (
@@ -518,7 +518,7 @@ export default function FollowUps() {
       <Modal isOpen={showCompleteModal} onClose={() => setShowCompleteModal(false)} title="Mark as Done">
         <form onSubmit={handleComplete} className="space-y-4">
           {selectedTask && (
-            <div className="p-3 bg-[#f5f2ee] dark:bg-[#0f0f0f] rounded-xl">
+            <div className="p-3 bg-[#f8fafc] dark:bg-[#0f0f0f] rounded-xl">
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{selectedTask.title}</p>
               <p className="text-xs text-gray-400 mt-0.5">{selectedTask.lead_name} · {formatDue(selectedTask)}</p>
             </div>
@@ -532,7 +532,7 @@ export default function FollowUps() {
               value={completeNotes}
               onChange={e => setCompleteNotes(e.target.value)}
               placeholder="Spoke with client, discussed pricing. Will call back next week."
-              className="w-full px-3 py-2 text-sm bg-[#f5f2ee] dark:bg-[#0f0f0f] border border-[#e0d8ce] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand resize-none text-gray-900 dark:text-gray-100"
+              className="w-full px-3 py-2 text-sm bg-[#f8fafc] dark:bg-[#0f0f0f] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand resize-none text-gray-900 dark:text-gray-100"
             />
           </div>
           {success    && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
