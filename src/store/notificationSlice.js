@@ -1,21 +1,16 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../api/axios'
-import { mockNotifications } from '../mockData'
+
+// ── Thunks ────────────────────────────────────────────────────────────────────
 
 export const fetchNotifications = createAsyncThunk(
   'notifications/fetchAll',
   async (params = {}, { rejectWithValue }) => {
     try {
-      // Using mock data instead of real API for dummy notifications
-      const mappedData = mockNotifications.map(n => ({
-        ...n,
-        is_read: n.read,
-        created_at: new Date(Date.now() - Math.random() * 100000000).toISOString()
-      }))
-      
+      const response = await api.get('/notifications', { params })
       return {
-        data: mappedData,
-        pagination: { total: mappedData.length, page: 1, per_page: 20, total_pages: 1 }
+        data: response.data.data || [],
+        pagination: response.data.pagination || { total: 0, page: 1, per_page: 20, total_pages: 0 },
       }
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch notifications')
@@ -31,6 +26,18 @@ export const fetchUnreadCount = createAsyncThunk(
       return response.data.data?.unread_count || 0
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch count')
+    }
+  }
+)
+
+export const fetchNotificationTypes = createAsyncThunk(
+  'notifications/fetchTypes',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/notifications/types')
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch types')
     }
   }
 )
@@ -51,7 +58,7 @@ export const markAllRead = createAsyncThunk(
   'notifications/markAll',
   async (_, { rejectWithValue }) => {
     try {
-      // await api.patch('/notifications/read-all')
+      await api.patch('/notifications/read-all')
       return true
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to mark all read')
@@ -71,12 +78,27 @@ export const deleteNotification = createAsyncThunk(
   }
 )
 
+export const deleteAllNotifications = createAsyncThunk(
+  'notifications/deleteAll',
+  async (_, { rejectWithValue }) => {
+    try {
+      await api.delete('/notifications')
+      return true
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete all')
+    }
+  }
+)
+
+// ── Slice ─────────────────────────────────────────────────────────────────────
+
 const notificationSlice = createSlice({
   name: 'notifications',
   initialState: {
     list: [],
     unreadCount: 0,
     pagination: { total: 0, page: 1, per_page: 20, total_pages: 0 },
+    types: null,        // { types: [...], categories: {...} }
     loading: false,
     error: null,
   },
@@ -94,11 +116,14 @@ const notificationSlice = createSlice({
         state.loading = false
         state.list = action.payload.data || []
         state.pagination = action.payload.pagination || state.pagination
+        // Derive unread count from the fetched page (accurate only for page 1 all-filter)
         state.unreadCount = (action.payload.data || []).filter(n => !n.is_read).length
       })
       .addCase(fetchNotifications.rejected, (state, action) => { state.loading = false; state.error = action.payload })
 
       .addCase(fetchUnreadCount.fulfilled, (state, action) => { state.unreadCount = action.payload })
+
+      .addCase(fetchNotificationTypes.fulfilled, (state, action) => { state.types = action.payload })
 
       .addCase(markOneRead.fulfilled, (state, action) => {
         const n = state.list.find(n => n.id === action.payload)
@@ -114,6 +139,13 @@ const notificationSlice = createSlice({
         const n = state.list.find(n => n.id === action.payload)
         if (n && !n.is_read) state.unreadCount = Math.max(0, state.unreadCount - 1)
         state.list = state.list.filter(n => n.id !== action.payload)
+        state.pagination.total = Math.max(0, state.pagination.total - 1)
+      })
+
+      .addCase(deleteAllNotifications.fulfilled, (state) => {
+        state.list = []
+        state.unreadCount = 0
+        state.pagination = { total: 0, page: 1, per_page: 20, total_pages: 0 }
       })
   },
 })

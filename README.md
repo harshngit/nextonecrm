@@ -36,4 +36,4 @@ Use any email/password combination. Select your role from the dropdown.
 
 ## Brand Color
 
-Primary: `#b1916c` (warm gold-brown)
+Primary: `#0082f3` (warm gold-brown)

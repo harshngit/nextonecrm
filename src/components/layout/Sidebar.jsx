@@ -29,7 +29,7 @@ const SidebarContent = ({ collapsed, logo, navItems, setMobileOpen, user, handle
       {!collapsed && (
         <div>
           <div className="font-display font-semibold text-gray-900 dark:text-white text-sm leading-tight">Next One</div>
-          <div className="text-[10px] text-[#777] dark:text-[#888] tracking-wider uppercase">Realty CRM</div>
+          <div className="text-[10px] text-[#0082f3]/70 dark:text-[#0082f3]/50 tracking-wider uppercase font-medium">Realty CRM</div>
         </div>
       )}
     </div>

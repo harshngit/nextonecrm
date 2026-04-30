@@ -8,9 +8,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: '#b1916c',
-        'brand-light': '#c9a882',
-        'brand-dark': '#9a7a58',
+        brand: '#0082f3',
+        'brand-light': '#339bf5',
+        'brand-dark': '#0068c2',
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

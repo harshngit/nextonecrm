@@ -18,10 +18,10 @@ const visitStatuses = ['scheduled', 'done', 'cancelled', 'rescheduled', 'no_show
 const statusLabel = { scheduled: 'Scheduled', done: 'Completed', cancelled: 'Cancelled', rescheduled: 'Rescheduled', no_show: 'No Show' }
 const statusOptions = visitStatuses.map(s => ({ value: s, label: statusLabel[s] }))
 const statusColor = {
-  scheduled:   'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+  scheduled:   'bg-blue-100 dark:bg-blue-900/30 text-[#0082f3] dark:text-blue-400',
   done:        'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
   cancelled:   'bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400',
-  rescheduled: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400',
+  rescheduled: 'bg-blue-50 dark:bg-blue-900/20 text-blue-500 dark:text-blue-300',
   no_show:     'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
 }
 

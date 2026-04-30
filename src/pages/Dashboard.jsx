@@ -1,4 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import {
+  fetchDashboardStats,
+  fetchRevenueTrend,
+  fetchLeadSources,
+  fetchLeadPipeline,
+  fetchRecentActivity,
+  fetchUpcomingSiteVisits,
+} from '../store/dashboardSlice'
 import DashboardStats from '../components/dashboard/DashboardStats'
 import RevenueBookingsChart from '../components/dashboard/RevenueBookingsChart'
 import LeadSourcesChart from '../components/dashboard/LeadSourcesChart'
@@ -9,32 +18,32 @@ import QuickActions from '../components/dashboard/QuickActions'
 import UpcomingSiteVisits from '../components/dashboard/UpcomingSiteVisits'
 
 export default function Dashboard() {
-  const [loading, setLoading] = useState(true) // You can manage loading states as needed
+  const dispatch = useDispatch()
+  const { loading } = useSelector((s) => s.dashboard)
 
   useEffect(() => {
-    // Fetch data for dashboard components here
-    // For now, we'll just simulate a loading state
-    setLoading(true)
-    const timer = setTimeout(() => {
-      setLoading(false)
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [])
+    dispatch(fetchDashboardStats())
+    dispatch(fetchRevenueTrend({ range: 'month' }))
+    dispatch(fetchLeadSources())
+    dispatch(fetchLeadPipeline())
+    dispatch(fetchRecentActivity({ limit: 10 }))
+    dispatch(fetchUpcomingSiteVisits({ limit: 5 }))
+  }, [dispatch])
 
-  if (loading) {
+  const isInitialLoading = loading.stats && loading.revenue && loading.leadSources && loading.pipeline
+
+  if (isInitialLoading) {
     return (
       <div className="space-y-6">
         <DashboardStats loading={true} />
-        
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 h-80 rounded-2xl animate-pulse shadow-md shadow-gray-300/50 dark:shadow-gray-900/50"></div>
-          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 h-80 rounded-2xl animate-pulse shadow-md shadow-gray-300/50 dark:shadow-gray-900/50"></div>
+          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 h-80 rounded-2xl animate-pulse shadow-md shadow-blue-100/50 dark:shadow-blue-900/20" />
+          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 h-80 rounded-2xl animate-pulse shadow-md shadow-blue-100/50 dark:shadow-blue-900/20" />
         </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 h-[400px] rounded-2xl animate-pulse shadow-md shadow-gray-300/50 dark:shadow-gray-900/50"></div>
-          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 h-[400px] rounded-2xl animate-pulse shadow-md shadow-gray-300/50 dark:shadow-gray-900/50"></div>
-          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 h-[400px] rounded-2xl animate-pulse shadow-md shadow-gray-300/50 dark:shadow-gray-900/50"></div>
+          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 h-[400px] rounded-2xl animate-pulse shadow-md shadow-blue-100/50 dark:shadow-blue-900/20" />
+          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 h-[400px] rounded-2xl animate-pulse shadow-md shadow-blue-100/50 dark:shadow-blue-900/20" />
+          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 h-[400px] rounded-2xl animate-pulse shadow-md shadow-blue-100/50 dark:shadow-blue-900/20" />
         </div>
       </div>
     )
@@ -42,24 +51,21 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header Cards */}
-      <DashboardStats loading={loading} />
+      {/* Top KPI Cards */}
+      <DashboardStats loading={loading.stats} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue */}
+        {/* Revenue Trend */}
         <RevenueBookingsChart />
-
-        {/* Lead Sources */}
+        {/* Lead Sources Donut */}
         <LeadSourcesChart />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Commission Overview */}
+        {/* Commission (coming soon) */}
         <CommissionOverviewChart />
-
         {/* Lead Pipeline */}
         <LeadPipeline />
-
         {/* Recent Activity */}
         <RecentActivity />
       </div>
@@ -67,7 +73,6 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Quick Actions */}
         <QuickActions />
-
         {/* Upcoming Site Visits */}
         <UpcomingSiteVisits />
       </div>

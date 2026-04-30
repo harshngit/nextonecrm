@@ -281,12 +281,12 @@ export default function Leads() {
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
               placeholder="Search leads..."
-              className="pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400"
+              className="pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400"
             />
           </div>
           <div className="relative">
             <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
               <option value="">All Status</option>
               {leadStages.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -294,7 +294,7 @@ export default function Leads() {
           </div>
           <div className="relative">
             <select value={filterSource} onChange={e => { setFilterSource(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
               <option value="">All Sources</option>
               {sourceList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
@@ -302,7 +302,7 @@ export default function Leads() {
           </div>
           <div className="relative">
             <select value={filterAssigned} onChange={e => { setFilterAssigned(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
+              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
               <option value="">All Team</option>
               {salesExecs.map(u => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
             </select>
@@ -331,7 +331,7 @@ export default function Leads() {
       )}
 
       {/* Table */}
-      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl overflow-hidden shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
+      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-2xl overflow-hidden shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 hover:shadow-lg hover:shadow-blue-200/50 dark:hover:shadow-blue-900/30 transition-all duration-200">
         {loading ? (
           <div className="p-4"><ListSkeleton rows={8} /></div>
         ) : list.length === 0 ? (
@@ -344,14 +344,14 @@ export default function Leads() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-[#0f0f0f]">
+                <tr className="border-b border-gray-200 dark:border-gray-800 bg-blue-50/50 dark:bg-blue-900/10">
                   <th className="py-3 pl-4 pr-2 w-8">
                     <input type="checkbox"
                       checked={selectedLeads.length === list.length && list.length > 0}
-                      onChange={toggleAll} className="rounded border-gray-300" />
+                      onChange={toggleAll} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
                   </th>
                   {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Location', 'Actions'].map(h => (
-                    <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wide whitespace-nowrap
+                    <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wide whitespace-nowrap
                       ${['Phone', 'Source', 'Assigned'].includes(h) ? 'hidden md:table-cell' : ''}
                       ${['Location'].includes(h) ? 'hidden xl:table-cell' : ''}
                       ${h === 'Actions' ? 'text-right' : ''}`}>
@@ -402,13 +402,13 @@ export default function Leads() {
                         </button>
                         {canEdit && (
                           <button onClick={() => openEdit(lead)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit">
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-[#0082f3] hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit">
                             <Edit2 size={14} />
                           </button>
                         )}
                         {canEdit && (
                           <button onClick={() => { setSelectedLead(lead); setReassignTo(lead.assigned_to || ''); setShowReassignModal(true) }}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors" title="Reassign">
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors" title="Reassign">
                             <UserCheck size={14} />
                           </button>
                         )}

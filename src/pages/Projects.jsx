@@ -9,7 +9,7 @@ import Modal from '../components/ui/Modal'
 import CustomSelect from '../components/ui/CustomSelect'
 
 const projectColors = [
-  'from-amber-400/20 to-orange-400/20',
+  'from-blue-400/20 to-blue-600/20',
   'from-green-400/20 to-teal-400/20',
   'from-blue-400/20 to-purple-400/20',
   'from-rose-400/20 to-pink-400/20',

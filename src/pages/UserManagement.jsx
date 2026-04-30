@@ -22,7 +22,7 @@ const roleColors = {
   admin: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30',
   sales_manager: 'text-brand bg-brand/10 dark:bg-brand/15',
   sales_executive: 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30',
-  external_caller: 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
+  external_caller: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30',
 }
 
 const defaultForm = {

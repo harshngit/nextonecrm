@@ -1,10 +1,10 @@
 const colors = [
   'bg-brand text-white',
-  'bg-blue-500 text-white',
+  'bg-blue-600 text-white',
   'bg-purple-500 text-white',
   'bg-teal-500 text-white',
   'bg-rose-500 text-white',
-  'bg-amber-500 text-white',
+  'bg-blue-400 text-white',
 ]
 
 export default function Avatar({ name, initials, size = 'md', className = '' }) {

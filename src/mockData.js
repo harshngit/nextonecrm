@@ -50,10 +50,10 @@ export const mockNotifications = [
 ]
 
 export const mockActivities = [
-  { id: 1, type: 'booking', description: 'New booking', details: 'Karthik Menon - Unit T-301', time: '2 hours ago', icon: 'MessageSquare', iconColor: 'text-blue-500', bgColor: 'bg-blue-50 dark:bg-blue-900/20' },
+  { id: 1, type: 'booking', description: 'New booking', details: 'Karthik Menon - Unit T-301', time: '2 hours ago', icon: 'MessageSquare', iconColor: 'text-[#0082f3]', bgColor: 'bg-blue-50 dark:bg-blue-900/20' },
   { id: 2, type: 'payment', description: 'Payment received', details: '₹10,00,000 - Token amount', time: '3 hours ago', icon: 'DollarSign', iconColor: 'text-green-500', bgColor: 'bg-green-50 dark:bg-green-900/20' },
   { id: 3, type: 'commission', description: 'Commission credited', details: '₹92,400 - BK-2024-0001', time: '5 hours ago', icon: 'CreditCard', iconColor: 'text-purple-500', bgColor: 'bg-purple-50 dark:bg-purple-900/20' },
-  { id: 4, type: 'booking', description: 'New booking', details: 'Priya Sharma - Unit A-102', time: '1 day ago', icon: 'MessageSquare', iconColor: 'text-blue-500', bgColor: 'bg-blue-50 dark:bg-blue-900/20' },
+  { id: 4, type: 'booking', description: 'New booking', details: 'Priya Sharma - Unit A-102', time: '1 day ago', icon: 'MessageSquare', iconColor: 'text-[#0082f3]', bgColor: 'bg-blue-50 dark:bg-blue-900/20' },
   { id: 5, type: 'payment', description: 'Payment received', details: '₹5,00,000 - Advance payment', time: '2 days ago', icon: 'DollarSign', iconColor: 'text-green-500', bgColor: 'bg-green-50 dark:bg-green-900/20' },
 ]
 

@@ -27,7 +27,7 @@ const roleColors = {
   admin:          'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30',
   sales_manager:  'text-brand bg-brand/10 dark:bg-brand/15',
   sales_executive:'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30',
-  external_caller:'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
+  external_caller:'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30',
 }
 
 export default function Team() {
@@ -70,7 +70,7 @@ export default function Team() {
           { label: 'Total Active', value: activeCount, icon: Users, color: 'text-brand bg-brand/10' },
           { label: 'Sales Managers', value: managerCount, icon: TrendingUp, color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30' },
           { label: 'Sales Executives', value: execCount, icon: Calendar, color: 'text-green-600 bg-green-100 dark:bg-green-900/30' },
-          { label: 'External Callers', value: callerCount, icon: BookOpen, color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' },
+          { label: 'External Callers', value: callerCount, icon: BookOpen, color: 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="bg-card text-card-foreground flex flex-col gap-6 rounded-xl border border-gray-200 dark:border-gray-700 py-6 px-4 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
             <div className="flex items-center gap-3">

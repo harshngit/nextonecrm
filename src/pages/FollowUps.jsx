@@ -20,7 +20,7 @@ const priorities = ['low', 'medium', 'high']
 const priorityOptions = priorities.map(p => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))
 const priorityStyle = {
   high:   'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
-  medium: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400',
+  medium: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
   low:    'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
 }
 
@@ -463,10 +463,12 @@ export default function FollowUps() {
           <ListSkeleton rows={4} />
         </div>
       ) : list.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 dark:text-[#888]">
-          <div className="text-4xl mb-3">☀️</div>
-          <p className="font-medium">All caught up!</p>
-          <p className="text-sm mt-1">No follow-ups here.</p>
+        <div className="text-center py-20">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand/10 mb-6">
+            <CheckCircle size={32} className="text-brand" />
+          </div>
+          <h3 className="font-display text-2xl font-bold text-gray-900 dark:text-white">All caught up!</h3>
+          <p className="text-gray-500 dark:text-[#888] mt-2 text-base">No follow-ups here.</p>
         </div>
       ) : (
         <>

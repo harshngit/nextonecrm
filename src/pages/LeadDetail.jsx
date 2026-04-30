@@ -16,7 +16,7 @@ const activityIconMap = {
   followup: { emoji: '📞', color: 'bg-purple-50 dark:bg-purple-900/20' },
   visit_scheduled: { emoji: '📅', color: 'bg-teal-50 dark:bg-teal-900/20' },
   visit_done: { emoji: '✅', color: 'bg-green-50 dark:bg-green-900/20' },
-  created: { emoji: '🆕', color: 'bg-yellow-50 dark:bg-yellow-900/20' },
+  created: { emoji: '🆕', color: 'bg-blue-50 dark:bg-blue-900/20' },
   reassigned: { emoji: '👤', color: 'bg-indigo-50 dark:bg-indigo-900/20' },
 }
 
@@ -140,9 +140,9 @@ export default function LeadDetail() {
               )}
 
               {lead.notes && (
-                <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl">
-                  <div className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-1">Notes</div>
-                  <div className="text-sm text-amber-800 dark:text-amber-300">{lead.notes}</div>
+                <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl">
+                  <div className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">Notes</div>
+                  <div className="text-sm text-blue-800 dark:text-blue-300">{lead.notes}</div>
                 </div>
               )}
             </div>

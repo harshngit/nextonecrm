@@ -11,15 +11,15 @@ export default function PageLoader() {
         {/* Outer ring */}
         <div
           className="absolute w-32 h-32 rounded-full border-[2px] border-transparent animate-spin"
-          style={{ borderTopColor: '#b1916c', borderRightColor: '#b1916c11', animationDuration: '4s' }}
+          style={{ borderTopColor: '#0082f3', borderRightColor: '#0082f311', animationDuration: '4s' }}
         />
         {/* Middle ring */}
         <div
           className="absolute w-24 h-24 rounded-full border-[2px] border-transparent animate-spin"
-          style={{ borderTopColor: '#b1916c88', borderLeftColor: '#b1916c22', animationDirection: 'reverse', animationDuration: '2.5s' }}
+          style={{ borderTopColor: '#0082f388', borderLeftColor: '#0082f322', animationDirection: 'reverse', animationDuration: '2.5s' }}
         />
         {/* Inner logo container - Premium Glassmorphism */}
-        <div className="w-16 h-16 rounded-full bg-white/90 dark:bg-white/10 backdrop-blur-xl flex items-center justify-center shadow-[0_0_30px_rgba(177,145,108,0.2)] animate-pulse-ring border border-white/40 dark:border-white/20">
+        <div className="w-16 h-16 rounded-full bg-white/90 dark:bg-white/10 backdrop-blur-xl flex items-center justify-center shadow-[0_0_30px_rgba(0,130,243,0.2)] animate-pulse-ring border border-white/40 dark:border-white/20">
           <img src={logo} alt="NiR Logo" className="w-10 h-10 object-contain drop-shadow-sm" />
         </div>
       </div>

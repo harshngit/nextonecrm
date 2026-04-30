@@ -38,11 +38,11 @@ export default function Login() {
     <div className="min-h-screen w-full bg-[#f8f9fa] flex items-center justify-center p-4">
       {/* Background Subtle Pattern */}
       <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" 
-           style={{ backgroundImage: 'radial-gradient(#b1916c 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
+           style={{ backgroundImage: 'radial-gradient(#0082f3 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
       
       <div className="w-full max-w-[440px] z-10">
         {/* Card Container */}
-        <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(177,145,108,0.1)] border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,130,243,0.1)] border border-gray-100 overflow-hidden">
           
           {/* Header/Logo Section */}
           <div className="pt-10 pb-6 px-8 text-center bg-white">
@@ -61,7 +61,7 @@ export default function Login() {
                 onClick={() => setLoginMethod('email')}
                 className={`flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
                   loginMethod === 'email' 
-                    ? 'bg-white text-[#b1916c] shadow-sm' 
+                    ? 'bg-white text-[#0082f3] shadow-sm' 
                     : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
@@ -72,7 +72,7 @@ export default function Login() {
                 onClick={() => setLoginMethod('phone')}
                 className={`flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
                   loginMethod === 'phone' 
-                    ? 'bg-white text-[#b1916c] shadow-sm' 
+                    ? 'bg-white text-[#0082f3] shadow-sm' 
                     : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
@@ -93,7 +93,7 @@ export default function Login() {
                   {loginMethod === 'email' ? 'Email Address' : 'Phone Number'}
                 </label>
                 <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#b1916c] transition-colors">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#0082f3] transition-colors">
                     {loginMethod === 'email' ? <Mail size={18} /> : <Phone size={18} />}
                   </div>
                   <input
@@ -101,7 +101,7 @@ export default function Login() {
                     value={loginMethod === 'email' ? email : phone}
                     onChange={e => loginMethod === 'email' ? setEmail(e.target.value) : setPhone(e.target.value)}
                     placeholder={loginMethod === 'email' ? 'name@company.com' : '+91 00000 00000'}
-                    className="w-full pl-12 pr-4 py-3.5 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-[#b1916c] focus:ring-4 focus:ring-[#b1916c]/5 transition-all text-gray-900 placeholder-gray-400"
+                    className="w-full pl-12 pr-4 py-3.5 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-[#0082f3] focus:ring-4 focus:ring-[#0082f3]/5 transition-all text-gray-900 placeholder-gray-400"
                     required
                   />
                 </div>
@@ -113,12 +113,12 @@ export default function Login() {
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Password
                   </label>
-                  <button type="button" className="text-xs font-semibold text-[#b1916c] hover:text-[#9a7a58] transition-colors">
+                  <button type="button" className="text-xs font-semibold text-[#0082f3] hover:text-[#0068c2] transition-colors">
                     Forgot?
                   </button>
                 </div>
                 <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#b1916c] transition-colors">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#0082f3] transition-colors">
                     <Lock size={18} />
                   </div>
                   <input
@@ -126,7 +126,7 @@ export default function Login() {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full pl-12 pr-12 py-3.5 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-[#b1916c] focus:ring-4 focus:ring-[#b1916c]/5 transition-all text-gray-900 placeholder-gray-400"
+                    className="w-full pl-12 pr-12 py-3.5 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:bg-white focus:border-[#0082f3] focus:ring-4 focus:ring-[#0082f3]/5 transition-all text-gray-900 placeholder-gray-400"
                     required
                   />
                   <button
@@ -143,7 +143,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-4 bg-[#b1916c] hover:bg-[#9a7a58] disabled:opacity-70 text-white font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-3 text-sm shadow-[0_10px_20px_rgba(177,145,108,0.2)] hover:shadow-[0_15px_25px_rgba(177,145,108,0.3)] mt-2"
+                className="w-full py-4 bg-[#0082f3] hover:bg-[#0068c2] disabled:opacity-70 text-white font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-3 text-sm shadow-[0_10px_20px_rgba(0,130,243,0.2)] hover:shadow-[0_15px_25px_rgba(0,130,243,0.3)] mt-2"
               >
                 {loading ? (
                   <>
