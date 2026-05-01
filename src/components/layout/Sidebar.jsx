@@ -2,21 +2,23 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   LayoutDashboard, Users, CalendarCheck, PhoneCall,
-  Building2, UserCog, Bell, LogOut, ChevronLeft, ChevronRight, X, Settings
+  Building2, UserCog, Bell, LogOut, ChevronLeft, ChevronRight,
+  X, Settings, Clock,
 } from 'lucide-react'
 import { logout } from '../../store/authSlice'
 import Avatar from '../ui/Avatar'
 import logo from '../../asset/image.png'
 
 const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/leads', label: 'Leads', icon: Users },
-  { path: '/site-visits', label: 'Site Visits', icon: CalendarCheck },
-  { path: '/follow-ups', label: 'Follow-Ups', icon: PhoneCall },
-  { path: '/projects', label: 'Projects', icon: Building2 },
-  { path: '/team', label: 'Team', icon: UserCog },
-  { path: '/users', label: 'Users', icon: Settings },
-  { path: '/notifications', label: 'Notifications', icon: Bell },
+  { path: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
+  { path: '/leads',        label: 'Leads',        icon: Users },
+  { path: '/site-visits',  label: 'Site Visits',  icon: CalendarCheck },
+  { path: '/follow-ups',   label: 'Follow-Ups',   icon: PhoneCall },
+  { path: '/projects',     label: 'Projects',     icon: Building2 },
+  { path: '/attendance',   label: 'Attendance',   icon: Clock },
+  { path: '/team',         label: 'Team',         icon: UserCog },
+  { path: '/users',        label: 'Users',        icon: Settings },
+  { path: '/notifications',label: 'Notifications',icon: Bell },
 ]
 
 const SidebarContent = ({ collapsed, logo, navItems, setMobileOpen, user, handleLogout }) => (
@@ -70,6 +72,7 @@ const SidebarContent = ({ collapsed, logo, navItems, setMobileOpen, user, handle
             <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
               {user?.first_name ? `${user.first_name} ${user.last_name || ''}` : (user?.name || 'User')}
             </div>
+            <div className="text-[10px] text-gray-400 capitalize">{user?.role?.replace(/_/g,' ')}</div>
           </div>
           <button
             onClick={handleLogout}
@@ -82,10 +85,10 @@ const SidebarContent = ({ collapsed, logo, navItems, setMobileOpen, user, handle
       ) : (
         <button
           onClick={handleLogout}
-          className="w-full flex justify-center p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          className="w-full flex justify-center p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
           title="Logout"
         >
-          <LogOut size={18} />
+          <LogOut size={16} />
         </button>
       )}
     </div>
@@ -96,6 +99,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
   const { user } = useSelector((state) => state.auth)
   const dispatch = useDispatch()
   const navigate = useNavigate()
+
   const handleLogout = () => {
     dispatch(logout())
     navigate('/login')
@@ -105,47 +109,45 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
     <>
       {/* Desktop sidebar */}
       <aside
-        className={`hidden lg:flex flex-col fixed left-0 top-0 h-screen bg-white dark:bg-[#1a1a1a] border-r border-gray-200 dark:border-gray-800 transition-all duration-300 z-30
-          ${collapsed ? 'w-[60px]' : 'w-[240px]'}`}
+        className={`hidden lg:flex flex-col fixed top-0 left-0 h-full z-30 transition-all duration-300 ${collapsed ? 'w-[60px]' : 'w-[240px]'}`}
       >
         <SidebarContent
           collapsed={collapsed}
           logo={logo}
           navItems={navItems}
-          setMobileOpen={setMobileOpen}
           user={user}
           handleLogout={handleLogout}
         />
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="absolute -right-3 top-16 w-6 h-6 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-full flex items-center justify-center shadow-sm text-gray-500 hover:text-brand transition-colors z-40"
+          className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 shadow-sm flex items-center justify-center text-gray-400 hover:text-[#0082f3] transition-colors z-10"
         >
           {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
         </button>
       </aside>
 
-      {/* Mobile sidebar overlay */}
+      {/* Mobile overlay */}
       {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 flex">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <aside className="relative w-[240px] h-full bg-white dark:bg-[#1a1a1a] border-r border-gray-200 dark:border-gray-800 z-50 animate-slide-up">
-            <button
-              onClick={() => setMobileOpen(false)}
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-            >
-              <X size={16} />
-            </button>
+        <>
+          <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
+          <aside className="fixed top-0 left-0 h-full w-[240px] z-50 lg:hidden">
             <SidebarContent
-              collapsed={collapsed}
+              collapsed={false}
               logo={logo}
               navItems={navItems}
               setMobileOpen={setMobileOpen}
               user={user}
               handleLogout={handleLogout}
             />
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="absolute top-4 right-3 w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              <X size={16} />
+            </button>
           </aside>
-        </div>
+        </>
       )}
     </>
   )

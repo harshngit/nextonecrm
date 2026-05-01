@@ -410,8 +410,8 @@ export default function SiteVisits() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
-                          <Avatar name={visit.assigned_to_name || '?'} size="xs" />
-                          <span className="text-xs text-gray-600 dark:text-gray-400">{visit.assigned_to_name || '—'}</span>
+                          <Avatar name={visit.assigned_to || '?'} size="xs" />
+                          <span className="text-xs text-gray-600 dark:text-gray-400">{visit.assigned_to || '—'}</span>
                         </div>
                       </td>
                       <td className="py-3 px-4">

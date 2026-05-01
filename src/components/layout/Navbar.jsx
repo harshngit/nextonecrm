@@ -20,6 +20,7 @@ const pageTitles = {
   '/team':           'Team',
   '/users':          'User Management',
   '/notifications':  'Notifications',
+  '/attendance':     'Attendance',
 }
 
 // All 21 notification types

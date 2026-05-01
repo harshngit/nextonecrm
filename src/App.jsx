@@ -15,6 +15,7 @@ import Projects from './pages/Projects'
 import Team from './pages/Team'
 import Notifications from './pages/Notifications'
 import UserManagement from './pages/UserManagement'
+import Attendance from './pages/Attendance'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useSelector((state) => state.auth)
@@ -36,10 +37,7 @@ function AppRoutes() {
 
   useEffect(() => {
     setPageLoading(true)
-    const t = setTimeout(() => {
-      setPageLoading(false)
-    }, 1000)
-    
+    const t = setTimeout(() => setPageLoading(false), 1000)
     return () => clearTimeout(t)
   }, [location.pathname])
 
@@ -49,15 +47,16 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
-        <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
-        <Route path="/leads" element={<ProtectedRoute><Layout><Leads /></Layout></ProtectedRoute>} />
-        <Route path="/leads/:id" element={<ProtectedRoute><Layout><LeadDetail /></Layout></ProtectedRoute>} />
-        <Route path="/site-visits" element={<ProtectedRoute><Layout><SiteVisits /></Layout></ProtectedRoute>} />
-        <Route path="/follow-ups" element={<ProtectedRoute><Layout><FollowUps /></Layout></ProtectedRoute>} />
-        <Route path="/projects" element={<ProtectedRoute><Layout><Projects /></Layout></ProtectedRoute>} />
-        <Route path="/team" element={<ProtectedRoute><Layout><Team /></Layout></ProtectedRoute>} />
-        <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
-        <Route path="/users" element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
+        <Route path="/dashboard"    element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+        <Route path="/leads"        element={<ProtectedRoute><Layout><Leads /></Layout></ProtectedRoute>} />
+        <Route path="/leads/:id"    element={<ProtectedRoute><Layout><LeadDetail /></Layout></ProtectedRoute>} />
+        <Route path="/site-visits"  element={<ProtectedRoute><Layout><SiteVisits /></Layout></ProtectedRoute>} />
+        <Route path="/follow-ups"   element={<ProtectedRoute><Layout><FollowUps /></Layout></ProtectedRoute>} />
+        <Route path="/projects"     element={<ProtectedRoute><Layout><Projects /></Layout></ProtectedRoute>} />
+        <Route path="/team"         element={<ProtectedRoute><Layout><Team /></Layout></ProtectedRoute>} />
+        <Route path="/attendance"   element={<ProtectedRoute><Layout><Attendance /></Layout></ProtectedRoute>} />
+        <Route path="/notifications"element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
+        <Route path="/users"        element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
         <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
       </Routes>
     </div>
