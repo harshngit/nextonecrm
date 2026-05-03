@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { Plus, MapPin, Building2, IndianRupee, Users, Edit2, Trash2, RefreshCw, Search, ChevronDown } from 'lucide-react'
+import { Plus, MapPin, Building2, IndianRupee, Users, Edit2, Trash2, RefreshCw, Search, ChevronDown, Download } from 'lucide-react'
 import { fetchProjects, createProject, updateProject, deleteProject, clearProjectError } from '../store/projectSlice'
 import CardSkeleton from '../components/loaders/CardSkeleton'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import api from '../api/axios'
 import Modal from '../components/ui/Modal'
 import CustomSelect from '../components/ui/CustomSelect'
 
@@ -179,7 +180,8 @@ export default function Projects() {
 
   const [addForm,  setAddForm]  = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
-  const [success,  setSuccess]  = useState('')
+  const [success,    setSuccess]    = useState('')
+  const [exporting,  setExporting]  = useState(false)
 
   useEffect(() => {
     const params = { page, per_page: 20 }
@@ -276,6 +278,20 @@ export default function Projects() {
     inactive:  'bg-red-100 dark:bg-red-900/20 text-red-500 dark:text-red-400',
   }
 
+  const isAdminUser = ['admin','super_admin'].includes(currentUser?.role)
+
+  const handleExport = async () => {
+    if (!isAdminUser) return
+    try {
+      setExporting(true)
+      const today = new Date().toISOString().split('T')[0]
+      const res = await api.get('/export/projects', { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a'); a.href = url; a.download = `Projects_${today}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
+  }
+
   return (
     <div className="space-y-4">
 
@@ -316,11 +332,18 @@ export default function Projects() {
           </button>
         </div>
 
-        {canManage && (
-          <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearProjectError()); setShowAddModal(true) }}>
-            Add Project
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isAdminUser && (
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={handleExport}>
+              Export
+            </Button>
+          )}
+          {canManage && (
+            <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearProjectError()); setShowAddModal(true) }}>
+              Add Project
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Summary */}

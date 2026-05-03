@@ -91,7 +91,7 @@ export const fetchLeadActivities = createAsyncThunk(
   'leads/fetchActivities',
   async (id, { rejectWithValue }) => {
     try {
-      const response = await api.get(`/leads/${id}/activities`)
+      const response = await api.get(`/leads/${id}/activity`)
       return { id, activities: response.data.data }
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch activities')
@@ -115,7 +115,7 @@ export const fetchLeadSources = createAsyncThunk(
   'leads/fetchSources',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get('/config/lead-sources')
+      const response = await api.get('dashboard/lead-sources')
       return response.data.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch lead sources')

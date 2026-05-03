@@ -61,12 +61,26 @@ export const deleteFollowUp = createAsyncThunk(
   }
 )
 
+export const fetchFollowUpById = createAsyncThunk(
+  'followUps/fetchById',
+  async (id, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/tasks/${id}`)
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch follow-up')
+    }
+  }
+)
+
 const followUpSlice = createSlice({
   name: 'followUps',
   initialState: {
     list: [],
+    currentTask: null,
     pagination: { total: 0, page: 1, per_page: 20, total_pages: 0 },
     loading: false,
+    detailLoading: false,
     actionLoading: false,
     error: null,
     actionError: null,
@@ -75,6 +89,9 @@ const followUpSlice = createSlice({
     clearFollowUpError: (state) => {
       state.error = null
       state.actionError = null
+    },
+    clearCurrentTask: (state) => {
+      state.currentTask = null
     },
     // Optimistic complete — mark done immediately before API confirms
     markCompleted: (state, action) => {
@@ -94,6 +111,11 @@ const followUpSlice = createSlice({
       .addCase(fetchFollowUps.rejected,  (state, action) => {
         state.loading = false; state.error = action.payload
       })
+      
+      .addCase(fetchFollowUpById.pending, (state) => { state.detailLoading = true })
+      .addCase(fetchFollowUpById.fulfilled, (state, action) => { state.detailLoading = false; state.currentTask = action.payload })
+      .addCase(fetchFollowUpById.rejected, (state, action) => { state.detailLoading = false; state.error = action.payload })
+
       .addMatcher(
         (action) => ['followUps/create', 'followUps/update', 'followUps/complete', 'followUps/delete']
           .some(t => action.type.startsWith(t)),
@@ -106,5 +128,5 @@ const followUpSlice = createSlice({
   },
 })
 
-export const { clearFollowUpError, markCompleted } = followUpSlice.actions
+export const { clearFollowUpError, markCompleted, clearCurrentTask } = followUpSlice.actions
 export default followUpSlice.reducer

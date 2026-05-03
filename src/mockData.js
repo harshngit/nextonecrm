@@ -92,7 +92,7 @@ export const leadPipelineData = [
 ]
 
 export const leadStages = ['Qualified', 'Site Visit', 'Negotiation', 'Booking', 'Closed Won', 'Closed Lost']
-export const leadSources = ['Website', 'Referral', 'Facebook', 'Google Ads', 'IVR', 'Walk-in']
+export const leadSources = ['Website', 'Referral', 'Facebook', 'Google Ads', 'IVR', 'Walk-in', '99acres', 'Housing.com', 'MagicBricks']
 export const roles = ['Super Admin', 'Admin', 'Sales Manager', 'Sales Executive', 'External Caller']
 
 export const revenueBookingsData = [
@@ -110,6 +110,7 @@ export const leadSourcesData = [
   { name: 'Google Ads', value: 300 },
   { name: 'Referral', value: 200 },
   { name: '99acres', value: 278 },
+  { name: 'Housing.com', value: 245 },
   { name: 'MagicBricks', value: 189 },
   { name: 'Walk-in', value: 100 },
   { name: 'Other', value: 50 },

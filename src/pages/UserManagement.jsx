@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { Edit2, Trash2, Shield, ChevronDown, UserPlus, Mail, Phone, Lock, RefreshCw, Eye, EyeOff } from 'lucide-react'
+import { Edit2, Trash2, Shield, ChevronDown, UserPlus, Mail, Phone, Lock, RefreshCw, Eye, EyeOff, Download } from 'lucide-react'
 import { fetchUsers, createUser, updateUser, deleteUser, updateUserRole, clearUserError } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
 import CustomSelect from '../components/ui/CustomSelect'
@@ -113,6 +114,7 @@ export default function UserManagement() {
   const [filterActive, setFilterActive] = useState('')
   const [success, setSuccess] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [exporting,    setExporting]    = useState(false)
   const [form, setForm] = useState(defaultForm)
 
   useEffect(() => {
@@ -163,6 +165,20 @@ export default function UserManagement() {
 
   const canManage = ['super_admin', 'admin'].includes(currentUser?.role)
 
+  const isAdminUser = ['admin','super_admin'].includes(currentUser?.role)
+
+  const handleExport = async () => {
+    if (!isAdminUser) return
+    try {
+      setExporting(true)
+      const today = new Date().toISOString().split('T')[0]
+      const res = await api.get('/export/users', { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a'); a.href = url; a.download = `Team_${today}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
+  }
+
   return (
     <div className="space-y-4">
       {/* Controls */}
@@ -190,7 +206,14 @@ export default function UserManagement() {
             <RefreshCw size={14} />
           </button>
         </div>
-        {canManage && <Button icon={UserPlus} onClick={() => handleOpenModal()}>New User</Button>}
+        <div className="flex items-center gap-2">
+          {isAdminUser && (
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={handleExport}>
+              Export
+            </Button>
+          )}
+          {canManage && <Button icon={UserPlus} onClick={() => handleOpenModal()}>New User</Button>}
+        </div>
       </div>
 
       <div className="text-sm text-gray-500 dark:text-[#888]">

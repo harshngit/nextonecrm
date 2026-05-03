@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Eye, Edit2, UserCheck, ChevronDown, RefreshCw, Trash2, MapPin } from 'lucide-react'
+import { Plus, Search, Eye, Edit2, UserCheck, ChevronDown, RefreshCw, Trash2, MapPin, Download } from 'lucide-react'
 import { fetchLeads, createLead, updateLead, deleteLead, fetchLeadSources, clearLeadError } from '../store/leadSlice'
 import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
 import CustomSelect from '../components/ui/CustomSelect'
@@ -120,7 +121,7 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
           placeholder="Select Platform"
         />
         <div>
-          <label className={labelClass}>Location Preference</label>
+          <label className={labelClass}>Finding Location</label>
           <div className="relative">
             <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -152,9 +153,9 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
         )}
       </div>
 
-      {/* Notes */}
+      {/* Configuration */}
       <div>
-        <label className={labelClass}>Notes</label>
+        <label className={labelClass}>Configuration</label>
         <textarea
           rows={3}
           value={formData.notes}
@@ -190,6 +191,7 @@ export default function Leads() {
   const [editForm, setEditForm] = useState(defaultForm)
   const [reassignTo, setReassignTo] = useState('')
   const [selectedLeads, setSelectedLeads] = useState([])
+  const [exporting,  setExporting]  = useState(false)
   const [addSuccess, setAddSuccess] = useState('')
   const [editSuccess, setEditSuccess] = useState('')
 
@@ -270,6 +272,20 @@ export default function Leads() {
   const canEdit = ['super_admin', 'admin', 'sales_manager', 'sales_executive'].includes(currentUser?.role)
   const canDelete = ['super_admin', 'admin'].includes(currentUser?.role)
 
+  const handleExport = async () => {
+    try {
+      setExporting(true)
+      const today = new Date().toISOString().split('T')[0]
+      const params = {}
+      if (filterStatus) params.status = filterStatus
+      if (filterSource) params.source = filterSource
+      const res = await api.get('/export/leads', { params, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a'); a.href = url; a.download = `Leads_${today}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
+  }
+
   return (
     <div className="space-y-4">
       {/* Controls */}
@@ -315,11 +331,16 @@ export default function Leads() {
             <RefreshCw size={14} />
           </button>
         </div>
-        {canEdit && (
-          <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearLeadError()); setShowAddModal(true) }}>
-            Add Lead
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={handleExport}>
+            Export
           </Button>
-        )}
+          {canEdit && (
+            <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearLeadError()); setShowAddModal(true) }}>
+              Add Lead
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Summary */}
@@ -350,10 +371,10 @@ export default function Leads() {
                       checked={selectedLeads.length === list.length && list.length > 0}
                       onChange={toggleAll} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
                   </th>
-                  {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Location', 'Actions'].map(h => (
+                  {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Finding Location', 'Actions'].map(h => (
                     <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wide whitespace-nowrap
                       ${['Phone', 'Source', 'Assigned'].includes(h) ? 'hidden md:table-cell' : ''}
-                      ${['Location'].includes(h) ? 'hidden xl:table-cell' : ''}
+                      ${['Finding Location'].includes(h) ? 'hidden xl:table-cell' : ''}
                       ${h === 'Actions' ? 'text-right' : ''}`}>
                       {h}
                     </th>
@@ -397,8 +418,8 @@ export default function Leads() {
                     <td className="py-3 px-3">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => navigate(`/leads/${lead.id}`)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors" title="View">
-                          <Eye size={14} />
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all hover:scale-110 active:scale-95" title="View Details">
+                          <Eye size={16} />
                         </button>
                         {canEdit && (
                           <button onClick={() => openEdit(lead)}
@@ -466,27 +487,32 @@ export default function Leads() {
       </Modal>
 
       {/* Reassign Modal */}
-      <Modal isOpen={showReassignModal} onClose={() => setShowReassignModal(false)} title="Reassign Lead">
-        <form onSubmit={handleReassign} className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Reassigning: <span className="font-semibold text-gray-900 dark:text-gray-100">{selectedLead?.name}</span>
-          </p>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Assign To</label>
-            <div className="relative">
-              <select value={reassignTo} onChange={e => setReassignTo(e.target.value)}
-                className="w-full appearance-none px-3 py-2 text-sm bg-background border-input rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100">
-                <option value="">Select team member...</option>
-                {salesExecs.map(u => (
-                  <option key={u.id} value={u.id}>{u.first_name} {u.last_name} ({u.role.replace('_', ' ')})</option>
-                ))}
-              </select>
-              <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
+      <Modal isOpen={showReassignModal} onClose={() => setShowReassignModal(false)} title={<span className="font-display">Reassign Lead</span>}>
+        <form onSubmit={handleReassign} className="space-y-6">
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Reassigning: <span className="font-bold text-gray-900 dark:text-gray-100">{selectedLead?.name}</span>
+            </p>
+            
+            <CustomSelect
+              label="Assign To"
+              value={reassignTo}
+              onChange={setReassignTo}
+              options={salesExecs.map(u => ({ 
+                value: u.id, 
+                label: `${u.first_name} ${u.last_name} (${u.role.replace('_', ' ')})` 
+              }))}
+              placeholder="Select team member..."
+            />
           </div>
+
           <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowReassignModal(false)}>Cancel</Button>
-            <Button type="submit" className="flex-1" loading={actionLoading}>Reassign</Button>
+            <Button type="button" variant="outline" className="flex-1 rounded-xl py-2.5" onClick={() => setShowReassignModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1 rounded-xl py-2.5 font-bold" loading={actionLoading}>
+              Reassign
+            </Button>
           </div>
         </form>
       </Modal>

@@ -61,12 +61,26 @@ export const cancelSiteVisit = createAsyncThunk(
   }
 )
 
+export const fetchSiteVisitById = createAsyncThunk(
+  'siteVisits/fetchById',
+  async (id, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/site-visits/${id}`)
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch site visit')
+    }
+  }
+)
+
 const siteVisitSlice = createSlice({
   name: 'siteVisits',
   initialState: {
     list: [],
+    currentVisit: null,
     pagination: { total: 0, page: 1, per_page: 20, total_pages: 0 },
     loading: false,
+    detailLoading: false,
     actionLoading: false,
     error: null,
     actionError: null,
@@ -75,6 +89,9 @@ const siteVisitSlice = createSlice({
     clearSiteVisitError: (state) => {
       state.error = null
       state.actionError = null
+    },
+    clearCurrentVisit: (state) => {
+      state.currentVisit = null
     },
   },
   extraReducers: (builder) => {
@@ -86,6 +103,11 @@ const siteVisitSlice = createSlice({
         state.pagination = action.payload.pagination || state.pagination
       })
       .addCase(fetchSiteVisits.rejected, (state, action) => { state.loading = false; state.error = action.payload })
+      
+      .addCase(fetchSiteVisitById.pending, (state) => { state.detailLoading = true })
+      .addCase(fetchSiteVisitById.fulfilled, (state, action) => { state.detailLoading = false; state.currentVisit = action.payload })
+      .addCase(fetchSiteVisitById.rejected, (state, action) => { state.detailLoading = false; state.error = action.payload })
+
       .addMatcher(
         (action) => ['siteVisits/create', 'siteVisits/update', 'siteVisits/updateStatus', 'siteVisits/cancel']
           .some(t => action.type.startsWith(t)),
@@ -98,5 +120,5 @@ const siteVisitSlice = createSlice({
   },
 })
 
-export const { clearSiteVisitError } = siteVisitSlice.actions
+export const { clearSiteVisitError, clearCurrentVisit } = siteVisitSlice.actions
 export default siteVisitSlice.reducer

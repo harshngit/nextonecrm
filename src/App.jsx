@@ -10,9 +10,12 @@ import Dashboard from './pages/Dashboard'
 import Leads from './pages/Leads'
 import LeadDetail from './pages/LeadDetail'
 import SiteVisits from './pages/SiteVisits'
+import SiteVisitDetail from './pages/SiteVisitDetail'
 import FollowUps from './pages/FollowUps'
+import FollowUpDetail from './pages/FollowUpDetail'
 import Projects from './pages/Projects'
 import Team from './pages/Team'
+import UserDetail from './pages/UserDetail'
 import Notifications from './pages/Notifications'
 import UserManagement from './pages/UserManagement'
 import Attendance from './pages/Attendance'
@@ -51,9 +54,12 @@ function AppRoutes() {
         <Route path="/leads"        element={<ProtectedRoute><Layout><Leads /></Layout></ProtectedRoute>} />
         <Route path="/leads/:id"    element={<ProtectedRoute><Layout><LeadDetail /></Layout></ProtectedRoute>} />
         <Route path="/site-visits"  element={<ProtectedRoute><Layout><SiteVisits /></Layout></ProtectedRoute>} />
+        <Route path="/site-visits/:id" element={<ProtectedRoute><Layout><SiteVisitDetail /></Layout></ProtectedRoute>} />
         <Route path="/follow-ups"   element={<ProtectedRoute><Layout><FollowUps /></Layout></ProtectedRoute>} />
+        <Route path="/follow-ups/:id" element={<ProtectedRoute><Layout><FollowUpDetail /></Layout></ProtectedRoute>} />
         <Route path="/projects"     element={<ProtectedRoute><Layout><Projects /></Layout></ProtectedRoute>} />
         <Route path="/team"         element={<ProtectedRoute><Layout><Team /></Layout></ProtectedRoute>} />
+        <Route path="/team/:id"    element={<ProtectedRoute><Layout><UserDetail /></Layout></ProtectedRoute>} />
         <Route path="/attendance"   element={<ProtectedRoute><Layout><Attendance /></Layout></ProtectedRoute>} />
         <Route path="/notifications"element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
         <Route path="/users"        element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />

@@ -86,7 +86,9 @@ const userSlice = createSlice({
   name: 'users',
   initialState: {
     list: [],
+    currentUser: null,
     loading: false,
+    detailLoading: false,
     error: null,
     actionLoading: false,
     actionError: null,
@@ -95,6 +97,9 @@ const userSlice = createSlice({
     clearUserError: (state) => {
       state.error = null
       state.actionError = null
+    },
+    clearCurrentUser: (state) => {
+      state.currentUser = null
     },
   },
   extraReducers: (builder) => {
@@ -106,6 +111,10 @@ const userSlice = createSlice({
         state.list = action.payload.data || []
       })
       .addCase(fetchUsers.rejected, (state, action) => { state.loading = false; state.error = action.payload })
+
+      .addCase(fetchUserById.pending, (state) => { state.detailLoading = true })
+      .addCase(fetchUserById.fulfilled, (state, action) => { state.detailLoading = false; state.currentUser = action.payload })
+      .addCase(fetchUserById.rejected, (state, action) => { state.detailLoading = false; state.error = action.payload })
 
       // Action matchers for create / update / delete / role
       .addMatcher(
@@ -123,5 +132,5 @@ const userSlice = createSlice({
   },
 })
 
-export const { clearUserError } = userSlice.actions
+export const { clearUserError, clearCurrentUser } = userSlice.actions
 export default userSlice.reducer

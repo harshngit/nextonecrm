@@ -8,6 +8,7 @@ import notificationReducer from './notificationSlice'
 import userReducer         from './userSlice'
 import dashboardReducer    from './dashboardSlice'
 import attendanceReducer   from './attendanceSlice'
+import myDataReducer       from './myDataSlice'
 
 export const store = configureStore({
   reducer: {
@@ -20,5 +21,6 @@ export const store = configureStore({
     users:         userReducer,
     dashboard:     dashboardReducer,
     attendance:    attendanceReducer,
+    myData:        myDataReducer,
   },
 })

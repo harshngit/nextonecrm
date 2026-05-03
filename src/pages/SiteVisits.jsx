@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download } from 'lucide-react'
 import {
   fetchSiteVisits, createSiteVisit, updateSiteVisit,
   updateSiteVisitStatus, cancelSiteVisit, clearSiteVisitError,
@@ -10,6 +11,7 @@ import { fetchProjects } from '../store/projectSlice'
 import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Button from '../components/ui/Button'
+import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
 import CustomSelect from '../components/ui/CustomSelect'
@@ -174,6 +176,7 @@ function FeedbackForm({ formData, setFormData }) {
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function SiteVisits() {
+  const navigate = useNavigate()
   const dispatch = useDispatch()
   const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.siteVisits)
   const { list: leadList }    = useSelector(s => s.leads)
@@ -194,6 +197,7 @@ export default function SiteVisits() {
   const [editForm,     setEditForm]     = useState({ ...defaultForm, status: 'scheduled' })
   const [feedbackForm, setFeedbackForm] = useState(defaultFeedback)
   const [success,      setSuccess]      = useState('')
+  const [exporting,    setExporting]    = useState(false)
 
   useEffect(() => {
     const params = { page, per_page: 20 }
@@ -289,6 +293,19 @@ export default function SiteVisits() {
     return d
   })
 
+  const handleExport = async () => {
+    try {
+      setExporting(true)
+      const today = new Date().toISOString().split('T')[0]
+      const params = {}
+      if (filterStatus) params.status = filterStatus
+      const res = await api.get('/export/site-visits', { params, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a'); a.href = url; a.download = `SiteVisits_${today}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
+  }
+
   return (
     <div className="space-y-4">
 
@@ -325,11 +342,16 @@ export default function SiteVisits() {
           </button>
         </div>
 
-        {canManage && (
-          <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearSiteVisitError()); setShowAddModal(true) }}>
-            Schedule Visit
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={handleExport}>
+            Export
           </Button>
-        )}
+          {canManage && (
+            <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearSiteVisitError()); setShowAddModal(true) }}>
+              Schedule Visit
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Summary */}
@@ -430,7 +452,11 @@ export default function SiteVisits() {
                         </span>
                       </td>
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => navigate(`/site-visits/${visit.id}`)} title="View Details"
+                              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all hover:scale-110 active:scale-95">
+                              <Eye size={16} />
+                            </button>
                           {canManage && visit.status === 'scheduled' && (
                             <>
                               <button onClick={() => openEdit(visit)} title="Edit"

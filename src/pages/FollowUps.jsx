@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle, Clock, AlertCircle, Phone, Plus,
-  Edit2, Trash2, RefreshCw, ChevronDown, Filter,
+  Edit2, Trash2, Download, RefreshCw, ChevronDown, Filter, Eye
 } from 'lucide-react'
 import {
   fetchFollowUps, createFollowUp, updateFollowUp,
@@ -13,6 +14,7 @@ import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
+import api from '../api/axios'
 import Modal from '../components/ui/Modal'
 import CustomSelect from '../components/ui/CustomSelect'
 
@@ -145,7 +147,8 @@ function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit }) {
 }
 
 // ── Task Card — defined OUTSIDE to prevent focus bug ─────────────────────────
-function TaskCard({ task, onComplete, onEdit, onDelete, canManage }) {
+function TaskCard({ task, onEdit, onDelete, onComplete, canManage }) {
+  const navigate = useNavigate()
   const category = classifyTask(task)
 
   const cardStyle = {
@@ -208,13 +211,17 @@ function TaskCard({ task, onComplete, onEdit, onDelete, canManage }) {
           )}
           {canManage && !task.is_completed && (
             <div className="flex gap-1 justify-end">
+              <button onClick={() => navigate(`/follow-ups/${task.id}`)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all hover:scale-110 active:scale-95" title="View Details">
+                <Eye size={14} />
+              </button>
               <button onClick={() => onEdit(task)}
-                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
-                <Edit2 size={11} />
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit">
+                <Edit2 size={13} />
               </button>
               <button onClick={() => onDelete(task)}
-                className="w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                <Trash2 size={11} />
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Delete">
+                <Trash2 size={13} />
               </button>
             </div>
           )}
@@ -232,7 +239,7 @@ export default function FollowUps() {
   const { list: userList } = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
 
-  const [filterStatus,   setFilterStatus]   = useState('pending') // pending | overdue | all | completed
+  const [filterStatus,   setFilterStatus]   = useState('all') // pending | overdue | all | completed
   const [filterAssigned, setFilterAssigned] = useState('')
   const [page, setPage] = useState(1)
 
@@ -244,7 +251,8 @@ export default function FollowUps() {
 
   const [addForm,  setAddForm]  = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
-  const [success,  setSuccess]  = useState('')
+  const [success,   setSuccess]   = useState('')
+  const [exporting, setExporting] = useState(false)
 
   const salesExecs = userList.filter(u =>
     ['sales_executive', 'sales_manager'].includes(u.role) && u.is_active
@@ -390,6 +398,17 @@ export default function FollowUps() {
     )
   }
 
+  const handleExport = async () => {
+    try {
+      setExporting(true)
+      const today = new Date().toISOString().split('T')[0]
+      const res = await api.get('/export/follow-ups', { params: {}, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a'); a.href = url; a.download = `FollowUps_${today}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
+  }
+
   return (
     <div className="space-y-4">
 
@@ -400,10 +419,10 @@ export default function FollowUps() {
           {/* Status tabs */}
           <div className="flex bg-white dark:bg-[#1a1a1a] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl p-1 gap-1">
             {[
-              { key: 'pending',   label: 'Active' },
-              { key: 'overdue',   label: 'Overdue' },
-              { key: 'completed', label: 'Done' },
               { key: 'all',       label: 'All' },
+              { key: 'pending',   label: 'Active' },
+              { key: 'completed', label: 'Done' },
+              { key: 'overdue',   label: 'Overdue' },
             ].map(tab => (
               <button key={tab.key}
                 onClick={() => { setFilterStatus(tab.key); setPage(1) }}
@@ -437,9 +456,14 @@ export default function FollowUps() {
           </button>
         </div>
 
-        <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearFollowUpError()); setShowAddModal(true) }}>
-          Add Follow-up
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={handleExport}>
+            Export
+          </Button>
+          <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearFollowUpError()); setShowAddModal(true) }}>
+            Add Follow-up
+          </Button>
+        </div>
       </div>
 
       {/* Stats row */}

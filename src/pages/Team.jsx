@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { Shield, RefreshCw, ChevronDown, Search, TrendingUp, Users, Calendar, BookOpen } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Shield, RefreshCw, ChevronDown, Search, TrendingUp, Users, Calendar, BookOpen, Eye } from 'lucide-react'
 import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
@@ -31,6 +32,7 @@ const roleColors = {
 }
 
 export default function Team() {
+  const navigate = useNavigate()
   const dispatch = useDispatch()
   const { list, loading } = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
@@ -146,8 +148,8 @@ export default function Team() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#e2e8f0] dark:border-[#2a2a2a] bg-[#f8fafc] dark:bg-[#0f0f0f]">
-                  {['Member', 'Email', 'Phone', 'Role', 'Status', 'Last Login'].map(h => (
-                    <th key={h} className="py-3 px-4 text-left text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  {['Member', 'Email', 'Phone', 'Role', 'Status', 'Last Login', 'Actions'].map(h => (
+                    <th key={h} className={`py-3 px-4 text-left text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wide whitespace-nowrap ${h === 'Actions' ? 'text-right' : ''}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -198,6 +200,12 @@ export default function Team() {
                       {member.last_login
                         ? new Date(member.last_login).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
                         : 'Never'}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button onClick={() => navigate(`/team/${member.id}`)}
+                        className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all hover:scale-110 active:scale-95" title="View Details">
+                        <Eye size={16} />
+                      </button>
                     </td>
                   </tr>
                 ))}

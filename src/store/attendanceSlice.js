@@ -44,7 +44,9 @@ export const fetchAttendanceByMonth = createAsyncThunk(
   async (params, { rejectWithValue }) => {
     try {
       const response = await api.get('/attendance/by-month', { params })
-      return response.data.data
+      // FIX: store full response object — the grid needs all_days, pagination, month, year
+      // API shape: { success, data:[...], pagination:{}, month, year, all_days:[] }
+      return response.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch monthly grid')
     }
@@ -67,7 +69,7 @@ export const fetchAllAttendance = createAsyncThunk(
   'attendance/fetchAll',
   async (params, { rejectWithValue }) => {
     try {
-      const response = await api.get('/attendance/all', { params })
+      const response = await api.get('/attendance', { params })
       return response.data.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch all attendance')
@@ -91,7 +93,7 @@ export const fetchLateArrivals = createAsyncThunk(
   'attendance/fetchLateArrivals',
   async (params, { rejectWithValue }) => {
     try {
-      const response = await api.get('/attendance/late-arrivals', { params })
+      const response = await api.get('/attendance/late', { params })
       return response.data.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch late arrivals')
@@ -103,7 +105,7 @@ export const checkIn = createAsyncThunk(
   'attendance/checkIn',
   async (payload, { rejectWithValue }) => {
     try {
-      const response = await api.post('/attendance/check-in', payload)
+      const response = await api.post('/attendance/checkin', payload)
       return response.data.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Check-in failed')
@@ -115,7 +117,7 @@ export const checkOut = createAsyncThunk(
   'attendance/checkOut',
   async (payload, { rejectWithValue }) => {
     try {
-      const response = await api.post('/attendance/check-out', payload)
+      const response = await api.post('/attendance/checkout', payload)
       return response.data.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Check-out failed')
@@ -151,7 +153,7 @@ export const updateAttendanceRecord = createAsyncThunk(
   'attendance/updateRecord',
   async ({ id, payload }, { rejectWithValue }) => {
     try {
-      const response = await api.put(`/attendance/records/${id}`, payload)
+      const response = await api.patch(`/attendance/${id}`, payload)
       return response.data.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update record')
@@ -175,7 +177,7 @@ export const approveAttendanceStatus = createAsyncThunk(
   'attendance/approveStatus',
   async (payload, { rejectWithValue }) => {
     try {
-      const response = await api.post('/attendance/approve', payload)
+      const response = await api.patch(`/attendance/${payload.id}/approve`, { status: payload.status, reason: payload.reason })
       return response.data.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Approval failed')
@@ -185,12 +187,17 @@ export const approveAttendanceStatus = createAsyncThunk(
 
 export const uploadAttendancePhoto = createAsyncThunk(
   'attendance/uploadPhoto',
-  async (formData, { rejectWithValue }) => {
+  async ({ file, type }, { rejectWithValue }) => {
     try {
-      const response = await api.post('/attendance/upload-photo', formData, {
+      // Build real FormData — passing a plain object sends no file to multer
+      const fd = new FormData()
+      fd.append('photo', file)
+      // type goes as query param ?type=checkin|checkout (required by backend route)
+      const response = await api.post(`/attendance/upload-photo?type=${type}`, fd, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      return response.data.url
+      // API returns response.data.data.photo_url (not response.data.url)
+      return response.data.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Photo upload failed')
     }
