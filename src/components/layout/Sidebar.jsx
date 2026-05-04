@@ -11,10 +11,10 @@ import logo from '../../asset/image.png'
 
 const navItems = [
   { path: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-  { path: '/leads',        label: 'Leads',        icon: Users },
-  { path: '/site-visits',  label: 'Site Visits',  icon: CalendarCheck },
-  { path: '/follow-ups',   label: 'Follow-Ups',   icon: PhoneCall },
   { path: '/projects',     label: 'Projects',     icon: Building2 },
+  { path: '/leads',        label: 'Leads',        icon: Users },
+  { path: '/follow-ups',   label: 'Follow-Ups',   icon: PhoneCall },
+  { path: '/site-visits',  label: 'Site Visits',  icon: CalendarCheck },
   { path: '/attendance',   label: 'Attendance',   icon: Clock },
   { path: '/team',         label: 'Team',         icon: UserCog },
   { path: '/users',        label: 'Users',        icon: Settings },

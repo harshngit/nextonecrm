@@ -5,13 +5,14 @@ import {
   ArrowLeft, Phone, Mail, MapPin, Calendar, Send, 
   ChevronDown, Loader2, UserCheck, MessageSquare, 
   Clock, CheckCircle, Info, ExternalLink, ShieldCheck,
-  PlusCircle
+  PlusCircle, CalendarPlus
 } from 'lucide-react'
 import { fetchLeadById, fetchLeadActivities, addLeadNote, updateLeadStatus, clearCurrentLead } from '../store/leadSlice'
 import { fetchUsers } from '../store/userSlice'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
+import ConvertLeadModal from '../components/modals/ConvertLeadModal'
 
 const leadStages = ['New', 'Contacted', 'Interested', 'Follow-up', 'Site Visit Scheduled', 'Site Visit Done', 'Negotiation', 'Booked', 'Lost']
 
@@ -36,6 +37,7 @@ export default function LeadDetail() {
   const [note, setNote] = useState('')
   const [newStatus, setNewStatus] = useState('')
   const [noteError, setNoteError] = useState('')
+  const [showConvertModal, setShowConvertModal] = useState(false)
 
   useEffect(() => {
     dispatch(fetchLeadById(id))
@@ -101,6 +103,16 @@ export default function LeadDetail() {
         </button>
         
         <div className="flex gap-2">
+          {lead?.status !== 'Booked' && lead?.status !== 'Lost' && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="rounded-xl border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-purple-600 dark:border-purple-900/30 dark:hover:bg-purple-900/20"
+              onClick={() => setShowConvertModal(true)}
+            >
+              <CalendarPlus size={14} className="mr-2" /> Convert Lead
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="rounded-xl hidden sm:flex">
             <ExternalLink size={14} className="mr-2" /> Share
           </Button>
@@ -363,6 +375,18 @@ export default function LeadDetail() {
 
           </div>
         </div>
+      )}
+
+      {showConvertModal && lead && (
+        <ConvertLeadModal
+          lead={lead}
+          onClose={() => setShowConvertModal(false)}
+          onSuccess={(type) => {
+            setShowConvertModal(false)
+            dispatch(fetchLeadById(id))
+            dispatch(fetchLeadActivities(id))
+          }}
+        />
       )}
     </div>
   )

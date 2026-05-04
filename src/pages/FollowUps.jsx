@@ -3,13 +3,17 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle, Clock, AlertCircle, Phone, Plus,
-  Edit2, Trash2, Download, RefreshCw, ChevronDown, Filter, Eye, X
+  Edit2, Trash2, Download, RefreshCw, ChevronDown, Filter, Eye, X,
+  ArrowRightCircle,
+  CheckCircle2,
+  CalendarPlus
 } from 'lucide-react'
 import {
   fetchFollowUps, createFollowUp, updateFollowUp,
   completeFollowUp, deleteFollowUp, clearFollowUpError, markCompleted,
 } from '../store/followUpSlice'
 import { fetchLeads } from '../store/leadSlice'
+import { fetchProjects } from '../store/projectSlice'
 import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Avatar from '../components/ui/Avatar'
@@ -305,7 +309,250 @@ function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit }) {
 }
 
 // ── Task Card — defined OUTSIDE to prevent focus bug ─────────────────────────
-function TaskCard({ task, onEdit, onDelete, onComplete, canManage }) {
+
+// ─── Convert Follow-Up to Site Visit Modal ────────────────────────────────────
+
+function ConvertFollowUpModal({ task, onClose, onSuccess }) {
+  const [converting, setConverting] = useState(false)
+  const [error, setError] = useState('')
+  const [options, setOptions] = useState(null)
+  const [loadingOptions, setLoadingOptions] = useState(true)
+  const [form, setForm] = useState({
+    project_id: '', visit_date: '', visit_time: '10:00',
+    assigned_to: '', transport_arranged: false, notes: '',
+  })
+
+  const { list: projectList } = useSelector(s => s.projects)
+  const { list: userList }    = useSelector(s => s.users)
+  const salesExecs = userList.filter(u => ['sales_executive','sales_manager'].includes(u.role) && u.is_active)
+
+  useEffect(() => {
+    api.get(`/convert/follow-up/${task.id}/options`)
+      .then(r => {
+        setOptions(r.data.data)
+        const pf = r.data.data?.conversions?.to_site_visit?.prefill || {}
+        setForm(f => ({
+          ...f,
+          project_id:        pf.project_id || '',
+          assigned_to:       pf.assigned_to || task.assigned_to || '',
+          transport_arranged: pf.transport_arranged || false,
+        }))
+      })
+      .catch(() => {})
+      .finally(() => setLoadingOptions(false))
+  }, [task.id])
+
+  const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300 transition-colors placeholder-gray-400"
+  const labelCls = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5"
+
+  const projectOpts = (options?.projects || projectList || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
+  const userOpts    = (options?.users    || salesExecs    || []).map(u => ({ value: u.id, label: u.name || `${u.first_name} ${u.last_name}` }))
+
+  const svAvailable = options?.conversions?.to_site_visit?.available !== false
+
+  const handleConvert = async () => {
+    setError('')
+    if (!form.project_id) { setError('Project is required'); return }
+    if (!form.visit_date) { setError('Visit date is required'); return }
+    if (!form.visit_time) { setError('Visit time is required'); return }
+    setConverting(true)
+    try {
+      await api.post(`/convert/follow-up/${task.id}/to-site-visit`, {
+        project_id:        form.project_id,
+        visit_date:        form.visit_date,
+        visit_time:        form.visit_time,
+        assigned_to:       form.assigned_to || undefined,
+        transport_arranged: Boolean(form.transport_arranged),
+        notes:             form.notes || undefined,
+      })
+      onSuccess()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Conversion failed')
+    } finally {
+      setConverting(false)
+    }
+  }
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title="Convert to Site Visit" size="md">
+      {loadingOptions ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 size={22} className="animate-spin text-[#0082f3]" />
+        </div>
+      ) : !svAvailable ? (
+        <div className="py-6 text-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center mx-auto">
+            <AlertCircle size={22} className="text-red-500" />
+          </div>
+          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Cannot Convert</p>
+          <p className="text-xs text-gray-400">{options?.conversions?.to_site_visit?.unavailable_reason}</p>
+          <button onClick={onClose} className="px-5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500">Close</button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Task info */}
+          <div className="flex items-start gap-3 px-4 py-3 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-900/10 dark:to-violet-900/10 rounded-xl border border-purple-100 dark:border-purple-900/30">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-400 to-violet-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <CalendarPlus size={14} className="text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{task.title}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{task.lead_name} · Follow-up will be marked completed</p>
+            </div>
+          </div>
+
+          <CustomSelect label="Project *" value={form.project_id} onChange={v => setForm(f => ({...f, project_id: v}))} options={projectOpts} placeholder="Select project" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Visit Date *</label>
+              <input type="date" value={form.visit_date} onChange={e => setForm(f => ({...f, visit_date: e.target.value}))}
+                min={new Date().toISOString().split('T')[0]} className={inputCls} />
+            </div>
+            <div>
+              <ClockPicker label="Visit Time *" value={form.visit_time} onChange={v => setForm(f => ({...f, visit_time: v}))} required />
+            </div>
+          </div>
+          <CustomSelect label="Assign To" value={form.assigned_to} onChange={v => setForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" />
+          <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 cursor-pointer"
+            onClick={() => setForm(f => ({...f, transport_arranged: !f.transport_arranged}))}>
+            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors flex-shrink-0 ${form.transport_arranged ? 'bg-[#0082f3] border-[#0082f3]' : 'border-gray-300 dark:border-gray-600'}`}>
+              {form.transport_arranged && <CheckCircle2 size={12} className="text-white"/>}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Transport Arranged</p>
+              <p className="text-[10px] text-gray-400">Check if you will arrange pick-up/drop for the client</p>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Notes <span className="font-normal text-gray-400">(optional)</span></label>
+            <textarea rows={3} value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))}
+              placeholder="Any special instructions for the visit…" className={inputCls + ' resize-none'} />
+          </div>
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">
+              <AlertCircle size={13} className="text-red-500 flex-shrink-0"/>
+              <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">Cancel</button>
+            <button onClick={handleConvert} disabled={converting}
+              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-60">
+              {converting ? <><Loader2 size={14} className="animate-spin"/> Converting…</> : <><CalendarPlus size={14}/> Schedule Visit</>}
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+// ─── Bulk Convert Follow-Ups to Site Visit ───────────────────────────────────
+
+function BulkConvertFUModal({ taskIds, tasks, onClose, onSuccess }) {
+  const [converting, setConverting] = useState(false)
+  const [error, setError]     = useState('')
+  const [results, setResults] = useState(null)
+  const [form, setForm] = useState({ project_id: '', visit_date: '', visit_time: '10:00', assigned_to: '', transport_arranged: false, notes: '' })
+
+  const { list: projectList } = useSelector(s => s.projects)
+  const { list: userList }    = useSelector(s => s.users)
+  const salesExecs = userList.filter(u => ['sales_executive','sales_manager'].includes(u.role) && u.is_active)
+
+  const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300 transition-colors placeholder-gray-400"
+  const labelCls = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5"
+  const projectOpts = projectList.map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
+  const userOpts    = salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
+
+  const handleConvert = async () => {
+    setError('')
+    if (!form.project_id) { setError('Project is required'); return }
+    if (!form.visit_date) { setError('Visit date is required'); return }
+    setConverting(true)
+    const settled = await Promise.allSettled(
+      taskIds.map(id => api.post(`/convert/follow-up/${id}/to-site-visit`, {
+        project_id:        form.project_id,
+        visit_date:        form.visit_date,
+        visit_time:        form.visit_time,
+        assigned_to:       form.assigned_to || undefined,
+        transport_arranged: Boolean(form.transport_arranged),
+        notes:             form.notes || undefined,
+      }))
+    )
+    setConverting(false)
+    const ok = settled.filter(r => r.status === 'fulfilled').length
+    const err = settled.filter(r => r.status === 'rejected').length
+    setResults({ ok, err })
+  }
+
+  if (results) {
+    return (
+      <Modal isOpen={true} onClose={onSuccess} title="Conversion Complete" size="sm">
+        <div className="py-4 text-center space-y-4">
+          <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center ${results.err === 0 ? 'bg-purple-50 dark:bg-purple-900/20' : 'bg-amber-50 dark:bg-amber-900/20'}`}>
+            <CheckCircle2 size={28} className={results.err === 0 ? 'text-purple-500' : 'text-amber-500'} />
+          </div>
+          <p className="text-base font-bold text-gray-900 dark:text-white">{results.ok} of {taskIds.length} converted</p>
+          {results.err > 0 && <p className="text-xs text-amber-600 mt-1">{results.err} failed (no lead linked or already completed)</p>}
+          <button onClick={onSuccess} className="w-full py-2.5 rounded-xl bg-purple-500 text-white text-sm font-semibold">Done</button>
+        </div>
+      </Modal>
+    )
+  }
+
+  const selectedNames = tasks.filter(t => taskIds.includes(t.id))
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title={`Convert ${taskIds.length} Follow-Up${taskIds.length > 1 ? 's' : ''} → Site Visit`} size="md">
+      <div className="space-y-4">
+        <div className="bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/30 rounded-xl px-4 py-3">
+          <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 mb-1.5">{taskIds.length} follow-up{taskIds.length > 1 ? 's' : ''} selected · all will be marked completed</p>
+          <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+            {selectedNames.slice(0, 6).map(t => (
+              <span key={t.id} className="text-[10px] px-2 py-0.5 bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-800 rounded-lg text-purple-700 dark:text-purple-300 font-medium truncate max-w-[120px]">{t.title}</span>
+            ))}
+            {selectedNames.length > 6 && <span className="text-[10px] text-gray-400 px-1">+{selectedNames.length - 6} more</span>}
+          </div>
+        </div>
+        <CustomSelect label="Project *" value={form.project_id} onChange={v => setForm(f => ({...f, project_id: v}))} options={projectOpts} placeholder="Select project" />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>Visit Date *</label>
+            <input type="date" value={form.visit_date} onChange={e => setForm(f => ({...f, visit_date: e.target.value}))}
+              min={new Date().toISOString().split('T')[0]} className={inputCls} />
+          </div>
+          <div>
+            <ClockPicker label="Visit Time" value={form.visit_time} onChange={v => setForm(f => ({...f, visit_time: v}))} />
+          </div>
+        </div>
+        <CustomSelect label="Assign To" value={form.assigned_to} onChange={v => setForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" />
+        <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 cursor-pointer"
+          onClick={() => setForm(f => ({...f, transport_arranged: !f.transport_arranged}))}>
+          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${form.transport_arranged ? 'bg-[#0082f3] border-[#0082f3]' : 'border-gray-300 dark:border-gray-600'}`}>
+            {form.transport_arranged && <CheckCircle2 size={12} className="text-white"/>}
+          </div>
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Transport Arranged</p>
+        </div>
+        <div>
+          <label className={labelCls}>Notes <span className="font-normal text-gray-400">(optional)</span></label>
+          <textarea rows={2} value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))}
+            placeholder="Special instructions…" className={inputCls + ' resize-none'} />
+        </div>
+        {error && <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"><AlertCircle size={13} className="text-red-500"/><p className="text-xs text-red-600">{error}</p></div>}
+        <div className="flex gap-3 pt-1">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500">Cancel</button>
+          <button onClick={handleConvert} disabled={converting}
+            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60">
+            {converting ? <><Loader2 size={14} className="animate-spin"/> Converting…</> : <><CalendarPlus size={14}/> Schedule {taskIds.length} Visit{taskIds.length > 1 ? 's' : ''}</>}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+
+function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, isSelected, onSelect }) {
   const navigate = useNavigate()
   const category = classifyTask(task)
 
@@ -319,11 +566,25 @@ function TaskCard({ task, onEdit, onDelete, onComplete, canManage }) {
   return (
     <div className={`border rounded-xl p-4 transition-all ${cardStyle[category]}`}>
       <div className="flex items-start gap-3">
+        {/* Checkbox for selection */}
+        {onSelect && (
+          <div
+            onClick={e => { e.stopPropagation(); onSelect(task.id) }}
+            className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 cursor-pointer transition-all
+              ${isSelected
+                ? 'bg-[#0082f3] border-[#0082f3]'
+                : 'border-gray-300 dark:border-gray-600 hover:border-[#0082f3]'}`}>
+            {isSelected && <CheckCircle2 size={11} className="text-white" />}
+          </div>
+        )}
         <Avatar name={task.lead_name || task.title} size="sm" />
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
-            <span className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">
+            <span 
+              className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate cursor-pointer hover:text-brand transition-colors"
+              onClick={() => task.lead_id ? navigate(`/leads/${task.lead_id}`) : navigate(`/follow-ups/${task.id}`)}
+            >
               {task.lead_name || '—'}
             </span>
             {category === 'overdue' && (
@@ -373,6 +634,12 @@ function TaskCard({ task, onEdit, onDelete, onComplete, canManage }) {
                 className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all hover:scale-110 active:scale-95" title="View Details">
                 <Eye size={14} />
               </button>
+              {onConvert && task.lead_id && (
+                <button onClick={() => onConvert(task)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors" title="Convert to Site Visit">
+                  <ArrowRightCircle size={13} />
+                </button>
+              )}
               <button onClick={() => onEdit(task)}
                 className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit">
                 <Edit2 size={13} />
@@ -410,8 +677,13 @@ export default function FollowUps() {
 
   const [addForm,  setAddForm]  = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
-  const [success,   setSuccess]   = useState('')
-  const [exporting, setExporting] = useState(false)
+  const [success,           setSuccess]           = useState('')
+  const [exporting,         setExporting]         = useState(false)
+  const [selectedTasks,     setSelectedTasks]     = useState([])
+  const [showBulkConvert,   setShowBulkConvert]   = useState(false)
+  const [showConvertModal,  setShowConvertModal]  = useState(false)
+  const [convertTask,       setConvertTask]       = useState(null)
+  const [convertSuccess,    setConvertSuccess]    = useState('')
 
   const salesExecs = userList.filter(u =>
     ['sales_executive', 'sales_manager'].includes(u.role) && u.is_active
@@ -433,6 +705,7 @@ export default function FollowUps() {
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
     dispatch(fetchUsers())
+    dispatch(fetchProjects())
   }, [dispatch])
 
   // ── Classify tasks into buckets ─────────────────────────────────────────────
@@ -529,17 +802,66 @@ export default function FollowUps() {
     setShowCompleteModal(true)
   }
 
+  // ── Selection + conversion helpers ──────────────────────────────────────────
+  const allTasks = [...overdueTasks, ...todayTasks, ...upcomingTasks]  // completed excluded from bulk
+
+  const toggleTask = (id) =>
+    setSelectedTasks(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+
+  const toggleSectionAll = (tasks) => {
+    const ids = tasks.map(t => t.id)
+    const allSel = ids.every(id => selectedTasks.includes(id))
+    setSelectedTasks(prev => allSel
+      ? prev.filter(id => !ids.includes(id))
+      : [...new Set([...prev, ...ids])]
+    )
+  }
+
+  const handleBulkFUConvertSuccess = () => {
+    setShowBulkConvert(false)
+    setSelectedTasks([])
+    setSuccess(`${selectedTasks.length} follow-up${selectedTasks.length > 1 ? 's' : ''} converted to site visit!`)
+    loadTasks()
+    setTimeout(() => setSuccess(''), 3000)
+  }
+
+  const handleConvertTaskSuccess = () => {
+    setShowConvertModal(false)
+    setConvertTask(null)
+    setSuccess('Follow-up converted to site visit!')
+    loadTasks()
+    setTimeout(() => setSuccess(''), 3000)
+  }
+
   // ── Section Component ────────────────────────────────────────────────────────
-  const Section = ({ title, tasks, icon: Icon, iconColor, accent }) => {
+  const Section = ({ title, tasks, icon: Icon, iconColor, accent, selectable }) => {
     if (tasks.length === 0) return null
     return (
       <div className={`bg-white dark:bg-[#1a1a1a] border ${accent || 'border-[#e2e8f0] dark:border-[#2a2a2a]'} rounded-2xl p-5`}>
         <div className="flex items-center gap-2 mb-4">
+          {selectable && tasks.length > 0 && (
+            <div
+              onClick={() => toggleSectionAll(tasks)}
+              className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer flex-shrink-0 transition-all
+                ${tasks.every(t => selectedTasks.includes(t.id))
+                  ? 'bg-[#0082f3] border-[#0082f3]'
+                  : 'border-gray-400 dark:border-gray-600 hover:border-[#0082f3]'}`}
+            >
+              {tasks.every(t => selectedTasks.includes(t.id)) && (
+                <svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              )}
+            </div>
+          )}
           <Icon size={16} className={iconColor} />
           <h3 className={`font-display text-sm font-semibold ${iconColor}`}>{title}</h3>
           <span className="w-5 h-5 bg-gray-100 dark:bg-gray-800 rounded-full text-xs flex items-center justify-center font-bold text-gray-600 dark:text-gray-400">
             {tasks.length}
           </span>
+          {selectable && selectedTasks.filter(id => tasks.map(t => t.id).includes(id)).length > 0 && (
+            <span className="ml-auto text-[10px] font-semibold text-[#0082f3] bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">
+              {selectedTasks.filter(id => tasks.map(t => t.id).includes(id)).length} selected
+            </span>
+          )}
         </div>
         <div className="space-y-3">
           {tasks.map(task => (
@@ -549,7 +871,10 @@ export default function FollowUps() {
               onComplete={openComplete}
               onEdit={openEdit}
               onDelete={handleDelete}
+              onConvert={selectable ? (t) => { setConvertTask(t); setShowConvertModal(true) } : undefined}
               canManage={canManage}
+              isSelected={selectedTasks.includes(task.id)}
+              onSelect={selectable ? toggleTask : undefined}
             />
           ))}
         </div>
@@ -622,6 +947,16 @@ export default function FollowUps() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Bulk convert button — appears when follow-ups are selected */}
+          {selectedTasks.length > 0 && (
+            <button
+              onClick={() => setShowBulkConvert(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white text-xs font-semibold shadow-sm shadow-purple-500/20 transition-all active:scale-[0.97]"
+            >
+              <ArrowRightCircle size={13} />
+              Convert {selectedTasks.length}
+            </button>
+          )}
           <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button>
@@ -661,9 +996,9 @@ export default function FollowUps() {
         </div>
       ) : (
         <>
-          <Section title="⚠️ Overdue"           tasks={overdueTasks}   icon={AlertCircle}  iconColor="text-red-600 dark:text-red-400"   accent="border-red-200 dark:border-red-900/50" />
-          <Section title="📞 Today's Follow-ups" tasks={todayTasks}     icon={Phone}        iconColor="text-blue-600 dark:text-blue-400" accent="border-blue-200 dark:border-blue-900/40" />
-          <Section title="📅 Upcoming"           tasks={upcomingTasks}  icon={Clock}        iconColor="text-brand" />
+          <Section title="⚠️ Overdue"           tasks={overdueTasks}   icon={AlertCircle}  iconColor="text-red-600 dark:text-red-400"   accent="border-red-200 dark:border-red-900/50" selectable />
+          <Section title="📞 Today's Follow-ups" tasks={todayTasks}     icon={Phone}        iconColor="text-blue-600 dark:text-blue-400" accent="border-blue-200 dark:border-blue-900/40" selectable />
+          <Section title="📅 Upcoming"           tasks={upcomingTasks}  icon={Clock}        iconColor="text-brand" selectable />
           <Section title="✅ Completed"           tasks={completedTasks} icon={CheckCircle}  iconColor="text-green-600 dark:text-green-400" />
         </>
       )}
@@ -736,6 +1071,33 @@ export default function FollowUps() {
           </div>
         </form>
       </Modal>
+
+      {/* Success toast */}
+      {success && !showAddModal && !showEditModal && !showCompleteModal && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-purple-500 text-white px-5 py-3 rounded-2xl shadow-xl shadow-purple-500/30">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8L6.5 11.5L13 5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          {success}
+        </div>
+      )}
+
+      {/* Bulk Convert Follow-Ups to Site Visit */}
+      {showBulkConvert && selectedTasks.length > 0 && (
+        <BulkConvertFUModal
+          taskIds={selectedTasks}
+          tasks={allTasks}
+          onClose={() => setShowBulkConvert(false)}
+          onSuccess={handleBulkFUConvertSuccess}
+        />
+      )}
+
+      {/* Single Convert Follow-Up to Site Visit */}
+      {showConvertModal && convertTask && (
+        <ConvertFollowUpModal
+          task={convertTask}
+          onClose={() => { setShowConvertModal(false); setConvertTask(null) }}
+          onSuccess={handleConvertTaskSuccess}
+        />
+      )}
 
       {/* Export Modal */}
       <ExportModal 

@@ -5,12 +5,13 @@ import {
   ArrowLeft, Calendar, Clock, User, Phone, 
   MessageSquare, AlertCircle, CheckCircle, Loader2, 
   UserCheck, MapPin, ExternalLink, ShieldCheck, Info,
-  Send, ChevronDown
+  Send, ChevronDown, CalendarPlus
 } from 'lucide-react'
 import { fetchFollowUpById, clearCurrentTask, completeFollowUp } from '../store/followUpSlice'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
+import ConvertFollowUpModal from '../components/modals/ConvertFollowUpModal'
 
 export default function FollowUpDetail() {
   const { id } = useParams()
@@ -19,6 +20,7 @@ export default function FollowUpDetail() {
 
   const { currentTask: task, detailLoading, actionLoading } = useSelector(s => s.followUps)
   const [completeNotes, setCompleteNotes] = useState('')
+  const [showConvertModal, setShowConvertModal] = useState(false)
 
   useEffect(() => {
     dispatch(fetchFollowUpById(id))
@@ -74,6 +76,16 @@ export default function FollowUpDetail() {
         </button>
         
         <div className="flex gap-2">
+          {!task?.is_completed && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="rounded-xl border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-purple-600 dark:border-purple-900/30 dark:hover:bg-purple-900/20"
+              onClick={() => setShowConvertModal(true)}
+            >
+              <CalendarPlus size={14} className="mr-2" /> Schedule Visit
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="rounded-xl" onClick={() => navigate(`/leads/${task.lead_id}`)}>
             View Lead Profile
           </Button>
@@ -265,6 +277,17 @@ export default function FollowUpDetail() {
 
           </div>
         </div>
+      )}
+
+      {showConvertModal && task && (
+        <ConvertFollowUpModal
+          task={task}
+          onClose={() => setShowConvertModal(false)}
+          onSuccess={() => {
+            setShowConvertModal(false)
+            dispatch(fetchFollowUpById(id))
+          }}
+        />
       )}
     </div>
   )

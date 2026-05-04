@@ -659,7 +659,12 @@ export default function SiteVisits() {
                     <Avatar name={visit.lead_name || '?'} size="md" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-gray-900 dark:text-white truncate">{visit.lead_name}</span>
+                        <span 
+                          className="font-bold text-gray-900 dark:text-white truncate cursor-pointer hover:text-brand transition-colors"
+                          onClick={() => visit.lead_id ? navigate(`/leads/${visit.lead_id}`) : navigate(`/site-visits/${visit.id}`)}
+                        >
+                          {visit.lead_name}
+                        </span>
                         <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${statusColor[visit.status] || ''}`}>
                           {statusLabel[visit.status]}
                         </span>
@@ -715,7 +720,12 @@ export default function SiteVisits() {
                         <div className="flex items-center gap-2.5">
                           <Avatar name={visit.lead_name || '?'} size="sm" />
                           <div>
-                            <div className="font-medium text-gray-900 dark:text-gray-100">{visit.lead_name || '—'}</div>
+                            <div 
+                              className="font-medium text-gray-900 dark:text-gray-100 cursor-pointer hover:text-brand transition-colors"
+                              onClick={() => visit.lead_id ? navigate(`/leads/${visit.lead_id}`) : navigate(`/site-visits/${visit.id}`)}
+                            >
+                              {visit.lead_name || '—'}
+                            </div>
                             <div className="text-xs text-gray-400">{visit.lead_phone || ''}</div>
                           </div>
                         </div>
