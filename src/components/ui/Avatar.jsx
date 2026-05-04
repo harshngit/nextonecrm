@@ -8,7 +8,7 @@ const colors = [
 ]
 
 export default function Avatar({ name, initials, size = 'md', className = '' }) {
-  const displayName = name || initials || ''
+  const displayName = String(name || initials || '')
   const text = initials || (displayName ? displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '?')
   const colorIndex = text.charCodeAt(0) % colors.length
   const colorClass = colors[colorIndex]

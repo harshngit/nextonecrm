@@ -10,6 +10,7 @@ import Button from '../components/ui/Button'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
+import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
 
 const leadStages = [
@@ -38,7 +39,7 @@ const defaultSources = [
 ]
 
 const defaultForm = {
-  name: '', phone: '', email: '',
+  name: '', phone: '', alternate_phone_number: '', email: '',
   source: '', source_id: '', project_id: '',
   assigned_to: '', budget: '', location_preference: '',
   notes: '', status: 'New',
@@ -81,8 +82,17 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
         </div>
       </div>
 
-      {/* Email + Budget */}
+      {/* Alt Phone + Email */}
       <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>Alternate Phone</label>
+          <input
+            value={formData.alternate_phone_number}
+            onChange={e => setFormData(prev => ({ ...prev, alternate_phone_number: e.target.value }))}
+            placeholder="+919876543211"
+            className={inputClass}
+          />
+        </div>
         <div>
           <label className={labelClass}>Email</label>
           <input
@@ -93,6 +103,10 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
             className={inputClass}
           />
         </div>
+      </div>
+
+      {/* Budget + Location */}
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Budget</label>
           <input
@@ -102,24 +116,6 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
             className={inputClass}
           />
         </div>
-      </div>
-
-      {/* Source + Location */}
-      <div className="grid grid-cols-2 gap-3">
-        <CustomSelect
-          label="Lead Source"
-          value={formData.source_id || formData.source}
-          onChange={val => {
-            const selected = sourceList.find(s => s.id === val)
-            setFormData(prev => ({
-              ...prev,
-              source_id: selected?.id || val,
-              source: selected?.name || val,
-            }))
-          }}
-          options={sourceOptions}
-          placeholder="Select Platform"
-        />
         <div>
           <label className={labelClass}>Finding Location</label>
           <div className="relative">
@@ -134,14 +130,21 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
         </div>
       </div>
 
-      {/* Assign To + Status (status only in edit) */}
+      {/* Source + Status */}
       <div className={`grid gap-3 ${isEdit ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <CustomSelect
-          label="Assign To"
-          value={formData.assigned_to}
-          onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))}
-          options={execOptions}
-          placeholder="Select team member"
+          label="Lead Source"
+          value={formData.source_id || formData.source}
+          onChange={val => {
+            const selected = sourceList.find(s => s.id === val)
+            setFormData(prev => ({
+              ...prev,
+              source_id: selected?.id || val,
+              source: selected?.name || val,
+            }))
+          }}
+          options={sourceOptions}
+          placeholder="Select Platform"
         />
         {isEdit && (
           <CustomSelect
@@ -151,6 +154,17 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
             options={stageOptions}
           />
         )}
+      </div>
+
+      {/* Assign To */}
+      <div className="grid grid-cols-1">
+        <CustomSelect
+          label="Assign To"
+          value={formData.assigned_to}
+          onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))}
+          options={execOptions}
+          placeholder="Select team member"
+        />
       </div>
 
       {/* Configuration */}
@@ -186,6 +200,7 @@ export default function Leads() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showReassignModal, setShowReassignModal] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
   const [selectedLead, setSelectedLead] = useState(null)
   const [addForm, setAddForm] = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
@@ -246,11 +261,18 @@ export default function Leads() {
   const openEdit = (lead) => {
     setSelectedLead(lead)
     setEditForm({
-      name: lead.name || '', phone: lead.phone || '', email: lead.email || '',
-      source: lead.source || '', source_id: lead.source_id || '',
-      project_id: lead.project_id || '', assigned_to: lead.assigned_to || '',
-      budget: lead.budget || '', location_preference: lead.location_preference || '',
-      notes: lead.notes || '', status: lead.status || 'New',
+      name: lead.name || '', 
+      phone: lead.phone || '', 
+      alternate_phone_number: lead.alternate_phone_number || '',
+      email: lead.email || '',
+      source: lead.source || '', 
+      source_id: lead.source_id || '',
+      project_id: lead.project_id || '', 
+      assigned_to: lead.assigned_to || '',
+      budget: lead.budget || '', 
+      location_preference: lead.location_preference || '',
+      notes: lead.notes || '', 
+      status: lead.status || 'New',
     })
     setShowEditModal(true)
   }
@@ -272,17 +294,17 @@ export default function Leads() {
   const canEdit = ['super_admin', 'admin', 'sales_manager', 'sales_executive'].includes(currentUser?.role)
   const canDelete = ['super_admin', 'admin'].includes(currentUser?.role)
 
-  const handleExport = async () => {
+  const handleExport = async (dateRange) => {
     try {
       setExporting(true)
-      const today = new Date().toISOString().split('T')[0]
-      const params = {}
+      const params = { ...dateRange }
       if (filterStatus) params.status = filterStatus
       if (filterSource) params.source = filterSource
       const res = await api.get('/export/leads', { params, responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
-      const a = document.createElement('a'); a.href = url; a.download = `Leads_${today}.xlsx`
+      const a = document.createElement('a'); a.href = url; a.download = `Leads_${dateRange.from}_to_${dateRange.to}.xlsx`
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+      setShowExportModal(false)
     } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
   }
 
@@ -300,29 +322,29 @@ export default function Leads() {
               className="pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400"
             />
           </div>
-          <div className="relative">
-            <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
-              <option value="">All Status</option>
-              {leadStages.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="w-44">
+            <CustomSelect
+              value={filterStatus}
+              onChange={val => { setFilterStatus(val); setPage(1) }}
+              options={[{ value: '', label: 'All Status' }, ...stageOptions]}
+              placeholder="All Status"
+            />
           </div>
-          <div className="relative">
-            <select value={filterSource} onChange={e => { setFilterSource(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
-              <option value="">All Sources</option>
-              {sourceList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="w-44">
+            <CustomSelect
+              value={filterSource}
+              onChange={val => { setFilterSource(val); setPage(1) }}
+              options={[{ value: '', label: 'All Sources' }, ...sourceList.map(s => ({ value: s.id, label: s.name }))]}
+              placeholder="All Sources"
+            />
           </div>
-          <div className="relative">
-            <select value={filterAssigned} onChange={e => { setFilterAssigned(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
-              <option value="">All Team</option>
-              {salesExecs.map(u => <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>)}
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="w-44">
+            <CustomSelect
+              value={filterAssigned}
+              onChange={val => { setFilterAssigned(val); setPage(1) }}
+              options={[{ value: '', label: 'All Team' }, ...salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))]}
+              placeholder="All Team"
+            />
           </div>
           <button
             onClick={() => dispatch(fetchLeads({ page, per_page: 20 }))}
@@ -332,7 +354,7 @@ export default function Leads() {
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={handleExport}>
+          <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button>
           {canEdit && (
@@ -397,7 +419,14 @@ export default function Leads() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-3 text-gray-600 dark:text-gray-400 hidden md:table-cell">{lead.phone}</td>
+                    <td className="py-3 px-3 text-gray-600 dark:text-gray-400 hidden md:table-cell">
+                      <div className="flex flex-col">
+                        <span>{lead.phone}</span>
+                        {lead.alternate_phone_number && (
+                          <span className="text-[10px] text-gray-400">Alt: {lead.alternate_phone_number}</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-3 px-3 hidden md:table-cell">
                       <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-400">
                         {lead.source_name || lead.source || '—'}
@@ -516,6 +545,15 @@ export default function Leads() {
           </div>
         </form>
       </Modal>
+
+      {/* Export Modal */}
+      <ExportModal 
+        isOpen={showExportModal} 
+        onClose={() => setShowExportModal(false)} 
+        onExport={handleExport} 
+        loading={exporting}
+        title="Export Leads"
+      />
     </div>
   )
 }

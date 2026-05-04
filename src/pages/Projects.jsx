@@ -7,6 +7,7 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import api from '../api/axios'
 import Modal from '../components/ui/Modal'
+import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
 
 const projectColors = [
@@ -176,6 +177,7 @@ export default function Projects() {
 
   const [showAddModal,  setShowAddModal]  = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
   const [selectedProject, setSelectedProject] = useState(null)
 
   const [addForm,  setAddForm]  = useState(defaultForm)
@@ -280,15 +282,18 @@ export default function Projects() {
 
   const isAdminUser = ['admin','super_admin'].includes(currentUser?.role)
 
-  const handleExport = async () => {
+  const handleExport = async (dateRange) => {
     if (!isAdminUser) return
     try {
       setExporting(true)
-      const today = new Date().toISOString().split('T')[0]
-      const res = await api.get('/export/projects', { responseType: 'blob' })
+      const params = { ...dateRange }
+      if (filterStatus) params.status = filterStatus
+      if (filterCity) params.city = filterCity
+      const res = await api.get('/export/projects', { params, responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
-      const a = document.createElement('a'); a.href = url; a.download = `Projects_${today}.xlsx`
+      const a = document.createElement('a'); a.href = url; a.download = `Projects_${dateRange.from}_to_${dateRange.to}.xlsx`
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+      setShowExportModal(false)
     } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
   }
 
@@ -307,16 +312,19 @@ export default function Projects() {
           </div>
 
           {/* Status filter */}
-          <div className="relative">
-            <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="completed">Completed</option>
-              <option value="inactive">Inactive</option>
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="w-44">
+            <CustomSelect
+              value={filterStatus}
+              onChange={val => { setFilterStatus(val); setPage(1) }}
+              options={[
+                { value: '', label: 'All Status' },
+                { value: 'active', label: 'Active' },
+                { value: 'upcoming', label: 'Upcoming' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'inactive', label: 'Inactive' },
+              ]}
+              placeholder="All Status"
+            />
           </div>
 
           {/* City filter */}
@@ -334,7 +342,7 @@ export default function Projects() {
 
         <div className="flex items-center gap-2">
           {isAdminUser && (
-            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={handleExport}>
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
               Export
             </Button>
           )}
@@ -487,6 +495,15 @@ export default function Projects() {
           </div>
         </form>
       </Modal>
+
+      {/* Export Modal */}
+      <ExportModal 
+        isOpen={showExportModal} 
+        onClose={() => setShowExportModal(false)} 
+        onExport={handleExport} 
+        loading={exporting}
+        title="Export Projects"
+      />
     </div>
   )
 }

@@ -136,9 +136,10 @@ export default function LeadDetail() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-10">
                   {[
                     { icon: Phone, label: 'Phone Number', value: lead.phone, color: 'text-blue-600 bg-blue-50' },
+                    { icon: Phone, label: 'Alt Phone', value: lead.alternate_phone_number || 'Not provided', color: 'text-indigo-600 bg-indigo-50' },
                     { icon: Mail, label: 'Email Address', value: lead.email || 'Not provided', color: 'text-purple-600 bg-purple-50' },
                     { icon: MapPin, label: 'Finding Location', value: lead.location_preference || 'Not specified', color: 'text-teal-600 bg-teal-50' },
                   ].map(({ icon: Icon, label, value, color }) => (

@@ -31,6 +31,7 @@ import {
 import api from '../api/axios'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
+import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -987,82 +988,6 @@ function ApprovalPanel({ dispatch }) {
   )
 }
 
-// ─── Export Menu ─────────────────────────────────────────────────────────────
-
-function ExportMenu({ isAdmin, now, handleExport, handleExportExcel }) {
-  const [open,        setOpen]        = useState(false)
-  const [exporting,   setExporting]   = useState(null)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', fn)
-    return () => document.removeEventListener('mousedown', fn)
-  }, [])
-
-  const EXPORTS = [
-    { key: 'leads',       label: 'Leads',       color: 'text-blue-600',   show: true },
-    { key: 'site-visits', label: 'Site Visits',  color: 'text-purple-600', show: true },
-    { key: 'follow-ups',  label: 'Follow-Ups',   color: 'text-green-600',  show: true },
-    { key: 'attendance',  label: 'Attendance',   color: 'text-indigo-600', show: true },
-    { key: 'projects',    label: 'Projects',     color: 'text-amber-600',  show: isAdmin },
-    { key: 'users',       label: 'Team Members', color: 'text-pink-600',   show: isAdmin },
-    { key: 'all',         label: 'All Modules',  color: 'text-[#0082f3]',  show: isAdmin },
-  ].filter(e => e.show)
-
-  const doExport = async (key) => {
-    setExporting(key)
-    setOpen(false)
-    const from = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`
-    const to   = now.toISOString().split('T')[0]
-    await handleExport(key, { from, to })
-    setExporting(null)
-  }
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all
-          ${open
-            ? 'border-[#0082f3] text-[#0082f3] bg-blue-50 dark:bg-blue-900/20'
-            : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-[#0082f3] hover:text-[#0082f3]'
-          }`}
-      >
-        {exporting ? (
-          <Loader2 size={13} className="animate-spin" />
-        ) : (
-          <Download size={13} />
-        )}
-        Export
-        <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 mt-1.5 w-52 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl shadow-black/10 z-50 overflow-hidden py-1">
-          <p className="px-4 py-2 text-[10px] font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 mb-1">
-            Download Excel (.xlsx)
-          </p>
-          {EXPORTS.map(({ key, label, color }) => (
-            <button key={key}
-              onClick={() => doExport(key)}
-              disabled={!!exporting}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors disabled:opacity-50 disabled:cursor-wait"
-            >
-              <Download size={13} className={color} />
-              <span className="text-gray-700 dark:text-gray-300 font-medium">{label}</span>
-              {key === 'all' && (
-                <span className="ml-auto text-[10px] text-[#0082f3] bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded-full font-semibold">All</span>
-              )}
-              {exporting === key && <Loader2 size={11} className="ml-auto animate-spin text-gray-400" />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── Circular Clock Picker ───────────────────────────────────────────────────
 
 function ClockPicker({ value, onChange, label, icon: Icon, iconColor = 'text-gray-400', required = false }) {
@@ -1171,117 +1096,124 @@ function ClockPicker({ value, onChange, label, icon: Icon, iconColor = 'text-gra
         <Clock size={14} className="text-gray-400 flex-shrink-0" />
       </div>
 
-      {/* Clock panel — positioned fixed to avoid modal overflow clip */}
+      {/* Clock panel — centered in modal */}
       {open && (
-        <div className="absolute z-[9999] left-0 mt-2 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl shadow-black/20 overflow-hidden"
-          style={{ width: 240 }}>
+        <>
+          {/* Overlay to catch clicks and dim background */}
+          <div className="fixed inset-0 z-[9998] bg-black/10 backdrop-blur-[1px]" onClick={() => setOpen(false)} />
+          
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[9999] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-[32px] shadow-2xl shadow-black/40 overflow-hidden flex flex-col items-center"
+            style={{ width: 'min(320px, 80vw)' }}>
 
-          {/* Digital display + AM/PM */}
-          <div className="bg-[#0082f3] px-4 py-3 flex items-center justify-between">
-            <div className="flex items-baseline gap-0.5">
-              <span
-                onClick={() => setMode('hour')}
-                className={`font-mono text-3xl font-bold cursor-pointer transition-opacity ${mode==='hour' ? 'opacity-100' : 'opacity-60'} text-white`}>
-                {String(display12).padStart(2,'0')}
-              </span>
-              <span className="font-mono text-3xl font-bold text-white/80">:</span>
-              <span
-                onClick={() => setMode('minute')}
-                className={`font-mono text-3xl font-bold cursor-pointer transition-opacity ${mode==='minute' ? 'opacity-100' : 'opacity-60'} text-white`}>
-                {mm || '00'}
-              </span>
+            {/* Digital display + AM/PM */}
+            <div className="bg-[#0082f3] w-full px-8 py-6 flex items-center justify-between">
+              <div className="flex items-baseline gap-1">
+                <span
+                  onClick={() => setMode('hour')}
+                  className={`font-mono text-5xl font-bold cursor-pointer transition-opacity ${mode==='hour' ? 'opacity-100' : 'opacity-60'} text-white`}>
+                  {String(display12).padStart(2,'0')}
+                </span>
+                <span className="font-mono text-5xl font-bold text-white/80">:</span>
+                <span
+                  onClick={() => setMode('minute')}
+                  className={`font-mono text-5xl font-bold cursor-pointer transition-opacity ${mode==='minute' ? 'opacity-100' : 'opacity-60'} text-white`}>
+                  {mm || '00'}
+                </span>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button onClick={() => handleAMPM(true)}
+                  className={`w-12 h-9 text-sm font-bold rounded-xl transition-all ${isAM ? 'bg-white text-[#0082f3] shadow-md' : 'text-white/60 hover:text-white/90'}`}>
+                  AM
+                </button>
+                <button onClick={() => handleAMPM(false)}
+                  className={`w-12 h-9 text-sm font-bold rounded-xl transition-all ${!isAM ? 'bg-white text-[#0082f3] shadow-md' : 'text-white/60 hover:text-white/90'}`}>
+                  PM
+                </button>
+              </div>
             </div>
-            <div className="flex flex-col gap-1">
-              <button onClick={() => handleAMPM(true)}
-                className={`w-10 h-7 text-xs font-bold rounded-lg transition-all ${isAM ? 'bg-white text-[#0082f3]' : 'text-white/60 hover:text-white/90'}`}>
-                AM
+
+            {/* Mode toggle */}
+            <div className="flex w-full border-b border-gray-100 dark:border-gray-800">
+              <button onClick={() => setMode('hour')}
+                className={`flex-1 py-3 text-xs font-bold tracking-widest transition-colors ${mode==='hour' ? 'text-[#0082f3] border-b-2 border-[#0082f3]' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>
+                HOUR
               </button>
-              <button onClick={() => handleAMPM(false)}
-                className={`w-10 h-7 text-xs font-bold rounded-lg transition-all ${!isAM ? 'bg-white text-[#0082f3]' : 'text-white/60 hover:text-white/90'}`}>
-                PM
+              <button onClick={() => setMode('minute')}
+                className={`flex-1 py-3 text-xs font-bold tracking-widest transition-colors ${mode==='minute' ? 'text-[#0082f3] border-b-2 border-[#0082f3]' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>
+                MINUTE
+              </button>
+            </div>
+
+            {/* Circular clock face */}
+            <div className="flex justify-center py-6 px-6 bg-gray-50/30 dark:bg-black/10 w-full">
+              <svg ref={svgRef} width={260} height={260} onClick={handleClockClick}
+                style={{ cursor: 'pointer' }}>
+                {/* Background circle */}
+                <circle cx={130} cy={130} r={126} fill="var(--clock-bg, #ffffff)" className="dark:fill-gray-900" />
+                <circle cx={130} cy={130} r={126} fill="none" stroke="#E2E8F0" strokeWidth="0.5" className="dark:stroke-gray-800" />
+
+                {/* Inner ring separator (hour mode only) */}
+                {mode === 'hour' && (
+                  <circle cx={130} cy={130} r={R_INNER + 20} fill="none"
+                    stroke="#E2E8F0" strokeWidth="0.5" strokeDasharray="4,4" className="dark:stroke-gray-700" />
+                )}
+
+                {/* Hand */}
+                <line
+                  x1={130} y1={130} x2={130 + handR * 1.18 * Math.cos(handAngle * Math.PI / 180)} y2={130 + handR * 1.18 * Math.sin(handAngle * Math.PI / 180)}
+                  stroke="#0082f3" strokeWidth="2.5" strokeLinecap="round" />
+                {/* Center dot */}
+                <circle cx={130} cy={130} r={5} fill="#0082f3" />
+                {/* Tip dot */}
+                <circle cx={130 + handR * 1.18 * Math.cos(handAngle * Math.PI / 180)} cy={130 + handR * 1.18 * Math.sin(handAngle * Math.PI / 180)} r={20} fill="#0082f3" opacity="0.15" />
+                <circle cx={130 + handR * 1.18 * Math.cos(handAngle * Math.PI / 180)} cy={130 + handR * 1.18 * Math.sin(handAngle * Math.PI / 180)} r={10}  fill="#0082f3" />
+
+                {/* Numbers */}
+                {clockNumbers.map(({ val, r, is12h }) => {
+                  const displayVal = mode === 'hour'
+                    ? (val === 0 ? '00' : String(val).padStart(2,'0'))
+                    : String(val).padStart(2,'0')
+                  const indexAngle = mode === 'hour'
+                    ? ((val % 12 === 0 ? 0 : val % 12) / 12) * 360 - 90
+                    : (val / 60) * 360 - 90
+                  const x = 130 + r * 1.18 * Math.cos(indexAngle * Math.PI / 180)
+                  const y = 130 + r * 1.18 * Math.sin(indexAngle * Math.PI / 180)
+                  const isActive = mode === 'hour'
+                    ? activeVal === val
+                    : activeVal === val
+                  return (
+                    <g key={`${mode}-${val}`}>
+                      {isActive && <circle cx={x} cy={y} r={18} fill="#0082f3" />}
+                      <text
+                        x={x} y={y}
+                        textAnchor="middle" dominantBaseline="central"
+                        fontSize={is12h ? 13 : 11}
+                        fontWeight={isActive ? 700 : 500}
+                        fill={isActive ? '#ffffff' : is12h ? '#374151' : '#9CA3AF'}
+                        className={isActive ? '' : 'dark:fill-gray-400'}
+                        style={{ userSelect: 'none', fontFamily: 'monospace' }}
+                      >
+                        {displayVal}
+                      </text>
+                    </g>
+                  )
+                })}
+              </svg>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center w-full bg-white dark:bg-[#1a1a1a]">
+              <button onClick={() => { onChange(''); setOpen(false) }}
+                className="text-sm font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                CLEAR
+              </button>
+              <button onClick={() => setOpen(false)}
+                className="px-8 py-2.5 bg-[#0082f3] hover:bg-[#0070d4] text-white text-sm font-bold rounded-2xl transition-all shadow-lg shadow-blue-500/20 active:scale-95">
+                DONE
               </button>
             </div>
           </div>
-
-          {/* Mode toggle */}
-          <div className="flex border-b border-gray-100 dark:border-gray-800">
-            <button onClick={() => setMode('hour')}
-              className={`flex-1 py-2 text-xs font-semibold transition-colors ${mode==='hour' ? 'text-[#0082f3] border-b-2 border-[#0082f3]' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>
-              HOUR
-            </button>
-            <button onClick={() => setMode('minute')}
-              className={`flex-1 py-2 text-xs font-semibold transition-colors ${mode==='minute' ? 'text-[#0082f3] border-b-2 border-[#0082f3]' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>
-              MINUTE
-            </button>
-          </div>
-
-          {/* Circular clock face */}
-          <div className="flex justify-center py-3 px-3">
-            <svg ref={svgRef} width={SIZE} height={SIZE} onClick={handleClockClick}
-              style={{ cursor: 'pointer' }}>
-              {/* Background circle */}
-              <circle cx={CX} cy={CY} r={CX - 4} fill="var(--clock-bg, #F1F5F9)" />
-
-              {/* Inner ring separator (hour mode only) */}
-              {mode === 'hour' && (
-                <circle cx={CX} cy={CY} r={R_INNER + 14} fill="none"
-                  stroke="#E2E8F0" strokeWidth="0.5" strokeDasharray="3,3" />
-              )}
-
-              {/* Hand */}
-              <line
-                x1={CX} y1={CY} x2={handX} y2={handY}
-                stroke="#0082f3" strokeWidth="2" strokeLinecap="round" />
-              {/* Center dot */}
-              <circle cx={CX} cy={CY} r={4} fill="#0082f3" />
-              {/* Tip dot */}
-              <circle cx={handX} cy={handY} r={18} fill="#0082f3" opacity="0.15" />
-              <circle cx={handX} cy={handY} r={8}  fill="#0082f3" />
-
-              {/* Numbers */}
-              {clockNumbers.map(({ val, r, is12h }) => {
-                const displayVal = mode === 'hour'
-                  ? (val === 0 ? '00' : String(val).padStart(2,'0'))
-                  : String(val).padStart(2,'0')
-                const indexAngle = mode === 'hour'
-                  ? ((val % 12 === 0 ? 0 : val % 12) / 12) * 360 - 90
-                  : (val / 60) * 360 - 90
-                const x = CX + r * Math.cos(indexAngle * Math.PI / 180)
-                const y = CY + r * Math.sin(indexAngle * Math.PI / 180)
-                const isActive = mode === 'hour'
-                  ? activeVal === val
-                  : activeVal === val
-                return (
-                  <g key={`${mode}-${val}`}>
-                    {isActive && <circle cx={x} cy={y} r={16} fill="#0082f3" />}
-                    <text
-                      x={x} y={y}
-                      textAnchor="middle" dominantBaseline="central"
-                      fontSize={is12h ? 12 : 10}
-                      fontWeight={isActive ? 700 : 400}
-                      fill={isActive ? '#ffffff' : is12h ? '#374151' : '#9CA3AF'}
-                      style={{ userSelect: 'none', fontFamily: 'monospace' }}
-                    >
-                      {displayVal}
-                    </text>
-                  </g>
-                )
-              })}
-            </svg>
-          </div>
-
-          {/* Footer */}
-          <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center">
-            <button onClick={() => { onChange(''); setOpen(false) }}
-              className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-              Clear
-            </button>
-            <button onClick={() => setOpen(false)}
-              className="px-5 py-1.5 bg-[#0082f3] hover:bg-[#0070d4] text-white text-xs font-semibold rounded-xl transition-colors">
-              OK
-            </button>
-          </div>
-        </div>
+        </>
       )}
     </div>
   )
@@ -1555,6 +1487,24 @@ export default function Attendance() {
   const isManager = ROLES_MANAGER.includes(user?.role)
 
   const [showManualEntry, setShowManualEntry] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportingKey,   setExportingKey]   = useState(null)
+  const [exportModule,   setExportModule]   = useState('attendance')
+
+  const handleExportSubmit = async (dateRange) => {
+    try {
+      setExportingKey(exportModule)
+      const params = { ...dateRange }
+      const res = await api.get(`/export/${exportModule}`, { params, responseType: 'blob' })
+      const today = new Date().toISOString().split('T')[0]
+      downloadBlob(res.data, `${exportModule.replace('-', '_')}_${dateRange.from}_to_${dateRange.to}.xlsx`)
+      setShowExportModal(false)
+    } catch (err) {
+      console.error(`Export ${exportModule} failed:`, err)
+    } finally {
+      setExportingKey(null)
+    }
+  }
 
   const now  = new Date()
   const TABS = [
@@ -1611,7 +1561,19 @@ export default function Attendance() {
             </button>
           )}
           {isManager && (
-            <ExportMenu isAdmin={isAdmin} now={now} handleExport={handleExport} handleExportExcel={handleExportExcel} />
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Download}
+              loading={!!exportingKey}
+              onClick={() => {
+                setExportModule('attendance')
+                setShowExportModal(true)
+              }}
+              className="rounded-xl border-gray-200 dark:border-gray-700 shadow-md"
+            >
+              Export Attendance
+            </Button>
           )}
         </div>
       </div>
@@ -1700,6 +1662,15 @@ export default function Attendance() {
       {showManualEntry && (
         <AdminCheckInModal dispatch={dispatch} onClose={() => setShowManualEntry(false)} />
       )}
+
+      {/* Export Modal */}
+      <ExportModal 
+        isOpen={showExportModal} 
+        onClose={() => setShowExportModal(false)} 
+        onExport={handleExportSubmit} 
+        loading={!!exportingKey}
+        title={`Export ${exportModule.replace('-', ' ')}`}
+      />
     </div>
   )
 }

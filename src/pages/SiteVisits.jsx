@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download } from 'lucide-react'
+import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut } from 'lucide-react'
 import {
   fetchSiteVisits, createSiteVisit, updateSiteVisit,
   updateSiteVisitStatus, cancelSiteVisit, clearSiteVisitError,
@@ -14,6 +14,7 @@ import Button from '../components/ui/Button'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
+import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
 
 const visitStatuses = ['scheduled', 'done', 'cancelled', 'rescheduled', 'no_show']
@@ -37,6 +38,237 @@ const defaultForm = {
   transport_arranged: false,
 }
 const defaultFeedback = { status: 'done', feedback: '' }
+
+// ─── Circular Clock Picker ───────────────────────────────────────────────────
+
+function ClockPicker({ value, onChange, label, icon: Icon, iconColor = 'text-gray-400', required = false }) {
+  const [open,    setOpen]    = useState(false)
+  const [mode,    setMode]    = useState('hour')   // 'hour' | 'minute'
+  const svgRef  = useRef(null)
+  const ref     = useRef(null)
+
+  const [hh, mm] = value ? value.split(':') : ['00', '00']
+  const hour   = parseInt(hh || 0)
+  const minute = parseInt(mm || 0)
+
+  useEffect(() => {
+    const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [])
+
+  // Compute angle from center click on SVG
+  const getValueFromAngle = (clientX, clientY) => {
+    const rect   = svgRef.current.getBoundingClientRect()
+    const cx     = rect.left + rect.width  / 2
+    const cy     = rect.top  + rect.height / 2
+    const dx     = clientX - cx
+    const dy     = clientY - cy
+    let   angle  = Math.atan2(dy, dx) * (180 / Math.PI) + 90
+    if (angle < 0) angle += 360
+    if (mode === 'hour') {
+      const h = Math.round(angle / 30) % 12
+      return h === 0 ? 12 : h
+    } else {
+      return Math.round(angle / 6) % 60
+    }
+  }
+
+  const handleClockClick = (e) => {
+    const val = getValueFromAngle(e.clientX, e.clientY)
+    if (mode === 'hour') {
+      const newHH = String(val === 12 ? 0 : val).padStart(2,'0')
+      onChange(`${newHH}:${mm || '00'}`)
+      setMode('minute')
+    } else {
+      const newMM = String(val).padStart(2,'0')
+      onChange(`${hh || '00'}:${newMM}`)
+    }
+  }
+
+  const handleAMPM = (isAM) => {
+    const h = parseInt(hh || 0)
+    let newH = h
+    if (isAM && h >= 12) newH = h - 12
+    if (!isAM && h < 12) newH = h + 12
+    onChange(`${String(newH).padStart(2,'0')}:${mm || '00'}`)
+  }
+
+  // Build clock face numbers + hand
+  const SIZE    = 220
+  const CX      = SIZE / 2
+  const CY      = SIZE / 2
+  const R_OUTER = 88
+  const R_INNER = 62  // inner ring for 13-23
+
+  // For hour mode: 1-12 outer, 13-24 inner (24h clock)
+  // For minute mode: 0,5,10...55 outer
+  const clockNumbers = mode === 'hour'
+    ? [
+        ...Array.from({length:12},(_,i)=>({ val: i===0?12:i,  r: R_OUTER, is12h: true  })),
+        ...Array.from({length:12},(_,i)=>({ val: i===0?0:i+12, r: R_INNER, is12h: false })),
+      ]
+    : Array.from({length:12},(_,i)=>({ val: i*5, r: R_OUTER, is12h: true }))
+
+  const activeVal = mode === 'hour' ? (hour === 0 ? 0 : hour % 24) : minute
+  const handAngle = mode === 'hour'
+    ? ((activeVal % 12 === 0 ? 12 : activeVal % 12) / 12) * 360 - 90
+    : (activeVal / 60) * 360 - 90
+  const handR     = mode === 'hour' ? (hour >= 13 || hour === 0 ? R_INNER : R_OUTER) : R_OUTER
+  const handX     = CX + handR * Math.cos(handAngle * Math.PI / 180)
+  const handY     = CY + handR * Math.sin(handAngle * Math.PI / 180)
+
+  const isAM = hour < 12
+  const display12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+  const displayStr = value
+    ? `${String(display12).padStart(2,'0')}:${mm || '00'} ${isAM ? 'AM' : 'PM'}`
+    : '--:-- --'
+
+  return (
+    <div className="relative" ref={ref}>
+      {label && (
+        <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">
+          {label}{required && ' *'}
+        </label>
+      )}
+      {/* Trigger */}
+      <div
+        onClick={() => { setOpen(o => !o); setMode('hour') }}
+        className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm border rounded-xl cursor-pointer transition-all select-none
+          ${open
+            ? 'border-[#0082f3] bg-white dark:bg-gray-800 ring-1 ring-[#0082f3]/20'
+            : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 hover:border-gray-300 dark:hover:border-gray-600'
+          }`}
+      >
+        {Icon && <Icon size={14} className={`flex-shrink-0 ${iconColor}`} />}
+        <span className={`flex-1 font-mono text-base tracking-widest ${value ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
+          {value || '--:--'}
+        </span>
+        <Clock size={14} className="text-gray-400 flex-shrink-0" />
+      </div>
+
+      {/* Clock panel — centered in modal */}
+      {open && (
+        <>
+          {/* Overlay to catch clicks and dim background */}
+          <div className="fixed inset-0 z-[9998] bg-black/10 backdrop-blur-[1px]" onClick={() => setOpen(false)} />
+          
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[9999] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-[32px] shadow-2xl shadow-black/40 overflow-hidden flex flex-col items-center"
+            style={{ width: 'min(320px, 80vw)' }}>
+
+            {/* Digital display + AM/PM */}
+            <div className="bg-[#0082f3] w-full px-8 py-6 flex items-center justify-between">
+              <div className="flex items-baseline gap-1">
+                <span
+                  onClick={() => setMode('hour')}
+                  className={`font-mono text-5xl font-bold cursor-pointer transition-opacity ${mode==='hour' ? 'opacity-100' : 'opacity-60'} text-white`}>
+                  {String(display12).padStart(2,'0')}
+                </span>
+                <span className="font-mono text-5xl font-bold text-white/80">:</span>
+                <span
+                  onClick={() => setMode('minute')}
+                  className={`font-mono text-5xl font-bold cursor-pointer transition-opacity ${mode==='minute' ? 'opacity-100' : 'opacity-60'} text-white`}>
+                  {mm || '00'}
+                </span>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button onClick={() => handleAMPM(true)}
+                  className={`w-12 h-9 text-sm font-bold rounded-xl transition-all ${isAM ? 'bg-white text-[#0082f3] shadow-md' : 'text-white/60 hover:text-white/90'}`}>
+                  AM
+                </button>
+                <button onClick={() => handleAMPM(false)}
+                  className={`w-12 h-9 text-sm font-bold rounded-xl transition-all ${!isAM ? 'bg-white text-[#0082f3] shadow-md' : 'text-white/60 hover:text-white/90'}`}>
+                  PM
+                </button>
+              </div>
+            </div>
+
+            {/* Mode toggle */}
+            <div className="flex w-full border-b border-gray-100 dark:border-gray-800">
+              <button onClick={() => setMode('hour')}
+                className={`flex-1 py-3 text-xs font-bold tracking-widest transition-colors ${mode==='hour' ? 'text-[#0082f3] border-b-2 border-[#0082f3]' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>
+                HOUR
+              </button>
+              <button onClick={() => setMode('minute')}
+                className={`flex-1 py-3 text-xs font-bold tracking-widest transition-colors ${mode==='minute' ? 'text-[#0082f3] border-b-2 border-[#0082f3]' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>
+                MINUTE
+              </button>
+            </div>
+
+            {/* Circular clock face */}
+            <div className="flex justify-center py-6 px-6 bg-gray-50/30 dark:bg-black/10 w-full">
+              <svg ref={svgRef} width={260} height={260} onClick={handleClockClick}
+                style={{ cursor: 'pointer' }}>
+                {/* Background circle */}
+                <circle cx={130} cy={130} r={126} fill="var(--clock-bg, #ffffff)" className="dark:fill-gray-900" />
+                <circle cx={130} cy={130} r={126} fill="none" stroke="#E2E8F0" strokeWidth="0.5" className="dark:stroke-gray-800" />
+
+                {/* Inner ring separator (hour mode only) */}
+                {mode === 'hour' && (
+                  <circle cx={130} cy={130} r={R_INNER + 20} fill="none"
+                    stroke="#E2E8F0" strokeWidth="0.5" strokeDasharray="4,4" className="dark:stroke-gray-700" />
+                )}
+
+                {/* Hand */}
+                <line
+                  x1={130} y1={130} x2={130 + handR * 1.18 * Math.cos(handAngle * Math.PI / 180)} y2={130 + handR * 1.18 * Math.sin(handAngle * Math.PI / 180)}
+                  stroke="#0082f3" strokeWidth="2.5" strokeLinecap="round" />
+                {/* Center dot */}
+                <circle cx={130} cy={130} r={5} fill="#0082f3" />
+                {/* Tip dot */}
+                <circle cx={130 + handR * 1.18 * Math.cos(handAngle * Math.PI / 180)} cy={130 + handR * 1.18 * Math.sin(handAngle * Math.PI / 180)} r={20} fill="#0082f3" opacity="0.15" />
+                <circle cx={130 + handR * 1.18 * Math.cos(handAngle * Math.PI / 180)} cy={130 + handR * 1.18 * Math.sin(handAngle * Math.PI / 180)} r={10}  fill="#0082f3" />
+
+                {/* Numbers */}
+                {clockNumbers.map(({ val, r, is12h }) => {
+                  const displayVal = mode === 'hour'
+                    ? (val === 0 ? '00' : String(val).padStart(2,'0'))
+                    : String(val).padStart(2,'0')
+                  const indexAngle = mode === 'hour'
+                    ? ((val % 12 === 0 ? 0 : val % 12) / 12) * 360 - 90
+                    : (val / 60) * 360 - 90
+                  const x = 130 + r * 1.18 * Math.cos(indexAngle * Math.PI / 180)
+                  const y = 130 + r * 1.18 * Math.sin(indexAngle * Math.PI / 180)
+                  const isActive = mode === 'hour'
+                    ? activeVal === val
+                    : activeVal === val
+                  return (
+                    <g key={`${mode}-${val}`}>
+                      {isActive && <circle cx={x} cy={y} r={18} fill="#0082f3" />}
+                      <text
+                        x={x} y={y}
+                        textAnchor="middle" dominantBaseline="central"
+                        fontSize={is12h ? 13 : 11}
+                        fontWeight={isActive ? 700 : 500}
+                        fill={isActive ? '#ffffff' : is12h ? '#374151' : '#9CA3AF'}
+                        className={isActive ? '' : 'dark:fill-gray-400'}
+                        style={{ userSelect: 'none', fontFamily: 'monospace' }}
+                      >
+                        {displayVal}
+                      </text>
+                    </g>
+                  )
+                })}
+              </svg>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center w-full bg-white dark:bg-[#1a1a1a]">
+              <button onClick={() => { onChange(''); setOpen(false) }}
+                className="text-sm font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                CLEAR
+              </button>
+              <button onClick={() => setOpen(false)}
+                className="px-8 py-2.5 bg-[#0082f3] hover:bg-[#0070d4] text-white text-sm font-bold rounded-2xl transition-all shadow-lg shadow-blue-500/20 active:scale-95">
+                DONE
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 // ── Forms defined OUTSIDE to prevent typing/focus loss bug ───────────────────
 
@@ -90,12 +322,13 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit 
             onChange={e => setFormData(p => ({ ...p, visit_date: e.target.value }))}
             className={ic} />
         </div>
-        <div>
-          <label className={lc}>Visit Time *</label>
-          <input required type="time" value={formData.visit_time}
-            onChange={e => setFormData(p => ({ ...p, visit_time: e.target.value }))}
-            className={ic} />
-        </div>
+        <ClockPicker
+          label="Visit Time"
+          required
+          value={formData.visit_time}
+          onChange={val => setFormData(p => ({ ...p, visit_time: val }))}
+          icon={Clock}
+        />
       </div>
 
       {/* Assign To */}
@@ -144,30 +377,26 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit 
 }
 
 function FeedbackForm({ formData, setFormData }) {
-  const ic = "w-full px-3 py-2 text-sm bg-background border-input rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
   return (
     <div className="space-y-4">
-      <div>
-        <label className={lc}>Outcome *</label>
-        <div className="relative">
-          <select value={formData.status}
-            onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}
-            className={ic + ' appearance-none pr-8'}>
-            {visitStatuses.filter(s => s !== 'scheduled').map(s => (
-              <option key={s} value={s}>{statusLabel[s]}</option>
-            ))}
-          </select>
-          <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
+      <CustomSelect
+        label="Outcome"
+        required
+        value={formData.status}
+        onChange={val => setFormData(p => ({ ...p, status: val }))}
+        options={visitStatuses.filter(s => s !== 'scheduled').map(s => ({
+          value: s,
+          label: statusLabel[s]
+        }))}
+      />
       <div>
         <label className={lc}>Feedback</label>
         <textarea rows={4} value={formData.feedback}
           onChange={e => setFormData(p => ({ ...p, feedback: e.target.value }))}
           placeholder="Client liked the property, interested in 3BHK on 8th floor..."
-          className={ic + ' resize-none'} />
+          className="w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200 resize-none" />
       </div>
     </div>
   )
@@ -186,11 +415,13 @@ export default function SiteVisits() {
 
   const [viewMode,      setViewMode]      = useState('list')
   const [filterStatus,  setFilterStatus]  = useState('')
+  const [selectedDate,  setSelectedDate]  = useState(new Date().toISOString().split('T')[0])
   const [page,          setPage]          = useState(1)
 
   const [showAddModal,      setShowAddModal]      = useState(false)
   const [showEditModal,     setShowEditModal]      = useState(false)
   const [showFeedbackModal, setShowFeedbackModal]  = useState(false)
+  const [showExportModal,   setShowExportModal]    = useState(false)
   const [selectedVisit,     setSelectedVisit]      = useState(null)
 
   const [addForm,      setAddForm]      = useState(defaultForm)
@@ -293,16 +524,16 @@ export default function SiteVisits() {
     return d
   })
 
-  const handleExport = async () => {
+  const handleExport = async (dateRange) => {
     try {
       setExporting(true)
-      const today = new Date().toISOString().split('T')[0]
-      const params = {}
+      const params = { ...dateRange }
       if (filterStatus) params.status = filterStatus
       const res = await api.get('/export/site-visits', { params, responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
-      const a = document.createElement('a'); a.href = url; a.download = `SiteVisits_${today}.xlsx`
+      const a = document.createElement('a'); a.href = url; a.download = `SiteVisits_${dateRange.from}_to_${dateRange.to}.xlsx`
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+      setShowExportModal(false)
     } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
   }
 
@@ -327,13 +558,13 @@ export default function SiteVisits() {
           </div>
 
           {/* Status filter */}
-          <div className="relative">
-            <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300">
-              <option value="">All Status</option>
-              {visitStatuses.map(s => <option key={s} value={s}>{statusLabel[s]}</option>)}
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="w-44">
+            <CustomSelect
+              value={filterStatus}
+              onChange={val => { setFilterStatus(val); setPage(1) }}
+              options={[{ value: '', label: 'All Status' }, ...statusOptions]}
+              placeholder="All Status"
+            />
           </div>
 
           <button onClick={() => dispatch(fetchSiteVisits({ page, per_page: 20 }))}
@@ -343,7 +574,7 @@ export default function SiteVisits() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={handleExport}>
+          <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button>
           {canManage && (
@@ -369,25 +600,93 @@ export default function SiteVisits() {
         </div>
       ) : viewMode === 'calendar' ? (
         // ── Calendar ──────────────────────────────────────────────────────────
-        <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-5 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
-          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white mb-4">This Week</h3>
-          <div className="grid grid-cols-7 gap-2">
-            {weekDates.map((date, i) => {
-              const dateStr = date.toISOString().split('T')[0]
-              const dayVisits = list.filter(v => (v.visit_date || '').startsWith(dateStr))
-              const isToday = dateStr === new Date().toISOString().split('T')[0]
-              return (
-                <div key={i} className={`rounded-xl border p-2 min-h-[100px] ${isToday ? 'border-brand bg-brand/5 dark:bg-brand/10' : 'border-gray-200 dark:border-gray-800'}`}>
-                  <div className={`text-xs font-medium mb-1 ${isToday ? 'text-brand' : 'text-gray-500 dark:text-[#888]'}`}>{days[i]}</div>
-                  <div className={`text-lg font-display font-bold mb-2 ${isToday ? 'text-brand' : 'text-gray-900 dark:text-white'}`}>{date.getDate()}</div>
-                  {dayVisits.map(v => (
-                    <div key={v.id} className="text-[10px] bg-brand/10 dark:bg-brand/20 text-brand rounded-lg px-1.5 py-0.5 mb-1 truncate">
-                      {v.lead_name || '—'}
+        <div className="space-y-4">
+          <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-5 hover:shadow-lg transition-all duration-200">
+            <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white mb-4">This Week</h3>
+            <div className="grid grid-cols-7 gap-2">
+              {weekDates.map((date, i) => {
+                const dateStr = date.toISOString().split('T')[0]
+                const dayVisits = list.filter(v => (v.visit_date || '').startsWith(dateStr))
+                const isSelected = selectedDate === dateStr
+                const isToday = dateStr === new Date().toISOString().split('T')[0]
+                
+                return (
+                  <div 
+                    key={i} 
+                    onClick={() => setSelectedDate(dateStr)}
+                    className={`rounded-xl border p-3 min-h-[120px] cursor-pointer transition-all duration-200 
+                      ${isSelected ? 'border-brand bg-brand/5 ring-1 ring-brand/20 shadow-md' : 'border-gray-100 dark:border-gray-800 hover:border-brand/30 hover:bg-gray-50 dark:hover:bg-gray-800/50'}
+                      ${isToday && !isSelected ? 'bg-blue-50/30 dark:bg-blue-900/5' : ''}`}
+                  >
+                    <div className={`text-[10px] uppercase tracking-wider font-bold mb-1 ${isSelected || isToday ? 'text-brand' : 'text-gray-400 dark:text-gray-500'}`}>
+                      {days[i]}
                     </div>
-                  ))}
+                    <div className={`text-xl font-display font-bold mb-2 ${isSelected || isToday ? 'text-brand' : 'text-gray-900 dark:text-white'}`}>
+                      {date.getDate()}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {dayVisits.slice(0, 3).map(v => (
+                        <div key={v.id} className="w-1.5 h-1.5 rounded-full bg-brand"></div>
+                      ))}
+                      {dayVisits.length > 3 && <div className="text-[10px] text-gray-400 font-bold">+{dayVisits.length - 3}</div>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Selected Date Visits */}
+          <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h4 className="font-display text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <CalendarDays size={20} className="text-brand" />
+                Visits on {new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </h4>
+              <span className="text-xs font-semibold px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-full">
+                {list.filter(v => (v.visit_date || '').startsWith(selectedDate)).length} visits
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {list.filter(v => (v.visit_date || '').startsWith(selectedDate)).length === 0 ? (
+                <div className="py-10 text-center text-gray-400 dark:text-gray-500 italic">
+                  No visits scheduled for this day
                 </div>
-              )
-            })}
+              ) : (
+                list.filter(v => (v.visit_date || '').startsWith(selectedDate)).map(visit => (
+                  <div key={visit.id} className="group flex items-center gap-4 p-4 rounded-xl border border-gray-100 dark:border-gray-800 hover:border-brand/30 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all">
+                    <Avatar name={visit.lead_name || '?'} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-gray-900 dark:text-white truncate">{visit.lead_name}</span>
+                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${statusColor[visit.status] || ''}`}>
+                          {statusLabel[visit.status]}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span className="flex items-center gap-1"><Clock size={12} /> {visit.visit_time}</span>
+                        <span className="flex items-center gap-1"><Building2 size={12} /> {visit.project_name}</span>
+                        <span className="flex items-center gap-1">
+                          <User size={12} /> 
+                          {typeof visit.assigned_to === 'object' ? visit.assigned_to.full_name : visit.assigned_to}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => navigate(`/site-visits/${visit.id}`)} 
+                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-brand hover:bg-brand/10 transition-all">
+                        <Eye size={16} />
+                      </button>
+                      <button onClick={() => openEdit(visit)}
+                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-blue-500 hover:bg-blue-50 transition-all">
+                        <Edit2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       ) : (
@@ -432,8 +731,13 @@ export default function SiteVisits() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
-                          <Avatar name={visit.assigned_to || '?'} size="xs" />
-                          <span className="text-xs text-gray-600 dark:text-gray-400">{visit.assigned_to || '—'}</span>
+                          <Avatar 
+                            name={typeof visit.assigned_to === 'object' ? visit.assigned_to.full_name : visit.assigned_to || '?'} 
+                            size="xs" 
+                          />
+                          <span className="text-xs text-gray-600 dark:text-gray-400">
+                            {typeof visit.assigned_to === 'object' ? visit.assigned_to.full_name : visit.assigned_to || '—'}
+                          </span>
                         </div>
                       </td>
                       <td className="py-3 px-4">
@@ -550,6 +854,15 @@ export default function SiteVisits() {
           </div>
         </form>
       </Modal>
+
+      {/* Export Modal */}
+      <ExportModal 
+        isOpen={showExportModal} 
+        onClose={() => setShowExportModal(false)} 
+        onExport={handleExport} 
+        loading={exporting}
+        title="Export Site Visits"
+      />
     </div>
   )
 }

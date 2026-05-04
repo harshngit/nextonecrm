@@ -8,6 +8,7 @@ import Button from '../components/ui/Button'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
+import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
 
 const roles = [
@@ -108,6 +109,7 @@ export default function UserManagement() {
   const { user: currentUser } = useSelector(s => s.auth)
 
   const [showModal, setShowModal] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
   const [filterRole, setFilterRole] = useState('')
@@ -167,15 +169,18 @@ export default function UserManagement() {
 
   const isAdminUser = ['admin','super_admin'].includes(currentUser?.role)
 
-  const handleExport = async () => {
+  const handleExport = async (dateRange) => {
     if (!isAdminUser) return
     try {
       setExporting(true)
-      const today = new Date().toISOString().split('T')[0]
-      const res = await api.get('/export/users', { responseType: 'blob' })
+      const params = { ...dateRange }
+      if (filterRole) params.role = filterRole
+      if (filterActive) params.is_active = filterActive
+      const res = await api.get('/export/users', { params, responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
-      const a = document.createElement('a'); a.href = url; a.download = `Team_${today}.xlsx`
+      const a = document.createElement('a'); a.href = url; a.download = `Team_${dateRange.from}_to_${dateRange.to}.xlsx`
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+      setShowExportModal(false)
     } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
   }
 
@@ -184,22 +189,25 @@ export default function UserManagement() {
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex flex-wrap gap-2 flex-1">
-          <div className="relative">
-            <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
-              <option value="">All Roles</option>
-              {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="w-48">
+            <CustomSelect
+              value={filterRole}
+              onChange={val => setFilterRole(val)}
+              options={[{ value: '', label: 'All Roles' }, ...roles]}
+              placeholder="All Roles"
+            />
           </div>
-          <div className="relative">
-            <select value={filterActive} onChange={e => setFilterActive(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
-              <option value="">All Status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="w-44">
+            <CustomSelect
+              value={filterActive}
+              onChange={val => setFilterActive(val)}
+              options={[
+                { value: '', label: 'All Status' },
+                { value: 'true', label: 'Active' },
+                { value: 'false', label: 'Inactive' },
+              ]}
+              placeholder="All Status"
+            />
           </div>
           <button onClick={() => dispatch(fetchUsers({ role: filterRole, is_active: filterActive }))}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 bg-white dark:bg-[#1a1a1a]">
@@ -208,7 +216,7 @@ export default function UserManagement() {
         </div>
         <div className="flex items-center gap-2">
           {isAdminUser && (
-            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={handleExport}>
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
               Export
             </Button>
           )}
@@ -309,6 +317,15 @@ export default function UserManagement() {
           </div>
         </form>
       </Modal>
+
+      {/* Export Modal */}
+      <ExportModal 
+        isOpen={showExportModal} 
+        onClose={() => setShowExportModal(false)} 
+        onExport={handleExport} 
+        loading={exporting}
+        title="Export Team Data"
+      />
     </div>
   )
 }
