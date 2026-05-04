@@ -61,12 +61,27 @@ export const deleteProject = createAsyncThunk(
   }
 )
 
+export const fetchProjectLeads = createAsyncThunk(
+  'projects/fetchLeads',
+  async ({ id, params = {} }, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/projects/${id}/leads`, { params })
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch project leads')
+    }
+  }
+)
+
 const projectSlice = createSlice({
   name: 'projects',
   initialState: {
     list: [],
+    currentProject: null,
+    projectLeads: [],
     pagination: { total: 0, page: 1, per_page: 20, total_pages: 0 },
     loading: false,
+    detailLoading: false,
     actionLoading: false,
     error: null,
     actionError: null,
@@ -76,6 +91,10 @@ const projectSlice = createSlice({
       state.error = null
       state.actionError = null
     },
+    clearCurrentProject: (state) => {
+      state.currentProject = null
+      state.projectLeads = []
+    }
   },
   extraReducers: (builder) => {
     builder
@@ -86,6 +105,23 @@ const projectSlice = createSlice({
         state.pagination = action.payload.pagination || state.pagination
       })
       .addCase(fetchProjects.rejected, (state, action) => { state.loading = false; state.error = action.payload })
+      
+      .addCase(fetchProjectById.pending, (state) => { state.detailLoading = true })
+      .addCase(fetchProjectById.fulfilled, (state, action) => {
+        state.detailLoading = false
+        state.currentProject = action.payload
+      })
+      .addCase(fetchProjectById.rejected, (state) => { state.detailLoading = false })
+
+      .addCase(fetchProjectLeads.pending, (state) => { state.detailLoading = true })
+      .addCase(fetchProjectLeads.fulfilled, (state, action) => {
+        state.detailLoading = false
+        state.currentProject = action.payload.data?.project
+        state.projectLeads = action.payload.data?.leads || []
+        state.pagination = action.payload.pagination || state.pagination
+      })
+      .addCase(fetchProjectLeads.rejected, (state) => { state.detailLoading = false })
+
       .addMatcher(
         (action) => ['projects/create', 'projects/update', 'projects/delete']
           .some(t => action.type.startsWith(t)),
@@ -98,5 +134,5 @@ const projectSlice = createSlice({
   },
 })
 
-export const { clearProjectError } = projectSlice.actions
+export const { clearProjectError, clearCurrentProject } = projectSlice.actions
 export default projectSlice.reducer

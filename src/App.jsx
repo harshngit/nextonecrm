@@ -14,6 +14,7 @@ import SiteVisitDetail from './pages/SiteVisitDetail'
 import FollowUps from './pages/FollowUps'
 import FollowUpDetail from './pages/FollowUpDetail'
 import Projects from './pages/Projects'
+import ProjectDetail from './pages/ProjectDetail'
 import Team from './pages/Team'
 import UserDetail from './pages/UserDetail'
 import Notifications from './pages/Notifications'
@@ -58,6 +59,7 @@ function AppRoutes() {
         <Route path="/follow-ups"   element={<ProtectedRoute><Layout><FollowUps /></Layout></ProtectedRoute>} />
         <Route path="/follow-ups/:id" element={<ProtectedRoute><Layout><FollowUpDetail /></Layout></ProtectedRoute>} />
         <Route path="/projects"     element={<ProtectedRoute><Layout><Projects /></Layout></ProtectedRoute>} />
+        <Route path="/projects/:id"   element={<ProtectedRoute><Layout><ProjectDetail /></Layout></ProtectedRoute>} />
         <Route path="/team"         element={<ProtectedRoute><Layout><Team /></Layout></ProtectedRoute>} />
         <Route path="/team/:id"    element={<ProtectedRoute><Layout><UserDetail /></Layout></ProtectedRoute>} />
         <Route path="/attendance"   element={<ProtectedRoute><Layout><Attendance /></Layout></ProtectedRoute>} />

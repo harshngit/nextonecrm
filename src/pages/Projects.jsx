@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import { Plus, MapPin, Building2, IndianRupee, Users, Edit2, Trash2, RefreshCw, Search, ChevronDown, Download } from 'lucide-react'
 import { fetchProjects, createProject, updateProject, deleteProject, clearProjectError } from '../store/projectSlice'
 import CardSkeleton from '../components/loaders/CardSkeleton'
@@ -167,6 +168,7 @@ function ProjectForm({ formData, setFormData }) {
 
 export default function Projects() {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
   const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.projects)
   const { user: currentUser } = useSelector(s => s.auth)
 
@@ -265,12 +267,6 @@ export default function Projects() {
   const formatConfig = (project) => {
     if (Array.isArray(project.configurations)) return project.configurations.join(', ')
     return project.configurations || project.config || '—'
-  }
-
-  const soldPct = (project) => {
-    const total = project.total_units || project.totalUnits || 0
-    const sold  = project.sold_units  || project.soldUnits  || 0
-    return total > 0 ? Math.round((sold / total) * 100) : 0
   }
 
   const statusBadgeColor = {
@@ -374,9 +370,6 @@ export default function Projects() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {list.map((project, i) => {
-            const pct = soldPct(project)
-            const total = project.total_units || project.totalUnits || 0
-            const sold  = project.sold_units  || project.soldUnits  || 0
             return (
               <div key={project.id}
                 className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl overflow-hidden flex flex-col shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
@@ -406,7 +399,7 @@ export default function Projects() {
                 </div>
 
                 <div className="p-4 flex flex-col flex-1">
-                  <h3 className="font-display font-semibold text-gray-900 dark:text-white text-base mb-0.5 truncate">{project.name}</h3>
+                  <h3 onClick={() => navigate(`/projects/${project.id}`)} className="font-display font-semibold text-gray-900 dark:text-white text-base mb-0.5 truncate cursor-pointer hover:text-brand transition-colors">{project.name}</h3>
                   {project.developer && (
                     <p className="text-xs text-gray-400 mb-0.5">by {project.developer}</p>
                   )}
@@ -437,21 +430,7 @@ export default function Projects() {
                     )}
                   </div>
 
-                  {/* Units progress */}
-                  {total > 0 && (
-                    <div className="mb-4">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-500 dark:text-[#888]">Units Sold</span>
-                        <span className="font-semibold text-gray-900 dark:text-white">{sold}/{total}</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-brand rounded-full transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                      <div className="text-[10px] text-gray-400 dark:text-[#888] mt-0.5 text-right">{pct}% sold</div>
-                    </div>
-                  )}
-
-                  <Button variant="outline" size="sm" className="w-full mt-auto">View Leads</Button>
+                  <Button onClick={() => navigate(`/projects/${project.id}`)} variant="outline" size="sm" className="w-full mt-auto">View Leads</Button>
                 </div>
               </div>
             )
