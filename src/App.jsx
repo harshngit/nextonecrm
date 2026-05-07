@@ -22,8 +22,22 @@ import UserManagement from './pages/UserManagement'
 import Attendance from './pages/Attendance'
 
 function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useSelector((state) => state.auth)
+  const { isAuthenticated, loading } = useSelector((state) => state.auth)
+  if (loading) return <PageLoader />
   if (!isAuthenticated) return <Navigate to="/login" replace />
+  return children
+}
+
+function RoleProtectedRoute({ children, allowedRoles }) {
+  const { user, isAuthenticated, loading } = useSelector((state) => state.auth)
+  
+  if (loading) return <PageLoader />
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  
+  if (!allowedRoles.includes(user?.role)) {
+    return <Navigate to="/dashboard" replace />
+  }
+  
   return children
 }
 
@@ -45,26 +59,37 @@ function AppRoutes() {
     return () => clearTimeout(t)
   }, [location.pathname])
 
+  const ALL_ROLES = ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller']
+  const ADMIN_ROLES = ['super_admin', 'admin']
+  const SALES_ROLES = ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller']
+
   return (
     <div className="relative min-h-screen">
       {pageLoading && <PageLoader />}
       <Routes>
         <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
+        
+        {/* All Auth Users */}
         <Route path="/dashboard"    element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
-        <Route path="/leads"        element={<ProtectedRoute><Layout><Leads /></Layout></ProtectedRoute>} />
-        <Route path="/leads/:id"    element={<ProtectedRoute><Layout><LeadDetail /></Layout></ProtectedRoute>} />
-        <Route path="/site-visits"  element={<ProtectedRoute><Layout><SiteVisits /></Layout></ProtectedRoute>} />
-        <Route path="/site-visits/:id" element={<ProtectedRoute><Layout><SiteVisitDetail /></Layout></ProtectedRoute>} />
-        <Route path="/follow-ups"   element={<ProtectedRoute><Layout><FollowUps /></Layout></ProtectedRoute>} />
-        <Route path="/follow-ups/:id" element={<ProtectedRoute><Layout><FollowUpDetail /></Layout></ProtectedRoute>} />
-        <Route path="/projects"     element={<ProtectedRoute><Layout><Projects /></Layout></ProtectedRoute>} />
-        <Route path="/projects/:id"   element={<ProtectedRoute><Layout><ProjectDetail /></Layout></ProtectedRoute>} />
-        <Route path="/team"         element={<ProtectedRoute><Layout><Team /></Layout></ProtectedRoute>} />
-        <Route path="/team/:id"    element={<ProtectedRoute><Layout><UserDetail /></Layout></ProtectedRoute>} />
-        <Route path="/attendance"   element={<ProtectedRoute><Layout><Attendance /></Layout></ProtectedRoute>} />
         <Route path="/notifications"element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
-        <Route path="/users"        element={<ProtectedRoute><Layout><UserManagement /></Layout></ProtectedRoute>} />
+        
+        {/* Sales & Admin Roles */}
+        <Route path="/leads"        element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Leads /></Layout></RoleProtectedRoute>} />
+        <Route path="/leads/:id"    element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><LeadDetail /></Layout></RoleProtectedRoute>} />
+        <Route path="/site-visits"  element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><SiteVisits /></Layout></RoleProtectedRoute>} />
+        <Route path="/site-visits/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><SiteVisitDetail /></Layout></RoleProtectedRoute>} />
+        <Route path="/follow-ups"   element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><FollowUps /></Layout></RoleProtectedRoute>} />
+        <Route path="/follow-ups/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><FollowUpDetail /></Layout></RoleProtectedRoute>} />
+        <Route path="/attendance"   element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Attendance /></Layout></RoleProtectedRoute>} />
+
+        {/* Admin Only Roles */}
+        <Route path="/projects"     element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><Projects /></Layout></RoleProtectedRoute>} />
+        <Route path="/projects/:id" element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><ProjectDetail /></Layout></RoleProtectedRoute>} />
+        <Route path="/team"         element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><Team /></Layout></RoleProtectedRoute>} />
+        <Route path="/team/:id"    element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><UserDetail /></Layout></RoleProtectedRoute>} />
+        <Route path="/users"        element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><UserManagement /></Layout></RoleProtectedRoute>} />
+        
         <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
       </Routes>
     </div>

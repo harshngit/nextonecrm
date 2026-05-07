@@ -10,18 +10,18 @@ import Avatar from '../ui/Avatar'
 import logo from '../../asset/image.png'
 
 const navItems = [
-  { path: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-  { path: '/projects',     label: 'Projects',     icon: Building2 },
-  { path: '/leads',        label: 'Leads',        icon: Users },
-  { path: '/follow-ups',   label: 'Follow-Ups',   icon: PhoneCall },
-  { path: '/site-visits',  label: 'Site Visits',  icon: CalendarCheck },
-  { path: '/attendance',   label: 'Attendance',   icon: Clock },
-  { path: '/team',         label: 'Team',         icon: UserCog },
-  { path: '/users',        label: 'Users',        icon: Settings },
-  { path: '/notifications',label: 'Notifications',icon: Bell },
+  { path: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard, roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
+  { path: '/projects',     label: 'Projects',     icon: Building2,       roles: ['super_admin', 'admin'] },
+  { path: '/leads',        label: 'Leads',        icon: Users,           roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
+  { path: '/follow-ups',   label: 'Follow-Ups',   icon: PhoneCall,       roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
+  { path: '/site-visits',  label: 'Site Visits',  icon: CalendarCheck,   roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
+  { path: '/attendance',   label: 'Attendance',   icon: Clock,           roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
+  { path: '/team',         label: 'Team',         icon: UserCog,         roles: ['super_admin', 'admin'] },
+  { path: '/users',        label: 'Users',        icon: Settings,        roles: ['super_admin', 'admin'] },
+  { path: '/notifications',label: 'Notifications',icon: Bell,            roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
 ]
 
-const SidebarContent = ({ collapsed, logo, navItems, setMobileOpen, user, handleLogout }) => (
+const SidebarContent = ({ collapsed, logo, filteredNavItems, setMobileOpen, user, handleLogout }) => (
   <div className="flex flex-col h-full bg-white dark:bg-[#1a1a1a] border-r border-gray-200 dark:border-gray-800 shadow-sm">
     {/* Logo */}
     <div className={`flex items-center gap-3 px-4 py-5 border-b border-gray-200 dark:border-gray-800 ${collapsed ? 'justify-center' : ''}`}>
@@ -38,7 +38,7 @@ const SidebarContent = ({ collapsed, logo, navItems, setMobileOpen, user, handle
 
     {/* Nav */}
     <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
-      {navItems.map(({ path, label, icon: Icon }) => (
+      {filteredNavItems.map(({ path, label, icon: Icon }) => (
         <NavLink
           key={path}
           to={path}
@@ -105,6 +105,8 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
     navigate('/login')
   }
 
+  const filteredNavItems = navItems.filter(item => item.roles.includes(user?.role))
+
   return (
     <>
       {/* Desktop sidebar */}
@@ -114,7 +116,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
         <SidebarContent
           collapsed={collapsed}
           logo={logo}
-          navItems={navItems}
+          filteredNavItems={filteredNavItems}
           user={user}
           handleLogout={handleLogout}
         />
@@ -135,7 +137,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
             <SidebarContent
               collapsed={false}
               logo={logo}
-              navItems={navItems}
+              filteredNavItems={filteredNavItems}
               setMobileOpen={setMobileOpen}
               user={user}
               handleLogout={handleLogout}
