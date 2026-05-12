@@ -52,7 +52,7 @@ const defaultForm = {
 // This is the fix for the typing bug — defining a component inside another
 // component causes React to treat it as a new component on every render,
 // unmounting and remounting it, which kills input focus.
-function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
+function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs, currentUser }) {
   const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
@@ -161,13 +161,24 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
 
       {/* Assign To */}
       <div className="grid grid-cols-1">
-        <CustomSelect
-          label="Assign To"
-          value={formData.assigned_to}
-          onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))}
-          options={execOptions}
-          placeholder="Select team member"
-        />
+        {['sales_executive', 'external_caller'].includes(currentUser?.role) ? (
+          <div>
+            <label className={labelClass}>Assign To</label>
+            <input
+              readOnly
+              value={`${currentUser?.first_name ?? ''} ${currentUser?.last_name ?? ''}`.trim()}
+              className={inputClass + ' cursor-not-allowed opacity-60'}
+            />
+          </div>
+        ) : (
+          <CustomSelect
+            label="Assign To"
+            value={formData.assigned_to}
+            onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))}
+            options={execOptions}
+            placeholder="Select team member"
+          />
+        )}
       </div>
 
       {/* Configuration */}
@@ -601,7 +612,12 @@ export default function Leads() {
             Export
           </Button>
           {canEdit && (
-            <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearLeadError()); setShowAddModal(true) }}>
+            <Button icon={Plus} onClick={() => {
+                const restrictedRole = ['sales_executive', 'external_caller'].includes(currentUser?.role)
+                setAddForm({ ...defaultForm, assigned_to: restrictedRole ? currentUser?.id : '' })
+                dispatch(clearLeadError())
+                setShowAddModal(true)
+              }}>
               Add Lead
             </Button>
           )}
@@ -681,10 +697,10 @@ export default function Leads() {
                       </span>
                     </td>
                     <td className="py-3 px-3 hidden md:table-cell">
-                      {lead.assigned_to_name ? (
+                      {lead.assigned_name ? (
                         <div className="flex items-center gap-1.5">
-                          <Avatar name={lead.assigned_to_name} size="xs" />
-                          <span className="text-xs text-gray-600 dark:text-gray-400">{lead.assigned_to_name}</span>
+                          <Avatar name={lead.assigned_name} size="xs" />
+                          <span className="text-xs text-gray-600 dark:text-gray-400">{lead.assigned_name}</span>
                         </div>
                       ) : <span className="text-xs text-gray-400">Unassigned</span>}
                     </td>
@@ -746,7 +762,7 @@ export default function Leads() {
       {/* Add Lead Modal */}
       <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setAddSuccess('') }} title="Add New Lead" size="lg">
         <form onSubmit={handleAddLead} className="space-y-4">
-          <LeadForm formData={addForm} setFormData={setAddForm} isEdit={false} sourceList={sourceList} salesExecs={salesExecs} />
+          <LeadForm formData={addForm} setFormData={setAddForm} isEdit={false} sourceList={sourceList} salesExecs={salesExecs} currentUser={currentUser} />
           {addSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{addSuccess}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -759,7 +775,7 @@ export default function Leads() {
       {/* Edit Lead Modal */}
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setEditSuccess('') }} title="Edit Lead" size="lg">
         <form onSubmit={handleEditLead} className="space-y-4">
-          <LeadForm formData={editForm} setFormData={setEditForm} isEdit={true} sourceList={sourceList} salesExecs={salesExecs} />
+          <LeadForm formData={editForm} setFormData={setEditForm} isEdit={true} sourceList={sourceList} salesExecs={salesExecs} currentUser={currentUser} />
           {editSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{editSuccess}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">

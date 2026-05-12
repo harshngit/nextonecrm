@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { 
   ArrowLeft, Phone, Mail, MapPin, Calendar, Send, 
   ChevronDown, Loader2, UserCheck, MessageSquare, 
   Clock, CheckCircle, Info, ExternalLink, ShieldCheck,
-  PlusCircle, CalendarPlus
+  PlusCircle, CalendarPlus, Building2
 } from 'lucide-react'
 import { fetchLeadById, fetchLeadActivities, addLeadNote, updateLeadStatus, clearCurrentLead } from '../store/leadSlice'
 import { fetchUsers } from '../store/userSlice'
@@ -14,7 +14,17 @@ import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
 import ConvertLeadModal from '../components/modals/ConvertLeadModal'
 
-const leadStages = ['New', 'Contacted', 'Interested', 'Follow-up', 'Site Visit Scheduled', 'Site Visit Done', 'Negotiation', 'Booked', 'Lost']
+const leadStages = [
+  { value: 'new',                   label: 'New' },
+  { value: 'contacted',             label: 'Contacted' },
+  { value: 'interested',            label: 'Interested' },
+  { value: 'follow_up',             label: 'Follow-up' },
+  { value: 'site_visit_scheduled',  label: 'Site Visit Scheduled' },
+  { value: 'site_visit_done',       label: 'Site Visit Done' },
+  { value: 'negotiation',           label: 'Negotiation' },
+  { value: 'booked',                label: 'Booked' },
+  { value: 'lost',                  label: 'Lost' },
+]
 
 const activityIconMap = {
   status_change: { emoji: '🔄', color: 'bg-blue-50 dark:bg-blue-900/20', icon: Clock },
@@ -38,6 +48,8 @@ export default function LeadDetail() {
   const [newStatus, setNewStatus] = useState('')
   const [noteError, setNoteError] = useState('')
   const [showConvertModal, setShowConvertModal] = useState(false)
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
+  const dropdownRef = useRef(null)
 
   useEffect(() => {
     dispatch(fetchLeadById(id))
@@ -49,6 +61,16 @@ export default function LeadDetail() {
   useEffect(() => {
     if (lead?.status) setNewStatus(lead.status)
   }, [lead])
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowStatusDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   if (detailLoading && !lead) return (
     <div className="flex flex-col items-center justify-center h-[60vh]">
@@ -68,8 +90,9 @@ export default function LeadDetail() {
     </div>
   )
 
-  const stageIndex = leadStages.indexOf(lead?.status)
-  const assignedUser = userList.find(u => u.id === lead?.assigned_to)
+  const stageIndex = leadStages.findIndex(s => s.value === lead?.status)
+  // assigned_to from API is an object { id, full_name, phone } — use directly
+  const assignedUser = lead?.assigned_to && typeof lead.assigned_to === 'object' ? lead.assigned_to : null
 
   const handleAddNote = async () => {
     if (!note.trim()) { setNoteError('Note cannot be empty'); return }
@@ -276,15 +299,32 @@ export default function LeadDetail() {
               </h3>
               
               <div className="space-y-4">
-                <div className="relative">
-                  <select
-                    value={newStatus}
-                    onChange={e => setNewStatus(e.target.value)}
-                    className="w-full appearance-none pl-4 pr-10 py-3 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-gray-900 dark:text-gray-100 font-semibold"
+                <div className="relative" ref={dropdownRef}>
+                  <div 
+                    onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                    className="w-full pl-4 pr-4 py-3 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-gray-900 dark:text-gray-100 font-semibold cursor-pointer flex items-center justify-between"
                   >
-                    {leadStages.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <span>{leadStages.find(s => s.value === newStatus)?.label || 'Select Stage'}</span>
+                    <ChevronDown size={16} className={`text-gray-400 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
+                  </div>
+
+                  {showStatusDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl z-50 overflow-hidden py-1">
+                      {leadStages.map(s => (
+                        <div
+                          key={s.value}
+                          onClick={() => {
+                            setNewStatus(s.value)
+                            setShowStatusDropdown(false)
+                          }}
+                          className={`px-4 py-2.5 text-sm cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-[#252525] flex items-center justify-between ${newStatus === s.value ? 'bg-brand/5 text-brand font-bold' : 'text-gray-700 dark:text-gray-300'}`}
+                        >
+                          {s.label}
+                          {newStatus === s.value && <div className="w-1.5 h-1.5 rounded-full bg-brand" />}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 
                 <Button 
@@ -320,21 +360,15 @@ export default function LeadDetail() {
               <div className="p-4 rounded-[20px] bg-gray-50/50 dark:bg-[#0f0f0f]/50 border border-gray-50 dark:border-gray-800">
                 {assignedUser ? (
                   <div className="flex items-center gap-4">
-                    <Avatar name={`${assignedUser.first_name} ${assignedUser.last_name}`} size="lg" className="rounded-2xl" />
+                    <Avatar name={assignedUser.full_name} size="lg" className="rounded-2xl" />
                     <div>
-                      <div className="text-sm font-bold text-gray-900 dark:text-white">
-                        {assignedUser.first_name} {assignedUser.last_name}
-                      </div>
-                      <div className="text-[10px] font-bold text-brand uppercase tracking-wider mt-0.5">{assignedUser.role?.replace(/_/g, ' ')}</div>
-                      <div className="text-[11px] text-gray-400 mt-1">{assignedUser.email}</div>
-                    </div>
-                  </div>
-                ) : lead.assigned_to_name ? (
-                  <div className="flex items-center gap-4">
-                    <Avatar name={lead.assigned_to_name} size="lg" className="rounded-2xl" />
-                    <div>
-                      <div className="text-sm font-bold text-gray-900 dark:text-white">{lead.assigned_to_name}</div>
+                      <div className="text-sm font-bold text-gray-900 dark:text-white">{assignedUser.full_name}</div>
                       <div className="text-[10px] font-bold text-brand uppercase tracking-wider mt-0.5">Sales Executive</div>
+                      {assignedUser.phone && (
+                        <div className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
+                          <Phone size={10} /> {assignedUser.phone}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (

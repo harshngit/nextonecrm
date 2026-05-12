@@ -19,10 +19,24 @@ const statusColors = {
 }
 
 export default function Badge({ label, className = '' }) {
-  const colorClass = statusColors[label] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+  const formatLabel = (str) => {
+     if (!str) return '';
+     // If it's already in the statusColors, return as is (to handle 'Follow-up' etc)
+     if (statusColors[str]) return str;
+     
+     return str
+       .replace(/_/g, ' ')
+       .split(' ')
+       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+       .join(' ');
+   }
+
+  const formattedLabel = formatLabel(label);
+  const colorClass = statusColors[formattedLabel] || statusColors[label] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+  
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass} ${className}`}>
-      {label}
+      {formattedLabel}
     </span>
   )
 }

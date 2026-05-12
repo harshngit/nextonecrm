@@ -10,7 +10,7 @@ export const fetchUsers = createAsyncThunk(
       const allowedParams = {}
       if (params.role && params.role !== '--') allowedParams.role = params.role
       if (params.is_active !== '' && params.is_active !== undefined) allowedParams.is_active = params.is_active
-      
+
       const response = await api.get('/users', { params: allowedParams })
       return response.data
     } catch (error) {
@@ -80,6 +80,18 @@ export const updateUserRole = createAsyncThunk(
   }
 )
 
+export const assignManager = createAsyncThunk(
+  'users/assignManager',
+  async ({ userId, managerId }, { rejectWithValue }) => {
+    try {
+      const response = await api.patch(`/users/${userId}/assign-manager`, { manager_id: managerId })
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to assign manager')
+    }
+  }
+)
+
 // ── Slice ─────────────────────────────────────────────────────────────────────
 
 const userSlice = createSlice({
@@ -116,7 +128,7 @@ const userSlice = createSlice({
       .addCase(fetchUserById.fulfilled, (state, action) => { state.detailLoading = false; state.currentUser = action.payload })
       .addCase(fetchUserById.rejected, (state, action) => { state.detailLoading = false; state.error = action.payload })
 
-      // Action matchers for create / update / delete / role
+      // Action matchers for create / update / delete / role / assignManager
       .addMatcher(
         (action) => action.type.endsWith('/pending') && action.type.startsWith('users/') && action.type !== 'users/fetchAll/pending',
         (state) => { state.actionLoading = true; state.actionError = null }

@@ -59,8 +59,13 @@ function AppRoutes() {
     return () => clearTimeout(t)
   }, [location.pathname])
 
-  const ALL_ROLES = ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller']
-  const ADMIN_ROLES = ['super_admin', 'admin']
+  // super_admin + admin only — Projects, Users, Team (full control)
+  const ADMIN_ROLES = ['super_admin', 'admin', 'sales_manager']
+
+  // super_admin + admin + sales_manager — Team view (manager sees their team)
+  const MANAGER_ROLES = ['super_admin', 'admin', 'sales_manager']
+
+  // All five roles — Leads, Follow-Ups, Site Visits, Attendance
   const SALES_ROLES = ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller']
 
   return (
@@ -70,11 +75,11 @@ function AppRoutes() {
         <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
         
-        {/* All Auth Users */}
+        {/* All authenticated users */}
         <Route path="/dashboard"    element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
         <Route path="/notifications"element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
         
-        {/* Sales & Admin Roles */}
+        {/* All 5 roles — sales pages */}
         <Route path="/leads"        element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Leads /></Layout></RoleProtectedRoute>} />
         <Route path="/leads/:id"    element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><LeadDetail /></Layout></RoleProtectedRoute>} />
         <Route path="/site-visits"  element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><SiteVisits /></Layout></RoleProtectedRoute>} />
@@ -83,11 +88,13 @@ function AppRoutes() {
         <Route path="/follow-ups/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><FollowUpDetail /></Layout></RoleProtectedRoute>} />
         <Route path="/attendance"   element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Attendance /></Layout></RoleProtectedRoute>} />
 
-        {/* Admin Only Roles */}
+        {/* super_admin + admin + sales_manager — team view */}
+        <Route path="/team"         element={<RoleProtectedRoute allowedRoles={MANAGER_ROLES}><Layout><Team /></Layout></RoleProtectedRoute>} />
+        <Route path="/team/:id"     element={<RoleProtectedRoute allowedRoles={MANAGER_ROLES}><Layout><UserDetail /></Layout></RoleProtectedRoute>} />
+
+        {/* super_admin + admin only */}
         <Route path="/projects"     element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><Projects /></Layout></RoleProtectedRoute>} />
         <Route path="/projects/:id" element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><ProjectDetail /></Layout></RoleProtectedRoute>} />
-        <Route path="/team"         element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><Team /></Layout></RoleProtectedRoute>} />
-        <Route path="/team/:id"    element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><UserDetail /></Layout></RoleProtectedRoute>} />
         <Route path="/users"        element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><UserManagement /></Layout></RoleProtectedRoute>} />
         
         <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />

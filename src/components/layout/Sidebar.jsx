@@ -16,8 +16,8 @@ const navItems = [
   { path: '/follow-ups',   label: 'Follow-Ups',   icon: PhoneCall,       roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
   { path: '/site-visits',  label: 'Site Visits',  icon: CalendarCheck,   roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
   { path: '/attendance',   label: 'Attendance',   icon: Clock,           roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
-  { path: '/team',         label: 'Team',         icon: UserCog,         roles: ['super_admin', 'admin'] },
-  { path: '/users',        label: 'Users',        icon: Settings,        roles: ['super_admin', 'admin'] },
+  { path: '/team',         label: 'Team',         icon: UserCog,         roles: ['super_admin', 'admin', 'sales_manager'] },
+  { path: '/users',        label: 'Users',        icon: Settings,        roles: ['super_admin', 'admin', 'sales_manager'] },
   { path: '/notifications',label: 'Notifications',icon: Bell,            roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
 ]
 
