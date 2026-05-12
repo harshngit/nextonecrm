@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   UserPlus, Phone, Calendar, RefreshCw, CheckCheck,
   Trash2, Bell, BellOff, ChevronDown, X, Building2,
-  DollarSign, CreditCard, ClipboardList, Tag,
+  DollarSign, CreditCard, ClipboardList, Tag, Clock, ShieldCheck,
 } from 'lucide-react'
 import {
   fetchNotifications, markOneRead, markAllRead,
@@ -48,6 +48,13 @@ const typeConfig = {
 
   // General
   general:             { icon: Bell,         color: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',           label: 'General' },
+
+  // Attendance
+  attendance_checkin:  { icon: Clock,        color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',  label: 'Check-In' },
+  attendance_checkout: { icon: Clock,        color: 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400',             label: 'Check-Out' },
+  attendance_pending:  { icon: ShieldCheck,  color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',         label: 'Attendance Review' },
+  attendance_manual:   { icon: ClipboardList,color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',             label: 'Manual Entry' },
+  attendance_approved: { icon: ShieldCheck,  color: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',         label: 'Approved' },
 }
 
 const TYPE_FILTER_OPTIONS = [
@@ -78,6 +85,12 @@ const TYPE_FILTER_OPTIONS = [
   { value: 'task_created',        label: 'Task Created' },
   { value: 'task_reminder',       label: 'Task Reminder' },
   { value: 'task_completed',      label: 'Task Done' },
+  // Attendance
+  { value: 'attendance_checkin',  label: 'Check-In' },
+  { value: 'attendance_checkout', label: 'Check-Out' },
+  { value: 'attendance_pending',  label: 'Attendance Review' },
+  { value: 'attendance_manual',   label: 'Manual Entry' },
+  { value: 'attendance_approved', label: 'Approved' },
   // General
   { value: 'general',             label: 'General' },
 ]

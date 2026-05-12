@@ -14,6 +14,7 @@ import {
   fetchAttendanceByMonth,
   fetchAttendanceByDate,
   fetchAttendanceSummary,
+  fetchTeamAttendance,
   uploadAttendancePhoto,
   checkIn,
   checkOut,
@@ -557,14 +558,19 @@ function MyHistory({ dispatch }) {
 
 // ─── Admin: Month Grid ────────────────────────────────────────────────────────
 
-function AdminMonthGrid({ dispatch }) {
+function AdminMonthGrid({ dispatch, title = 'Monthly Attendance Grid', subtitle = null }) {
   const { byMonth, loading } = useSelector(s => s.attendance)
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year,  setYear]  = useState(now.getFullYear())
   const [page,  setPage]  = useState(1)
 
-  useEffect(() => { dispatch(fetchAttendanceByMonth({ month, year, page, per_page: 50 })) }, [dispatch, month, year, page])
+  useEffect(() => {
+    // Backend scopes by role automatically:
+    // sales_manager → only their team (manager_id = callerId)
+    // admin → all users
+    dispatch(fetchAttendanceByMonth({ month, year, page, per_page: 50 }))
+  }, [dispatch, month, year, page])
 
   const prev = () => { if (month === 1) { setMonth(12); setYear(y => y - 1) } else setMonth(m => m - 1) }
   const next = () => { if (month === 12) { setMonth(1); setYear(y => y + 1) } else setMonth(m => m + 1) }
@@ -587,8 +593,8 @@ function AdminMonthGrid({ dispatch }) {
     <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
       <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Monthly Attendance Grid</h3>
-          <p className="text-xs text-gray-400 mt-0.5">All employees · {MONTH_NAMES[month - 1]} {year}</p>
+          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{subtitle || `${MONTH_NAMES[month - 1]} ${year}`}</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={prev} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors"><ChevronLeft size={15} /></button>
@@ -673,11 +679,17 @@ function AdminMonthGrid({ dispatch }) {
 
 // ─── Admin: Daily View ────────────────────────────────────────────────────────
 
-function DailyView({ dispatch }) {
+function DailyView({ dispatch, title = 'Daily Attendance View' }) {
   const { byDate, loading } = useSelector(s => s.attendance)
   const [date, setDate] = useState(todayStr())
 
-  useEffect(() => { dispatch(fetchAttendanceByDate({ date })) }, [dispatch, date])
+  useEffect(() => {
+    // Backend now scopes automatically by role:
+    // sales_manager → their team only
+    // sales_exec/external_caller → themselves only
+    // admin → all users
+    dispatch(fetchAttendanceByDate({ date }))
+  }, [dispatch, date])
 
   const records  = byDate?.records   || []
   const noRecord = byDate?.no_record || []
@@ -688,7 +700,7 @@ function DailyView({ dispatch }) {
     <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
       <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Daily Attendance View</h3>
+          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
           {summary && <p className="text-xs text-gray-400 mt-0.5">{summary.present} present · {summary.absent} absent · {summary.on_leave} on leave</p>}
         </div>
         <input type="date" value={date} onChange={e => setDate(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]" />
@@ -744,13 +756,17 @@ function DailyView({ dispatch }) {
 
 // ─── Admin: Summary Table ─────────────────────────────────────────────────────
 
-function SummaryTable({ dispatch }) {
+function SummaryTable({ dispatch, isSalesMgr = false, managerId = null }) {
   const { summary, loading } = useSelector(s => s.attendance)
   const now  = new Date()
   const [from, setFrom] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`)
   const [to,   setTo]   = useState(now.toISOString().split('T')[0])
 
-  useEffect(() => { dispatch(fetchAttendanceSummary({ from, to })) }, [dispatch, from, to])
+  useEffect(() => {
+    // Backend scopes by role — no params needed for sales_manager
+    // (getSummary now reads req.user.role and filters automatically)
+    dispatch(fetchAttendanceSummary({ from, to }))
+  }, [dispatch, from, to])
 
   const data = summary?.data || []
 
@@ -1507,14 +1523,23 @@ export default function Attendance() {
   }
 
   const now  = new Date()
+  // Role flags
+  const isSalesExec   = ['sales_executive', 'external_caller'].includes(user?.role)
+  const isSalesMgr    = user?.role === 'sales_manager'
+
   const TABS = [
-    { id: 'overview',  label: 'Overview',   icon: BarChart3,  show: true },
-    { id: 'calendar',  label: 'Calendar',   icon: Calendar,   show: true },
-    { id: 'history',   label: 'My History', icon: Clock,      show: true },
-    { id: 'monthly',   label: 'Month Grid', icon: Users,      show: isManager },
-    { id: 'daily',     label: 'Daily View', icon: UserCheck,  show: isManager },
-    { id: 'summary',   label: 'Summary',    icon: TrendingUp, show: isManager },
-    { id: 'approvals', label: 'Approvals',  icon: CheckCircle2, show: isAdmin },
+    { id: 'overview',  label: 'Overview',      icon: BarChart3,   show: true },
+    { id: 'calendar',  label: 'Calendar',      icon: Calendar,    show: true },
+    { id: 'history',   label: 'My History',    icon: Clock,       show: true },
+    // sales_manager: see their team daily + monthly + summary
+    { id: 'team-daily',label: 'Team Daily',    icon: UserCheck,   show: isSalesMgr },
+    { id: 'team-month',label: 'Team Month',    icon: Users,       show: isSalesMgr },
+    { id: 'summary',   label: 'Team Summary',  icon: TrendingUp,  show: isSalesMgr },
+    // admin tabs
+    { id: 'monthly',   label: 'Month Grid',    icon: Users,       show: isAdmin },
+    { id: 'daily',     label: 'Daily View',    icon: UserCheck,   show: isAdmin },
+    { id: 'admin-sum', label: 'Summary',       icon: TrendingUp,  show: isAdmin },
+    { id: 'approvals', label: 'Approvals',     icon: CheckCircle2,show: isAdmin },
   ].filter(t => t.show)
 
   const [activeTab, setActiveTab] = useState('overview')
@@ -1651,12 +1676,29 @@ export default function Attendance() {
         </div>
       )}
 
-      {activeTab === 'calendar'  && <CalendarView  dispatch={dispatch} />}
-      {activeTab === 'history'   && <MyHistory      dispatch={dispatch} />}
-      {activeTab === 'monthly'   && isManager && <AdminMonthGrid dispatch={dispatch} />}
-      {activeTab === 'daily'     && isManager && <DailyView      dispatch={dispatch} />}
-      {activeTab === 'summary'   && isManager && <SummaryTable   dispatch={dispatch} />}
-      {activeTab === 'approvals' && isAdmin   && <ApprovalPanel  dispatch={dispatch} />}
+      {activeTab === 'calendar'   && <CalendarView dispatch={dispatch} />}
+      {activeTab === 'history'    && <MyHistory dispatch={dispatch} />}
+
+      {/* sales_manager — backend scopes to their team automatically by role */}
+      {activeTab === 'team-daily' && isSalesMgr && (
+        <DailyView dispatch={dispatch} title="Team Daily View" />
+      )}
+      {activeTab === 'team-month' && isSalesMgr && (
+        <AdminMonthGrid
+          dispatch={dispatch}
+          title="Team Monthly Grid"
+          subtitle="Your team members only"
+        />
+      )}
+      {activeTab === 'summary' && isSalesMgr && (
+        <SummaryTable dispatch={dispatch} isSalesMgr={true} managerId={user?.id} />
+      )}
+
+      {/* admin / super_admin — all users */}
+      {activeTab === 'monthly'   && isAdmin && <AdminMonthGrid dispatch={dispatch} />}
+      {activeTab === 'daily'     && isAdmin && <DailyView      dispatch={dispatch} />}
+      {activeTab === 'admin-sum' && isAdmin && <SummaryTable   dispatch={dispatch} />}
+      {activeTab === 'approvals' && isAdmin && <ApprovalPanel  dispatch={dispatch} />}
 
       {/* Admin Manual Entry Modal */}
       {showManualEntry && (

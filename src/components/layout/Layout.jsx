@@ -1,10 +1,16 @@
 import { useState } from 'react'
 import Sidebar from './Sidebar'
-import Navbar from './Navbar'
+import Navbar  from './Navbar'
+import { useSocket } from '../../hooks/useSocket'
 
 export default function Layout({ children }) {
-  const [collapsed, setCollapsed] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [collapsed,   setCollapsed]   = useState(false)
+  const [mobileOpen,  setMobileOpen]  = useState(false)
+
+  // ── WebSocket: connect on mount, disconnect on logout ────────────────────
+  // useSocket handles connect/disconnect lifecycle tied to auth state.
+  // { connected, socketId } available for debug if needed.
+  const { connected } = useSocket()
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0f0f0f]">
@@ -17,6 +23,7 @@ export default function Layout({ children }) {
       <Navbar
         collapsed={collapsed}
         setMobileOpen={setMobileOpen}
+        wsConnected={connected}
       />
       <main
         className={`pt-14 min-h-screen transition-all duration-300 ${collapsed ? 'lg:ml-[60px]' : 'lg:ml-[240px]'}`}

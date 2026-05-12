@@ -20,9 +20,23 @@ export const fetchMyAttendance = createAsyncThunk(
   async (params, { rejectWithValue }) => {
     try {
       const response = await api.get('/attendance/me', { params })
-      return response.data.data
+      // API returns { data:[...], pagination:{}, summary:{}, period:{} } at root level
+      // Return the full response object so the component can access all fields
+      return response.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch my attendance')
+    }
+  }
+)
+
+export const fetchTeamAttendance = createAsyncThunk(
+  'attendance/fetchTeam',
+  async (params, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/attendance/team', { params })
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch team attendance')
     }
   }
 )
@@ -211,6 +225,7 @@ const attendanceSlice = createSlice({
   initialState: {
     today: null,
     myHistory: { data: [], summary: null, pagination: {} },
+    teamHistory: { data: [], summary: null, pagination: {} },
     calendar: [],
     byMonth: { data: [], all_days: [] },
     byDate: null,
@@ -221,6 +236,7 @@ const attendanceSlice = createSlice({
     loading: {
       today: false,
       myHistory: false,
+      teamHistory: false,
       calendar: false,
       byMonth: false,
       byDate: false,
@@ -257,6 +273,14 @@ const attendanceSlice = createSlice({
         state.myHistory = action.payload 
       })
       .addCase(fetchMyAttendance.rejected, (state) => { state.loading.myHistory = false })
+
+      // fetchTeamAttendance
+      .addCase(fetchTeamAttendance.pending, (state) => { state.loading.teamHistory = true })
+      .addCase(fetchTeamAttendance.fulfilled, (state, action) => {
+        state.loading.teamHistory = false
+        state.teamHistory = action.payload
+      })
+      .addCase(fetchTeamAttendance.rejected, (state) => { state.loading.teamHistory = false })
 
       // fetchAttendanceByMonth
       .addCase(fetchAttendanceByMonth.pending, (state) => { state.loading.byMonth = true })
