@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Plus, MapPin, Building2, IndianRupee, Users, Edit2, Trash2, RefreshCw, Search, ChevronDown, Download } from 'lucide-react'
-import { fetchProjects, createProject, updateProject, deleteProject, clearProjectError } from '../store/projectSlice'
+import { Plus, MapPin, Building2, IndianRupee, Users, Edit2, Trash2, RefreshCw, Search, ChevronDown, Download, Upload, FileImage, FileText, X, CheckCircle2, Loader2, Eye, Paperclip, Check } from 'lucide-react'
+import { fetchProjects, createProject, updateProject, deleteProject, clearProjectError, fetchProjectDocuments } from '../store/projectSlice'
 import CardSkeleton from '../components/loaders/CardSkeleton'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -10,6 +10,7 @@ import api from '../api/axios'
 import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
+import ConfirmModal from '../components/ui/ConfirmModal'
 
 const projectColors = [
   'from-blue-400/20 to-blue-600/20',
@@ -166,6 +167,7 @@ function ProjectForm({ formData, setFormData }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
+
 export default function Projects() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
@@ -178,8 +180,11 @@ export default function Projects() {
   const [page,         setPage]         = useState(1)
 
   const [showAddModal,  setShowAddModal]  = useState(false)
+  const [uploadFiles, setUploadFiles] = useState({ unit_plans: [], creatives: [] })
   const [showEditModal, setShowEditModal] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [projectToDelete, setProjectToDelete] = useState(null)
   const [selectedProject, setSelectedProject] = useState(null)
 
   const [addForm,  setAddForm]  = useState(defaultForm)
@@ -200,11 +205,30 @@ export default function Projects() {
   const handleAdd = async (e) => {
     e.preventDefault()
     dispatch(clearProjectError())
-    const result = await dispatch(createProject(addForm))
-    if (createProject.fulfilled.match(result)) {
-      setSuccess('Project created!')
-      dispatch(fetchProjects({ page, per_page: 20 }))
-      setTimeout(() => { setShowAddModal(false); setSuccess(''); setAddForm(defaultForm) }, 800)
+    try {
+      // Build multipart/form-data so files travel with the project fields
+      const fd = new FormData()
+      Object.entries(addForm).forEach(([k, v]) => { if (v !== '' && v !== null && v !== undefined) fd.append(k, v) })
+      uploadFiles.unit_plans.forEach(f => fd.append('unit_plans', f))
+      uploadFiles.creatives.forEach(f  => fd.append('creatives',  f))
+
+      const res = await api.post('/projects', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      if (res.data.success) {
+        const docCount = res.data.data?.documents?.count || 0
+        setSuccess(`Project created!${docCount > 0 ? ` ${docCount} document${docCount > 1 ? 's' : ''} uploaded.` : ''}`)
+        setUploadFiles({ unit_plans: [], creatives: [] })
+        dispatch(fetchProjects({ page, per_page: 20 }))
+        setTimeout(() => { setShowAddModal(false); setSuccess(''); setAddForm(defaultForm) }, 900)
+      }
+    } catch (err) {
+      // fall back to Redux thunk for non-file errors to surface actionError
+      dispatch(clearProjectError())
+      const result = await dispatch(createProject(addForm))
+      if (createProject.fulfilled.match(result)) {
+        setSuccess('Project created!')
+        dispatch(fetchProjects({ page, per_page: 20 }))
+        setTimeout(() => { setShowAddModal(false); setSuccess(''); setAddForm(defaultForm) }, 800)
+      }
     }
   }
 
@@ -219,13 +243,19 @@ export default function Projects() {
     }
   }
 
-  const handleDelete = async (project) => {
-    if (window.confirm(`Delete "${project.name}"? This cannot be undone.`)) {
-      const result = await dispatch(deleteProject(project.id))
-      if (deleteProject.fulfilled.match(result)) {
-        dispatch(fetchProjects({ page, per_page: 20 }))
-      }
+  const handleDelete = async () => {
+    if (!projectToDelete) return
+    const result = await dispatch(deleteProject(projectToDelete.id))
+    if (deleteProject.fulfilled.match(result)) {
+      dispatch(fetchProjects({ page, per_page: 20 }))
     }
+    setShowDeleteModal(false)
+    setProjectToDelete(null)
+  }
+
+  const confirmDelete = (project) => {
+    setProjectToDelete(project)
+    setShowDeleteModal(true)
   }
 
   const openEdit = (project) => {
@@ -291,6 +321,23 @@ export default function Projects() {
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
       setShowExportModal(false)
     } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
+  }
+
+  const handleDownloadAll = async (projectId, projectName) => {
+    try {
+      const response = await api.get(`/projects/${projectId}/documents/download-all`, {
+        responseType: 'blob'
+      })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `${projectName}_documents.zip`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch (error) {
+      console.error('Download failed', error)
+    }
   }
 
   return (
@@ -390,9 +437,14 @@ export default function Projects() {
                         className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-blue-600 transition-colors">
                         <Edit2 size={11} />
                       </button>
-                      <button onClick={() => handleDelete(project)}
+                      <button onClick={() => confirmDelete(project)}
                         className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-red-500 transition-colors">
                         <Trash2 size={11} />
+                      </button>
+                      <button onClick={() => handleDownloadAll(project.id, project.name)}
+                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-brand transition-colors"
+                        title="Download All Documents">
+                        <Download size={11} />
                       </button>
                     </div>
                   )}
@@ -453,6 +505,87 @@ export default function Projects() {
       <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setSuccess('') }} title="Add New Project" size="lg">
         <form onSubmit={handleAdd} className="space-y-4">
           <ProjectForm formData={addForm} setFormData={setAddForm} />
+
+          {/* Optional document upload during creation */}
+          <div className="border-t border-gray-100 dark:border-gray-800 pt-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+              <Paperclip size={12}/> Attach Documents <span className="font-normal text-gray-400">(optional — unit plans & creatives)</span>
+            </p>
+
+            {/* Unit Plans */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Unit Plans</label>
+              </div>
+              <div className="space-y-2">
+                <label className="flex flex-col items-center justify-center gap-2 px-3 py-6 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-800 cursor-pointer hover:border-brand hover:bg-brand/5 transition-all group">
+                  <div className="w-10 h-10 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center group-hover:bg-brand/10 transition-colors">
+                    <Upload size={18} className="text-gray-400 group-hover:text-brand"/>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs font-bold text-gray-700 dark:text-gray-300">Click to upload unit plans</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">PDF, JPEG, PNG, Word — max 20MB</p>
+                  </div>
+                  <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="hidden"
+                    onChange={e => setUploadFiles(p => ({ ...p, unit_plans: [...p.unit_plans, ...Array.from(e.target.files)] }))}/>
+                </label>
+
+                {uploadFiles.unit_plans.length > 0 && (
+                  <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto p-1">
+                    {uploadFiles.unit_plans.map((file, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100/50 dark:border-blue-900/20">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText size={14} className="text-brand flex-shrink-0"/>
+                          <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300 truncate">{file.name}</span>
+                        </div>
+                        <button type="button" onClick={() => setUploadFiles(p => ({ ...p, unit_plans: p.unit_plans.filter((_, i) => i !== idx) }))}
+                          className="p-1 text-gray-400 hover:text-red-500 transition-colors">
+                          <X size={14}/>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Creatives */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Creatives</label>
+              </div>
+              <div className="space-y-2">
+                <label className="flex flex-col items-center justify-center gap-2 px-3 py-6 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-800 cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 dark:hover:bg-purple-900/10 transition-all group">
+                  <div className="w-10 h-10 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center group-hover:bg-purple-100 dark:group-hover:bg-purple-900/20 transition-colors">
+                    <Upload size={18} className="text-gray-400 group-hover:text-purple-500"/>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs font-bold text-gray-700 dark:text-gray-300">Click to upload creatives</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">PDF, JPEG, PNG, Word — max 20MB</p>
+                  </div>
+                  <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="hidden"
+                    onChange={e => setUploadFiles(p => ({ ...p, creatives: [...p.creatives, ...Array.from(e.target.files)] }))}/>
+                </label>
+
+                {uploadFiles.creatives.length > 0 && (
+                  <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto p-1">
+                    {uploadFiles.creatives.map((file, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-purple-50/50 dark:bg-purple-900/10 border border-purple-100/50 dark:border-purple-900/20">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileImage size={14} className="text-purple-500 flex-shrink-0"/>
+                          <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300 truncate">{file.name}</span>
+                        </div>
+                        <button type="button" onClick={() => setUploadFiles(p => ({ ...p, creatives: p.creatives.filter((_, i) => i !== idx) }))}
+                          className="p-1 text-gray-400 hover:text-red-500 transition-colors">
+                          <X size={14}/>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
           {success && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -482,6 +615,16 @@ export default function Projects() {
         onExport={handleExport} 
         loading={exporting}
         title="Export Projects"
+      />
+
+      <ConfirmModal 
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDelete}
+        title="Delete Project"
+        message={`Are you sure you want to delete "${projectToDelete?.name}"? This will also remove all associated leads and data. This action cannot be undone.`}
+        confirmText="Delete Project"
+        loading={actionLoading}
       />
     </div>
   )

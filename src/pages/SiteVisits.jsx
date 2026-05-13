@@ -10,12 +10,14 @@ import { fetchLeads } from '../store/leadSlice'
 import { fetchProjects } from '../store/projectSlice'
 import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
+import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import CustomSelect from '../components/ui/CustomSelect'
+import ConfirmModal from '../components/ui/ConfirmModal'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
-import CustomSelect from '../components/ui/CustomSelect'
 
 const visitStatuses = ['scheduled', 'done', 'cancelled', 'rescheduled', 'no_show']
 const statusLabel = { scheduled: 'Scheduled', done: 'Completed', cancelled: 'Cancelled', rescheduled: 'Rescheduled', no_show: 'No Show' }
@@ -421,6 +423,8 @@ export default function SiteVisits() {
   const [showAddModal,      setShowAddModal]      = useState(false)
   const [showEditModal,     setShowEditModal]      = useState(false)
   const [showFeedbackModal, setShowFeedbackModal]  = useState(false)
+  const [showCancelModal,   setShowCancelModal]    = useState(false)
+  const [visitToCancel,     setVisitToCancel]      = useState(null)
   const [showExportModal,   setShowExportModal]    = useState(false)
   const [selectedVisit,     setSelectedVisit]      = useState(null)
 
@@ -486,13 +490,19 @@ export default function SiteVisits() {
     }
   }
 
-  const handleCancel = async (visit) => {
-    if (window.confirm(`Cancel this site visit?`)) {
-      const result = await dispatch(cancelSiteVisit(visit.id))
-      if (cancelSiteVisit.fulfilled.match(result)) {
-        dispatch(fetchSiteVisits({ page, per_page: 20 }))
-      }
+  const handleCancel = async () => {
+    if (!visitToCancel) return
+    const result = await dispatch(cancelSiteVisit(visitToCancel.id))
+    if (cancelSiteVisit.fulfilled.match(result)) {
+      dispatch(fetchSiteVisits({ page, per_page: 20 }))
     }
+    setShowCancelModal(false)
+    setVisitToCancel(null)
+  }
+
+  const confirmCancel = (visit) => {
+    setVisitToCancel(visit)
+    setShowCancelModal(true)
   }
 
   const openEdit = (visit) => {
@@ -781,7 +791,7 @@ export default function SiteVisits() {
                                 className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
                                 <CheckCircle size={13} />
                               </button>
-                              <button onClick={() => handleCancel(visit)} title="Cancel"
+                              <button onClick={() => confirmCancel(visit)} title="Cancel"
                                 className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                                 <X size={13} />
                               </button>
@@ -872,6 +882,16 @@ export default function SiteVisits() {
         onExport={handleExport} 
         loading={exporting}
         title="Export Site Visits"
+      />
+
+      <ConfirmModal 
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleCancel}
+        title="Cancel Site Visit"
+        message={`Are you sure you want to cancel the site visit for "${visitToCancel?.lead_name}"?`}
+        confirmText="Cancel Visit"
+        loading={actionLoading}
       />
     </div>
   )

@@ -5,6 +5,7 @@ import { fetchUsers, createUser, updateUser, deleteUser, updateUserRole, assignM
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import ConfirmModal from '../components/ui/ConfirmModal'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
@@ -156,6 +157,8 @@ export default function UserManagement() {
   const [showModal,       setShowModal]       = useState(false)
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [userToDelete,    setUserToDelete]    = useState(null)
   const [editMode,        setEditMode]        = useState(false)
   const [selectedUser,    setSelectedUser]    = useState(null)
   const [assignTarget,    setAssignTarget]    = useState(null)
@@ -245,11 +248,19 @@ export default function UserManagement() {
     }
   }
 
-  const handleDelete = async (user) => {
-    if (window.confirm(`Deactivate ${user.first_name} ${user.last_name}?`)) {
-      const result = await dispatch(deleteUser(user.id))
-      if (deleteUser.fulfilled.match(result)) dispatch(fetchUsers({ role: filterRole }))
+  const handleDelete = async () => {
+    if (!userToDelete) return
+    const result = await dispatch(deleteUser(userToDelete.id))
+    if (deleteUser.fulfilled.match(result)) {
+      dispatch(fetchUsers({ role: filterRole }))
     }
+    setShowDeleteModal(false)
+    setUserToDelete(null)
+  }
+
+  const confirmDelete = (user) => {
+    setUserToDelete(user)
+    setShowDeleteModal(true)
   }
 
   const handleExport = async (dateRange) => {
@@ -358,7 +369,7 @@ export default function UserManagement() {
             )}
             {/* Deactivate — admin/super_admin only */}
             {canManage && user.id !== currentUser?.id && user.role !== 'super_admin' && user.is_active && (
-              <button onClick={() => handleDelete(user)}
+              <button onClick={() => confirmDelete(user)}
                 className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                 <Trash2 size={13} />
               </button>
@@ -489,6 +500,16 @@ export default function UserManagement() {
       {/* Export Modal */}
       <ExportModal isOpen={showExportModal} onClose={() => setShowExportModal(false)}
         onExport={handleExport} loading={exporting} title="Export Team Data" />
+
+      <ConfirmModal 
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDelete}
+        title="Deactivate User"
+        message={`Are you sure you want to deactivate ${userToDelete?.first_name} ${userToDelete?.last_name}? This user will no longer be able to login.`}
+        confirmText="Deactivate"
+        loading={actionLoading}
+      />
     </div>
   )
 }

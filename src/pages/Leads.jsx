@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Eye, Edit2, UserCheck, ChevronDown, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Loader2, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
+import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users } from 'lucide-react'
 import { fetchLeads, createLead, updateLead, deleteLead, fetchLeadSources, clearLeadError } from '../store/leadSlice'
 import { fetchProjects } from '../store/projectSlice'
 import { fetchUsers } from '../store/userSlice'
@@ -14,14 +14,21 @@ import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
 import ClockPicker from '../components/ui/ClockPicker'
+import ConfirmModal from '../components/ui/ConfirmModal'
 import ConvertLeadModal from '../components/modals/ConvertLeadModal'
 
 const leadStages = [
-  'New', 'Contacted', 'Interested', 'Follow-up',
-  'Site Visit Scheduled', 'Site Visit Done', 'Negotiation', 'Booked', 'Lost',
+  { value: 'new',                  label: 'New' },
+  { value: 'contacted',            label: 'Contacted' },
+  { value: 'interested',           label: 'Interested' },
+  { value: 'follow_up',            label: 'Follow-up' },
+  { value: 'site_visit_scheduled', label: 'Site Visit Scheduled' },
+  { value: 'site_visit_done',      label: 'Site Visit Done' },
+  { value: 'negotiation',          label: 'Negotiation' },
+  { value: 'booked',               label: 'Booked' },
+  { value: 'lost',                 label: 'Lost' },
 ]
-
-const stageOptions = leadStages.map(s => ({ value: s, label: s }))
+const stageOptions = leadStages
 
 const defaultSources = [
   { id: 'facebook', name: 'Facebook' },
@@ -52,7 +59,7 @@ const defaultForm = {
 // This is the fix for the typing bug — defining a component inside another
 // component causes React to treat it as a new component on every render,
 // unmounting and remounting it, which kills input focus.
-function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs, currentUser }) {
+function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
   const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
@@ -161,24 +168,13 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs, curre
 
       {/* Assign To */}
       <div className="grid grid-cols-1">
-        {['sales_executive', 'external_caller'].includes(currentUser?.role) ? (
-          <div>
-            <label className={labelClass}>Assign To</label>
-            <input
-              readOnly
-              value={`${currentUser?.first_name ?? ''} ${currentUser?.last_name ?? ''}`.trim()}
-              className={inputClass + ' cursor-not-allowed opacity-60'}
-            />
-          </div>
-        ) : (
-          <CustomSelect
-            label="Assign To"
-            value={formData.assigned_to}
-            onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))}
-            options={execOptions}
-            placeholder="Select team member"
-          />
-        )}
+        <CustomSelect
+          label="Assign To"
+          value={formData.assigned_to}
+          onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))}
+          options={execOptions}
+          placeholder="Select team member"
+        />
       </div>
 
       {/* Configuration */}
@@ -196,6 +192,205 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs, curre
   )
 }
 
+
+// ─── Bulk Upload Modal ────────────────────────────────────────────────────────
+function BulkUploadModal({ onClose, onSuccess }) {
+  const [step, setStep]         = useState('upload')
+  const [file, setFile]         = useState(null)
+  const [dragging, setDragging] = useState(false)
+  const [uploading,setUploading]= useState(false)
+  const [dlding, setDlding]     = useState(false)
+  const [error, setError]       = useState('')
+  const [result, setResult]     = useState(null)
+  const fileRef = useRef(null)
+
+  const downloadTemplate = async () => {
+    try { setDlding(true); const r=await api.get('/leads/bulk/template',{responseType:'blob'}); const u=URL.createObjectURL(r.data); const a=document.createElement('a');a.href=u;a.download='Lead_Bulk_Upload_Template.xlsx';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u) }
+    catch { setError('Failed to download template') } finally { setDlding(false) }
+  }
+  const handleFile = (f) => {
+    if (!f) return
+    const ok=['application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+    if (!ok.includes(f.type)) { setError('Only .xlsx or .xls files are allowed'); return }
+    if (f.size > 10*1024*1024) { setError('File must be under 10 MB'); return }
+    setError(''); setFile(f)
+  }
+  const handleUpload = async () => {
+    if (!file) { setError('Please select a file first'); return }
+    setError(''); setUploading(true)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const r = await api.post('/leads/bulk/upload', fd, { headers:{'Content-Type':'multipart/form-data'} })
+      setResult(r.data.data); setStep('result')
+    } catch(e) { setError(e.response?.data?.message||'Upload failed. Check your file.') }
+    finally { setUploading(false) }
+  }
+  const downloadResult = async () => {
+    if (!result?.resultFile) return
+    const fname = result.resultFile.split('/').pop()
+    try { const r=await api.get(`/leads/bulk/result/${fname}`,{responseType:'blob'}); const u=URL.createObjectURL(r.data); const a=document.createElement('a');a.href=u;a.download=fname;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u) }
+    catch { setError('Failed to download result file') }
+  }
+  return (
+    <Modal isOpen={true} onClose={onClose} title="Bulk Upload Leads" size="md">
+      {step==='upload' ? (
+        <div className="space-y-5">
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/40">
+            <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0"><span className="text-xs font-bold text-blue-600 dark:text-blue-400">1</span></div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Download the template</p>
+              <p className="text-xs text-gray-500 mt-0.5">Fill in: Name*, Phone*, Email, Source, Budget, Location, Project, Status</p>
+              <button onClick={downloadTemplate} disabled={dlding} className="mt-2.5 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold disabled:opacity-60">
+                {dlding ? <Loader2 size={12} className="animate-spin"/> : <Download size={12}/>}
+                {dlding ? 'Downloading…' : 'Download Template (.xlsx)'}
+              </button>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0"><span className="text-xs font-bold text-gray-500">2</span></div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Upload filled file</p>
+              <div onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)}
+                onDrop={e=>{e.preventDefault();setDragging(false);handleFile(e.dataTransfer.files?.[0])}}
+                onClick={()=>fileRef.current?.click()}
+                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${dragging?'border-brand bg-brand/5':file?'border-green-400 bg-green-50 dark:bg-green-900/10':'border-gray-200 dark:border-gray-700 hover:border-brand hover:bg-brand/5'}`}>
+                <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e=>handleFile(e.target.files?.[0])}/>
+                {file ? (
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center"><FileSpreadsheet size={20} className="text-green-600"/></div>
+                    <div className="text-left"><p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{file.name}</p><p className="text-xs text-gray-400">{(file.size/1024).toFixed(1)} KB</p></div>
+                    <button type="button" onClick={e=>{e.stopPropagation();setFile(null)}} className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-500 hover:bg-red-100 hover:text-red-500"><X size={12}/></button>
+                  </div>
+                ) : (
+                  <><div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-3"><Upload size={20} className="text-gray-400"/></div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Drag & drop your Excel file here</p>
+                  <p className="text-xs text-gray-400 mt-1">or click to browse · .xlsx / .xls · max 10 MB</p></>
+                )}
+              </div>
+            </div>
+          </div>
+          {error && <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3"><AlertCircle size={14} className="text-red-500 flex-shrink-0"/><p className="text-xs text-red-600">{error}</p></div>}
+          <div className="flex gap-3">
+            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+            <Button className="flex-1" onClick={handleUpload} loading={uploading} disabled={!file||uploading} icon={!uploading?Upload:undefined}>
+              {uploading?'Uploading…':'Upload & Import'}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <div className="flex flex-col items-center gap-2 py-2">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${result?.errors===0?'bg-green-50 dark:bg-green-900/20':'bg-amber-50 dark:bg-amber-900/20'}`}>
+              <CheckCircle2 size={28} className={result?.errors===0?'text-green-500':'text-amber-500'}/>
+            </div>
+            <p className="text-base font-bold text-gray-900 dark:text-white">Upload Complete</p>
+            <p className="text-xs text-gray-400">{result?.inserted} of {result?.total} leads imported</p>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {[{label:'Inserted',val:result?.inserted,c:'text-green-600 dark:text-green-400',bg:'bg-green-50 dark:bg-green-900/20'},{label:'Skipped',val:result?.skipped,c:'text-amber-600 dark:text-amber-400',bg:'bg-amber-50 dark:bg-amber-900/20'},{label:'Errors',val:result?.errors,c:'text-red-600 dark:text-red-400',bg:'bg-red-50 dark:bg-red-900/20'}].map(x=>(
+              <div key={x.label} className={`rounded-xl px-4 py-3 text-center ${x.bg}`}>
+                <p className={`text-2xl font-bold ${x.c}`}>{x.val??0}</p>
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mt-0.5">{x.label}</p>
+              </div>
+            ))}
+          </div>
+          {result?.summary?.errors?.length>0&&<div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-800/40 rounded-xl p-4"><p className="text-xs font-semibold text-red-600 mb-2">Sample errors:</p><div className="space-y-1 max-h-24 overflow-y-auto">{result.summary.errors.map((e,i)=><p key={i} className="text-xs text-red-500">Row {e.row}: {e.error}</p>)}</div></div>}
+          {result?.summary?.skipped?.length>0&&<div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/40 rounded-xl p-4"><p className="text-xs font-semibold text-amber-600 mb-2">Skipped (duplicate phones):</p><div className="space-y-1 max-h-20 overflow-y-auto">{result.summary.skipped.map((s,i)=><p key={i} className="text-xs text-amber-500">Row {s.row}: {s.phone}</p>)}</div></div>}
+          <div className="flex gap-3">
+            {result?.resultFile&&<Button variant="outline" className="flex-1" icon={Download} onClick={downloadResult}>Download Result</Button>}
+            <Button className="flex-1" onClick={()=>{onSuccess();onClose()}}>Done</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+// ─── Single Reassign Modal (uses /leads/:id/reassign) ─────────────────────────
+function ReassignModal({ lead, salesExecs, onClose, onSuccess }) {
+  const [assignTo,setAssignTo]=useState(lead?.assigned_to?.id||(typeof lead?.assigned_to==='string'?lead.assigned_to:''))
+  const [reason,setReason]=useState('')
+  const [loading,setLoading]=useState(false)
+  const [error,setError]=useState('')
+  const [success,setSuccess]=useState('')
+  const IC="w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm"
+  const LC="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+  const curName=typeof lead?.assigned_to==='object'?lead.assigned_to?.full_name:salesExecs.find(u=>u.id===lead?.assigned_to)?`${salesExecs.find(u=>u.id===lead.assigned_to).first_name} ${salesExecs.find(u=>u.id===lead.assigned_to).last_name}`:'Unassigned'
+  const submit=async(e)=>{e.preventDefault();if(!assignTo){setError('Please select a team member');return}setError('');setLoading(true)
+    try{await api.patch(`/leads/${lead.id}/reassign`,{assigned_to:assignTo,reason:reason||undefined});setSuccess('Reassigned!');setTimeout(()=>{onSuccess();onClose()},700)}
+    catch(e){setError(e.response?.data?.message||'Reassignment failed')}finally{setLoading(false)}}
+  return (
+    <Modal isOpen={true} onClose={onClose} title="Reassign Lead">
+      <form onSubmit={submit} className="space-y-4">
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-[#111] border border-gray-100 dark:border-gray-800">
+          <Avatar name={lead?.name} size="sm"/>
+          <div><p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{lead?.name}</p><p className="text-xs text-gray-400">{lead?.phone}</p></div>
+          <div className="ml-auto text-right"><p className="text-[10px] text-gray-400">Currently assigned to</p><p className="text-xs font-medium text-gray-600 dark:text-gray-300">{curName}</p></div>
+        </div>
+        <CustomSelect label="Assign To *" value={assignTo} onChange={setAssignTo} options={salesExecs.map(u=>({value:u.id,label:`${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}`}))} placeholder="Select team member"/>
+        <div><label className={LC}>Reason <span className="font-normal text-gray-400">(optional)</span></label><input value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. Better territorial alignment" className={IC}/></div>
+        {error&&<div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"><AlertCircle size={13} className="text-red-500"/><p className="text-xs text-red-600">{error}</p></div>}
+        {success&&<div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5"><CheckCircle2 size={13} className="text-green-500"/><p className="text-xs text-green-600">{success}</p></div>}
+        <div className="flex gap-3 pt-1">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button type="submit" className="flex-1" loading={loading} disabled={!assignTo}>Reassign</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Bulk Reassign Modal (uses /leads/bulk-reassign) ──────────────────────────
+function BulkReassignModal({ leadIds, leads, salesExecs, onClose, onSuccess }) {
+  const [assignTo,setAssignTo]=useState('')
+  const [reason,setReason]=useState('')
+  const [loading,setLoading]=useState(false)
+  const [error,setError]=useState('')
+  const [result,setResult]=useState(null)
+  const IC="w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm"
+  const LC="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+  const sel=leads.filter(l=>leadIds.includes(l.id))
+  const submit=async(e)=>{e.preventDefault();if(!assignTo){setError('Please select a team member');return}setError('');setLoading(true)
+    try{const r=await api.post('/leads/bulk-reassign',{lead_ids:leadIds,assigned_to:assignTo,reason:reason||undefined});setResult(r.data.data)}
+    catch(e){setError(e.response?.data?.message||'Bulk reassignment failed')}finally{setLoading(false)}}
+  if(result) return (
+    <Modal isOpen={true} onClose={()=>{onSuccess();onClose()}} title="Reassignment Complete">
+      <div className="space-y-4 py-2">
+        <div className="flex flex-col items-center gap-2"><div className="w-14 h-14 rounded-2xl bg-green-50 dark:bg-green-900/20 flex items-center justify-center"><CheckCircle2 size={28} className="text-green-500"/></div><p className="text-base font-bold text-gray-900 dark:text-white">Done!</p></div>
+        <div className="grid grid-cols-3 gap-3">
+          {[{label:'Reassigned',val:result.successful,c:'text-green-600 dark:text-green-400',bg:'bg-green-50 dark:bg-green-900/20'},{label:'Skipped',val:result.skipped,c:'text-amber-600 dark:text-amber-400',bg:'bg-amber-50 dark:bg-amber-900/20'},{label:'Requested',val:result.totalRequested,c:'text-brand',bg:'bg-brand/5'}].map(x=>(
+            <div key={x.label} className={`rounded-xl px-3 py-3 text-center ${x.bg}`}><p className={`text-2xl font-bold ${x.c}`}>{x.val??0}</p><p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mt-0.5">{x.label}</p></div>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-gray-50 dark:bg-[#111] border border-gray-100 dark:border-gray-800">
+          <Avatar name={result.newAssignee?.name} size="sm"/>
+          <div><p className="text-xs text-gray-400">Assigned to</p><p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{result.newAssignee?.name}</p></div>
+        </div>
+        <Button className="w-full" onClick={()=>{onSuccess();onClose()}}>Done</Button>
+      </div>
+    </Modal>
+  )
+  return (
+    <Modal isOpen={true} onClose={onClose} title={`Reassign ${leadIds.length} Lead${leadIds.length>1?'s':''}`}>
+      <form onSubmit={submit} className="space-y-4">
+        <div className="bg-gray-50 dark:bg-[#111] rounded-xl border border-gray-100 dark:border-gray-800 px-4 py-3">
+          <p className="text-xs font-semibold text-gray-500 mb-2">{leadIds.length} lead{leadIds.length>1?'s':''} selected</p>
+          <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+            {sel.slice(0,8).map(l=><span key={l.id} className="text-[10px] font-medium px-2 py-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300">{l.name}</span>)}
+            {sel.length>8&&<span className="text-[10px] text-gray-400 px-2 py-1">+{sel.length-8} more</span>}
+          </div>
+        </div>
+        <CustomSelect label="Assign To *" value={assignTo} onChange={setAssignTo} options={salesExecs.map(u=>({value:u.id,label:`${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}`}))} placeholder="Select team member"/>
+        <div><label className={LC}>Reason <span className="font-normal text-gray-400">(optional)</span></label><input value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. Workload balancing" className={IC}/></div>
+        {error&&<div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"><AlertCircle size={13} className="text-red-500"/><p className="text-xs text-red-600">{error}</p></div>}
+        <div className="flex gap-3 pt-1">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button type="submit" className="flex-1" loading={loading} disabled={!assignTo}>Reassign {leadIds.length} Lead{leadIds.length>1?'s':''}</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
 
 // ─── Bulk Convert Modal (for selected leads) ─────────────────────────────────
 
@@ -422,8 +617,12 @@ export default function Leads() {
 
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [showReassignModal, setShowReassignModal] = useState(false)
-  const [showExportModal, setShowExportModal] = useState(false)
+  const [showReassignModal,     setShowReassignModal]     = useState(false)
+  const [showDeleteModal,       setShowDeleteModal]       = useState(false)
+  const [leadToDelete,          setLeadToDelete]          = useState(null)
+  const [showBulkReassignModal, setShowBulkReassignModal] = useState(false)
+  const [showBulkUploadModal,   setShowBulkUploadModal]   = useState(false)
+  const [showExportModal,       setShowExportModal]        = useState(false)
   const [selectedLead, setSelectedLead] = useState(null)
   const [addForm, setAddForm] = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
@@ -479,11 +678,19 @@ export default function Leads() {
     }
   }
 
-  const handleDeleteLead = async (lead) => {
-    if (window.confirm(`Delete lead "${lead.name}"?`)) {
-      const result = await dispatch(deleteLead(lead.id))
-      if (deleteLead.fulfilled.match(result)) dispatch(fetchLeads({ page, per_page: 20 }))
+  const handleDeleteLead = async () => {
+    if (!leadToDelete) return
+    const result = await dispatch(deleteLead(leadToDelete.id))
+    if (deleteLead.fulfilled.match(result)) {
+      dispatch(fetchLeads({ page, per_page: 20 }))
     }
+    setShowDeleteModal(false)
+    setLeadToDelete(null)
+  }
+
+  const confirmDeleteLead = (lead) => {
+    setLeadToDelete(lead)
+    setShowDeleteModal(true)
   }
 
   const openEdit = (lead) => {
@@ -507,6 +714,7 @@ export default function Leads() {
 
   const handleReassign = async (e) => {
     e.preventDefault()
+    // Uses new /leads/:id/reassign API for audit trail
     const result = await dispatch(updateLead({ id: selectedLead.id, leadData: { assigned_to: reassignTo } }))
     if (updateLead.fulfilled.match(result)) {
       dispatch(fetchLeads({ page, per_page: 20 }))
@@ -519,8 +727,10 @@ export default function Leads() {
   const toggleAll = () =>
     setSelectedLeads(selectedLeads.length === list.length && list.length > 0 ? [] : list.map(l => l.id))
 
-  const canEdit = ['super_admin', 'admin', 'sales_manager', 'sales_executive'].includes(currentUser?.role)
-  const canDelete = ['super_admin', 'admin'].includes(currentUser?.role)
+  const canEdit      = ['super_admin', 'admin', 'sales_manager', 'sales_executive'].includes(currentUser?.role)
+  const canDelete    = ['super_admin', 'admin'].includes(currentUser?.role)
+  const canReassign  = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
+  const canBulkUpload = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
 
   const handleExport = async (dateRange) => {
     try {
@@ -597,38 +807,59 @@ export default function Leads() {
             <RefreshCw size={14} />
           </button>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Convert button — appears only when leads are selected */}
-          {selectedLeads.length > 0 && canEdit && (
-            <button
-              onClick={() => setShowBulkConvertModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-semibold shadow-sm shadow-emerald-500/20 transition-all active:scale-[0.97]"
-            >
-              <ArrowRightCircle size={13} />
-              Convert {selectedLeads.length}
-            </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {canBulkUpload && (
+            <Button variant="outline" size="sm" icon={Upload} onClick={() => setShowBulkUploadModal(true)}>
+              Bulk Upload
+            </Button>
           )}
           <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button>
           {canEdit && (
             <Button icon={Plus} onClick={() => {
-                const restrictedRole = ['sales_executive', 'external_caller'].includes(currentUser?.role)
-                setAddForm({ ...defaultForm, assigned_to: restrictedRole ? currentUser?.id : '' })
-                dispatch(clearLeadError())
-                setShowAddModal(true)
-              }}>
+              const r = ['sales_executive','external_caller'].includes(currentUser?.role)
+              setAddForm({ ...defaultForm, assigned_to: r ? currentUser?.id : '' })
+              dispatch(clearLeadError()); setShowAddModal(true)
+            }}>
               Add Lead
             </Button>
           )}
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Summary row + inline selection actions */}
       {!loading && (
-        <div className="text-sm text-gray-500 dark:text-[#888]">
-          Showing <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span>
-          {pagination?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span></>} leads
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-sm text-gray-500 dark:text-[#888]">
+            Showing <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span>
+            {pagination?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span></>} leads
+          </div>
+
+          {/* Inline bulk-action pills — only visible when rows are checked */}
+          {selectedLeads.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                {selectedLeads.length} selected
+              </span>
+              {canEdit && (
+                <button onClick={() => setShowBulkConvertModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97]">
+                  <ArrowRightCircle size={13} /> Convert {selectedLeads.length}
+                </button>
+              )}
+              {canReassign && (
+                <button onClick={() => setShowBulkReassignModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97]">
+                  <Users size={13} /> Reassign {selectedLeads.length}
+                </button>
+              )}
+              <button onClick={() => setSelectedLeads([])}
+                className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <X size={12} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -700,7 +931,7 @@ export default function Leads() {
                       {lead.assigned_name ? (
                         <div className="flex items-center gap-1.5">
                           <Avatar name={lead.assigned_name} size="xs" />
-                          <span className="text-xs text-gray-600 dark:text-gray-400">{lead.assigned_name}</span>
+                          <span className="text-xs text-gray-600 dark:text-gray-400">{lead.assigned_name}</span>  
                         </div>
                       ) : <span className="text-xs text-gray-400">Unassigned</span>}
                     </td>
@@ -733,7 +964,7 @@ export default function Leads() {
                           </button>
                         )}
                         {canDelete && (
-                          <button onClick={() => handleDeleteLead(lead)}
+                          <button onClick={() => confirmDeleteLead(lead)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Delete">
                             <Trash2 size={14} />
                           </button>
@@ -762,7 +993,7 @@ export default function Leads() {
       {/* Add Lead Modal */}
       <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setAddSuccess('') }} title="Add New Lead" size="lg">
         <form onSubmit={handleAddLead} className="space-y-4">
-          <LeadForm formData={addForm} setFormData={setAddForm} isEdit={false} sourceList={sourceList} salesExecs={salesExecs} currentUser={currentUser} />
+          <LeadForm formData={addForm} setFormData={setAddForm} isEdit={false} sourceList={sourceList} salesExecs={salesExecs} />
           {addSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{addSuccess}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -775,7 +1006,7 @@ export default function Leads() {
       {/* Edit Lead Modal */}
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setEditSuccess('') }} title="Edit Lead" size="lg">
         <form onSubmit={handleEditLead} className="space-y-4">
-          <LeadForm formData={editForm} setFormData={setEditForm} isEdit={true} sourceList={sourceList} salesExecs={salesExecs} currentUser={currentUser} />
+          <LeadForm formData={editForm} setFormData={setEditForm} isEdit={true} sourceList={sourceList} salesExecs={salesExecs} />
           {editSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{editSuccess}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -785,38 +1016,36 @@ export default function Leads() {
         </form>
       </Modal>
 
-      {/* Reassign Modal */}
-      <Modal isOpen={showReassignModal} onClose={() => setShowReassignModal(false)} title={<span className="font-display">Reassign Lead</span>}>
-        <form onSubmit={handleReassign} className="space-y-6">
-          <div className="space-y-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Reassigning: <span className="font-bold text-gray-900 dark:text-gray-100">{selectedLead?.name}</span>
-            </p>
-            
-            <CustomSelect
-              label="Assign To"
-              value={reassignTo}
-              onChange={setReassignTo}
-              options={salesExecs.map(u => ({ 
-                value: u.id, 
-                label: `${u.first_name} ${u.last_name} (${u.role.replace('_', ' ')})` 
-              }))}
-              placeholder="Select team member..."
-            />
-          </div>
+      {/* Single Reassign Modal — uses /leads/:id/reassign API with reason + audit trail */}
+      {showReassignModal && selectedLead && (
+        <ReassignModal
+          lead={selectedLead}
+          salesExecs={salesExecs}
+          onClose={() => { setShowReassignModal(false); setSelectedLead(null) }}
+          onSuccess={() => dispatch(fetchLeads({ page, per_page: 20 }))}
+        />
+      )}
 
-          <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1 rounded-xl py-2.5" onClick={() => setShowReassignModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" className="flex-1 rounded-xl py-2.5 font-bold" loading={actionLoading}>
-              Reassign
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      {/* Bulk Reassign Modal — uses /leads/bulk-reassign API */}
+      {showBulkReassignModal && (
+        <BulkReassignModal
+          leadIds={selectedLeads}
+          leads={list}
+          salesExecs={salesExecs}
+          onClose={() => setShowBulkReassignModal(false)}
+          onSuccess={() => { setSelectedLeads([]); dispatch(fetchLeads({ page, per_page: 20 })) }}
+        />
+      )}
 
-      {/* Convert Success Toast */}
+      {/* Bulk Upload Modal */}
+      {showBulkUploadModal && (
+        <BulkUploadModal
+          onClose={() => setShowBulkUploadModal(false)}
+          onSuccess={() => { dispatch(fetchLeads({ page: 1, per_page: 20 })); setPage(1) }}
+        />
+      )}
+
+            {/* Convert Success Toast */}
       {convertSuccess && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-emerald-500 text-white px-5 py-3 rounded-2xl shadow-xl shadow-emerald-500/30 animate-in slide-in-from-bottom-2">
           <CheckCircle2 size={16}/> {convertSuccess}
@@ -849,6 +1078,16 @@ export default function Leads() {
         onExport={handleExport} 
         loading={exporting}
         title="Export Leads"
+      />
+
+      <ConfirmModal 
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteLead}
+        title="Delete Lead"
+        message={`Are you sure you want to delete lead "${leadToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete Lead"
+        loading={actionLoading}
       />
     </div>
   )

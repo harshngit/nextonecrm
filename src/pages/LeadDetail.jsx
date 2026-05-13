@@ -1,12 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
-import { 
-  ArrowLeft, Phone, Mail, MapPin, Calendar, Send, 
-  ChevronDown, Loader2, UserCheck, MessageSquare, 
+import {
+  ArrowLeft, Phone, Mail, MapPin, Calendar, Send,
+  ChevronDown, Loader2, UserCheck, MessageSquare,
   Clock, CheckCircle, Info, ExternalLink, ShieldCheck,
-  PlusCircle, CalendarPlus, Building2
+  PlusCircle, CalendarPlus, ArrowRight, RefreshCw, History, Users,
 } from 'lucide-react'
+import api from '../api/axios'
+import CustomSelect from '../components/ui/CustomSelect'
 import { fetchLeadById, fetchLeadActivities, addLeadNote, updateLeadStatus, clearCurrentLead } from '../store/leadSlice'
 import { fetchUsers } from '../store/userSlice'
 import Badge from '../components/ui/Badge'
@@ -15,15 +17,15 @@ import Button from '../components/ui/Button'
 import ConvertLeadModal from '../components/modals/ConvertLeadModal'
 
 const leadStages = [
-  { value: 'new',                   label: 'New' },
-  { value: 'contacted',             label: 'Contacted' },
-  { value: 'interested',            label: 'Interested' },
-  { value: 'follow_up',             label: 'Follow-up' },
-  { value: 'site_visit_scheduled',  label: 'Site Visit Scheduled' },
-  { value: 'site_visit_done',       label: 'Site Visit Done' },
-  { value: 'negotiation',           label: 'Negotiation' },
-  { value: 'booked',                label: 'Booked' },
-  { value: 'lost',                  label: 'Lost' },
+  { value: 'new',                  label: 'New' },
+  { value: 'contacted',            label: 'Contacted' },
+  { value: 'interested',           label: 'Interested' },
+  { value: 'follow_up',            label: 'Follow-up' },
+  { value: 'site_visit_scheduled', label: 'Site Visit Scheduled' },
+  { value: 'site_visit_done',      label: 'Site Visit Done' },
+  { value: 'negotiation',          label: 'Negotiation' },
+  { value: 'booked',               label: 'Booked' },
+  { value: 'lost',                 label: 'Lost' },
 ]
 
 const activityIconMap = {
@@ -44,33 +46,53 @@ export default function LeadDetail() {
   const { currentLead: lead, activities, detailLoading, actionLoading } = useSelector(s => s.leads)
   const { list: userList } = useSelector(s => s.users)
 
+  const { user: currentUser } = useSelector(s => s.auth)
   const [note, setNote] = useState('')
   const [newStatus, setNewStatus] = useState('')
   const [noteError, setNoteError] = useState('')
   const [showConvertModal, setShowConvertModal] = useState(false)
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
-  const dropdownRef = useRef(null)
+
+  // Reassignment history — visible for admin, super_admin, sales_manager
+  const canSeeHistory = ['admin', 'super_admin', 'sales_manager'].includes(currentUser?.role)
+  const [reassignHistory,     setReassignHistory]     = useState([])
+  const [historyLoading,      setHistoryLoading]      = useState(false)
+  const [historyTotal,        setHistoryTotal]         = useState(0)
+  const [historyPage,         setHistoryPage]         = useState(1)
+  const [historyTotalPages,   setHistoryTotalPages]   = useState(1)
+
+  const [showReassignAction, setShowReassignAction] = useState(false)
+  const [reassignTo,         setReassignTo]         = useState('')
+  const [reassignReason,     setReassignReason]     = useState('')
+  const [reassigning,        setReassigning]        = useState(false)
+  const [reassignError,      setReassignError]      = useState('')
+  const [reassignSuccess,    setReassignSuccess]    = useState('')
+  const [activeTab,          setActiveTab]          = useState('activity')
+
+  const fetchReassignHistory = async (pg = 1) => {
+    if (!canSeeHistory || !id) return
+    try {
+      setHistoryLoading(true)
+      const res = await api.get(`/leads/${id}/reassignment-history`, { params: { page: pg, per_page: 5 } })
+      const d = res.data.data
+      setReassignHistory(d.history || [])
+      setHistoryTotal(d.total_reassignments || 0)
+      setHistoryPage(d.pagination?.page || 1)
+      setHistoryTotalPages(d.pagination?.total_pages || 1)
+    } catch (e) { console.error('Reassign history failed:', e.message) }
+    finally { setHistoryLoading(false) }
+  }
 
   useEffect(() => {
     dispatch(fetchLeadById(id))
     dispatch(fetchLeadActivities(id))
     dispatch(fetchUsers())
+    fetchReassignHistory(1)
     return () => dispatch(clearCurrentLead())
   }, [dispatch, id])
 
   useEffect(() => {
     if (lead?.status) setNewStatus(lead.status)
   }, [lead])
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowStatusDropdown(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
 
   if (detailLoading && !lead) return (
     <div className="flex flex-col items-center justify-center h-[60vh]">
@@ -91,8 +113,27 @@ export default function LeadDetail() {
   )
 
   const stageIndex = leadStages.findIndex(s => s.value === lead?.status)
-  // assigned_to from API is an object { id, full_name, phone } — use directly
-  const assignedUser = lead?.assigned_to && typeof lead.assigned_to === 'object' ? lead.assigned_to : null
+  // assigned_to from API is an object { id, full_name, phone } — read directly
+  const assignedUser = lead?.assigned_to && typeof lead.assigned_to === 'object'
+    ? lead.assigned_to
+    : null
+
+  const salesExecs = userList.filter(u =>
+    ['sales_executive', 'sales_manager', 'external_caller'].includes(u.role) && u.is_active
+  )
+
+  const handleReassign = async () => {
+    if (!reassignTo) { setReassignError('Please select a team member'); return }
+    setReassignError(''); setReassigning(true)
+    try {
+      await api.patch(`/leads/${id}/reassign`, { assigned_to: reassignTo, reason: reassignReason || undefined })
+      setReassignSuccess('Lead reassigned successfully!')
+      fetchReassignHistory(1)
+      dispatch(fetchLeadById(id))
+      setTimeout(() => { setShowReassignAction(false); setReassignTo(''); setReassignReason(''); setReassignSuccess('') }, 800)
+    } catch (e) { setReassignError(e.response?.data?.message || 'Reassignment failed') }
+    finally { setReassigning(false) }
+  }
 
   const handleAddNote = async () => {
     if (!note.trim()) { setNoteError('Note cannot be empty'); return }
@@ -212,81 +253,171 @@ export default function LeadDetail() {
               </div>
             </div>
 
-            {/* 3. Activity Timeline */}
+            {/* 3. Activity History + Reassignment History — tabbed */}
             <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-8 shadow-sm">
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center">
-                    <Clock size={18} className="text-purple-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-display text-lg font-bold text-gray-900 dark:text-white">Activity History</h3>
-                    <p className="text-xs text-gray-400">Timeline of all interactions</p>
-                  </div>
+
+              {/* Tab header */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex gap-1 p-1 bg-gray-100 dark:bg-[#0f0f0f] rounded-xl w-fit">
+                  <button onClick={() => setActiveTab('activity')}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'activity' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+                    <Clock size={14} /> Activity
+                  </button>
+                  {canSeeHistory && (
+                    <button onClick={() => { setActiveTab('history'); if (reassignHistory.length === 0) fetchReassignHistory(1) }}
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'history' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+                      <History size={14} /> Reassign History
+                      {historyTotal > 0 && <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">{historyTotal}</span>}
+                    </button>
+                  )}
                 </div>
+
+                {/* Reassign action button — only on history tab for canSeeHistory */}
+                {canSeeHistory && activeTab === 'history' && (
+                  <button onClick={() => { setShowReassignAction(true); setReassignTo(''); setReassignReason(''); setReassignError(''); setReassignSuccess('') }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-semibold transition-colors border border-indigo-100 dark:border-indigo-800/40">
+                    <Users size={13} /> Reassign Lead
+                  </button>
+                )}
               </div>
 
-              {/* Add Note Input */}
-              <div className="relative mb-10">
-                <textarea
-                  value={note}
-                  onChange={e => { setNote(e.target.value); setNoteError('') }}
-                  placeholder="Type a new update or note here..."
-                  rows={2}
-                  className="w-full pl-5 pr-14 py-4 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all resize-none text-gray-900 dark:text-gray-100 placeholder-gray-400 shadow-inner"
-                />
-                <button 
-                  onClick={handleAddNote}
-                  disabled={actionLoading || !note.trim()}
-                  className="absolute right-3 bottom-3 w-10 h-10 bg-brand text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all"
-                >
-                  {actionLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                </button>
-                {noteError && <p className="text-xs text-red-500 mt-2 ml-2">{noteError}</p>}
-              </div>
+              {/* ── Activity tab ── */}
+              {activeTab === 'activity' && (
+                <div>
+                  {/* Add Note Input */}
+                  <div className="relative mb-10">
+                    <textarea
+                      value={note}
+                      onChange={e => { setNote(e.target.value); setNoteError('') }}
+                      placeholder="Type a new update or note here..."
+                      rows={2}
+                      className="w-full pl-5 pr-14 py-4 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all resize-none text-gray-900 dark:text-gray-100 placeholder-gray-400 shadow-inner"
+                    />
+                    <button
+                      onClick={handleAddNote}
+                      disabled={actionLoading || !note.trim()}
+                      className="absolute right-3 bottom-3 w-10 h-10 bg-brand text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all"
+                    >
+                      {actionLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                    </button>
+                    {noteError && <p className="text-xs text-red-500 mt-2 ml-2">{noteError}</p>}
+                  </div>
 
-              {activities.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 dark:bg-[#0f0f0f] rounded-[24px] border-2 border-dashed border-gray-100 dark:border-gray-800">
-                  <div className="text-4xl mb-3">📋</div>
-                  <p className="text-sm font-medium text-gray-500">No activity recorded yet</p>
-                </div>
-              ) : (
-                <div className="relative ml-4">
-                  <div className="absolute left-0 top-2 bottom-0 w-[2px] bg-gray-100 dark:bg-gray-800" />
-                  <div className="space-y-8 h-[calc(100vh-400px)] overflow-auto overflow-x-hidden">
-                    {activities.map((activity, idx) => {
-                      const config = activityIconMap[activity.type] || { emoji: '📌', color: 'bg-gray-50 dark:bg-gray-800', icon: Info }
-                      return (
-                        <div key={activity.id} className="relative pl-10 group">
-                          {/* Dot on line */}
-                          <div className={`absolute left-[-5px] top-2 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#1a1a1a] z-10 transition-transform group-hover:scale-125 ${idx === 0 ? 'bg-brand shadow-[0_0_0_4px_rgba(0,130,243,0.15)]' : 'bg-gray-300 dark:bg-gray-600'}`} />
-                          
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-gray-400 dark:text-gray-500">
-                                {activity.created_at ? new Date(activity.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : activity.timestamp}
-                              </span>
-                              <div className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${config.color} dark:bg-opacity-10 border border-current opacity-60`}>
-                                {activity.type?.replace('_', ' ')}
+                  {activities.length === 0 ? (
+                    <div className="text-center py-12 bg-gray-50 dark:bg-[#0f0f0f] rounded-[24px] border-2 border-dashed border-gray-100 dark:border-gray-800">
+                      <div className="text-4xl mb-3">📋</div>
+                      <p className="text-sm font-medium text-gray-500">No activity recorded yet</p>
+                    </div>
+                  ) : (
+                    <div className="relative ml-4">
+                      <div className="absolute left-0 top-2 bottom-0 w-[2px] bg-gray-100 dark:bg-gray-800" />
+                      <div className="space-y-8 max-h-[calc(100vh-400px)] overflow-auto overflow-x-hidden">
+                        {activities.map((activity, idx) => {
+                          const config = activityIconMap[activity.type] || { emoji: '📌', color: 'bg-gray-50 dark:bg-gray-800', icon: Info }
+                          return (
+                            <div key={activity.id} className="relative pl-10 group">
+                              <div className={`absolute left-[-5px] top-2 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#1a1a1a] z-10 transition-transform group-hover:scale-125 ${idx === 0 ? 'bg-brand shadow-[0_0_0_4px_rgba(0,130,243,0.15)]' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-gray-400 dark:text-gray-500">
+                                    {activity.created_at ? new Date(activity.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : activity.timestamp}
+                                  </span>
+                                  <div className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${config.color} dark:bg-opacity-10 border border-current opacity-60`}>
+                                    {activity.type?.replace('_', ' ')}
+                                  </div>
+                                </div>
+                                <div className="bg-gray-50/50 dark:bg-[#0f0f0f]/50 rounded-2xl p-4 border border-gray-100 dark:border-gray-800 group-hover:border-brand/20 transition-all group-hover:bg-white dark:group-hover:bg-[#1a1a1a]">
+                                  <p className="text-sm text-gray-700 dark:text-gray-300 font-medium leading-relaxed">{activity.note}</p>
+                                  {activity.performed_by && (
+                                    <div className="mt-3 flex items-center gap-2">
+                                      <Avatar name={activity.performed_by} size="xs" />
+                                      <span className="text-[11px] text-gray-400">Added by <span className="text-gray-600 dark:text-gray-200 font-semibold">{activity.performed_by}</span></span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                            <div className="bg-gray-50/50 dark:bg-[#0f0f0f]/50 rounded-2xl p-4 border border-gray-100 dark:border-gray-800 group-hover:border-brand/20 transition-all group-hover:bg-white dark:group-hover:bg-[#1a1a1a]">
-                              <p className="text-sm text-gray-700 dark:text-gray-300 font-medium leading-relaxed">{activity.note}</p>
-                              {activity.performed_by && (
-                                <div className="mt-3 flex items-center gap-2">
-                                  <Avatar name={activity.performed_by} size="xs" />
-                                  <span className="text-[11px] text-gray-400">Added by <span className="text-gray-600 dark:text-gray-200 font-semibold">{activity.performed_by}</span></span>
-                                </div>
-                              )}
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Reassignment History tab ── */}
+              {activeTab === 'history' && canSeeHistory && (
+                <div>
+                  {historyLoading ? (
+                    <div className="space-y-3">{[1,2,3].map(i=><div key={i} className="h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse"/>)}</div>
+                  ) : reassignHistory.length === 0 ? (
+                    <div className="text-center py-10 bg-gray-50 dark:bg-[#0f0f0f] rounded-2xl border-2 border-dashed border-gray-100 dark:border-gray-800">
+                      <div className="text-3xl mb-2">🔄</div>
+                      <p className="text-sm text-gray-400">This lead has never been reassigned</p>
+                      <button onClick={() => setShowReassignAction(true)}
+                        className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 text-xs font-semibold mx-auto transition-colors hover:bg-indigo-100">
+                        <Users size={13}/> Reassign now
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {reassignHistory.map((h, i) => (
+                        <div key={h.id} className="p-4 rounded-2xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800 hover:border-indigo-200 dark:hover:border-indigo-900/40 transition-all">
+                          {/* From → To */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Avatar name={h.from?.name || 'Unassigned'} size="xs"/>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate">{h.from?.name || <span className="italic text-gray-400">Unassigned</span>}</p>
+                                {h.from?.role && <p className="text-[9px] text-gray-400 capitalize">{h.from.role.replace(/_/g,' ')}</p>}
+                              </div>
                             </div>
+                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                              <ArrowRight size={11} className="text-indigo-500"/>
+                            </div>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Avatar name={h.to?.name} size="xs"/>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate">{h.to?.name}</p>
+                                {h.to?.role && <p className="text-[9px] text-gray-400 capitalize">{h.to.role.replace(/_/g,' ')}</p>}
+                              </div>
+                            </div>
+                            {i === 0 && <span className="ml-auto flex-shrink-0 text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">Latest</span>}
+                          </div>
+                          {h.reason && (
+                            <div className="mt-2.5 flex items-start gap-1.5">
+                              <Info size={11} className="text-gray-400 mt-0.5 flex-shrink-0"/>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 italic">"{h.reason}"</p>
+                            </div>
+                          )}
+                          <div className="mt-2.5 flex items-center justify-between gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                            <div className="flex items-center gap-1.5">
+                              <Avatar name={h.performed_by?.name} size="xs"/>
+                              <span className="text-[10px] text-gray-400">By <span className="font-medium text-gray-600 dark:text-gray-300">{h.performed_by?.name}</span>
+                                {h.performed_by?.role && <span> · {h.performed_by.role.replace(/_/g,' ')}</span>}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-gray-400 flex-shrink-0">
+                              {h.reassigned_at ? new Date(h.reassigned_at).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'}
+                            </span>
                           </div>
                         </div>
-                      )
-                    })}
-                  </div>
+                      ))}
+                      {historyTotalPages > 1 && (
+                        <div className="flex items-center justify-between pt-2">
+                          <span className="text-xs text-gray-400">Page {historyPage} of {historyTotalPages}</span>
+                          <div className="flex gap-2">
+                            <button disabled={historyPage<=1} onClick={()=>{const p=historyPage-1;setHistoryPage(p);fetchReassignHistory(p)}} className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 disabled:opacity-40 hover:border-indigo-300 hover:text-indigo-500 transition-colors">Prev</button>
+                            <button disabled={historyPage>=historyTotalPages} onClick={()=>{const p=historyPage+1;setHistoryPage(p);fetchReassignHistory(p)}} className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 disabled:opacity-40 hover:border-indigo-300 hover:text-indigo-500 transition-colors">Next</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
+
           </div>
 
           {/* RIGHT COLUMN: Sidebar (4 cols) */}
@@ -299,32 +430,15 @@ export default function LeadDetail() {
               </h3>
               
               <div className="space-y-4">
-                <div className="relative" ref={dropdownRef}>
-                  <div 
-                    onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-                    className="w-full pl-4 pr-4 py-3 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-gray-900 dark:text-gray-100 font-semibold cursor-pointer flex items-center justify-between"
+                <div className="relative">
+                  <select
+                    value={newStatus}
+                    onChange={e => setNewStatus(e.target.value)}
+                    className="w-full appearance-none pl-4 pr-10 py-3 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-gray-900 dark:text-gray-100 font-semibold"
                   >
-                    <span>{leadStages.find(s => s.value === newStatus)?.label || 'Select Stage'}</span>
-                    <ChevronDown size={16} className={`text-gray-400 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
-                  </div>
-
-                  {showStatusDropdown && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl z-50 overflow-hidden py-1">
-                      {leadStages.map(s => (
-                        <div
-                          key={s.value}
-                          onClick={() => {
-                            setNewStatus(s.value)
-                            setShowStatusDropdown(false)
-                          }}
-                          className={`px-4 py-2.5 text-sm cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-[#252525] flex items-center justify-between ${newStatus === s.value ? 'bg-brand/5 text-brand font-bold' : 'text-gray-700 dark:text-gray-300'}`}
-                        >
-                          {s.label}
-                          {newStatus === s.value && <div className="w-1.5 h-1.5 rounded-full bg-brand" />}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                    {leadStages.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                  <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
                 
                 <Button 
@@ -339,12 +453,12 @@ export default function LeadDetail() {
                 <div className="pt-4 border-t border-gray-50 dark:border-gray-800">
                   <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-1">
                     <span>Progress</span>
-                    <span>{Math.round(((stageIndex + 1) / leadStages.length) * 100)}%</span>
+                    <span>{stageIndex >= 0 ? Math.round(((stageIndex + 1) / leadStages.length) * 100) : 0}%</span>
                   </div>
                   <div className="h-2 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-brand rounded-full transition-all duration-700 ease-out shadow-[0_0_12px_rgba(0,130,243,0.4)]"
-                      style={{ width: `${((stageIndex + 1) / leadStages.length) * 100}%` }}
+                      style={{ width: `${stageIndex >= 0 ? ((stageIndex + 1) / leadStages.length) * 100 : 0}%` }}
                     />
                   </div>
                 </div>
@@ -364,11 +478,7 @@ export default function LeadDetail() {
                     <div>
                       <div className="text-sm font-bold text-gray-900 dark:text-white">{assignedUser.full_name}</div>
                       <div className="text-[10px] font-bold text-brand uppercase tracking-wider mt-0.5">Sales Executive</div>
-                      {assignedUser.phone && (
-                        <div className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
-                          <Phone size={10} /> {assignedUser.phone}
-                        </div>
-                      )}
+                      {assignedUser.phone && <div className="text-[11px] text-gray-400 mt-1">{assignedUser.phone}</div>}
                     </div>
                   </div>
                 ) : (
@@ -407,6 +517,74 @@ export default function LeadDetail() {
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Reassign Action Modal */}
+      {showReassignAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowReassignAction(false)}>
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-md"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="font-display text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Users size={16} className="text-indigo-500"/> Reassign Lead
+              </h3>
+              <button onClick={() => setShowReassignAction(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+                <ChevronDown size={16} className="rotate-90"/>
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {/* Current lead info */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
+                <Avatar name={lead?.name} size="sm"/>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{lead?.name}</p>
+                  <p className="text-xs text-gray-400">{lead?.phone}</p>
+                </div>
+                <div className="ml-auto text-right">
+                  <p className="text-[10px] text-gray-400">Currently assigned to</p>
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                    {assignedUser?.full_name || 'Unassigned'}
+                  </p>
+                </div>
+              </div>
+
+              <CustomSelect
+                label="Assign To *"
+                value={reassignTo}
+                onChange={setReassignTo}
+                options={salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}` }))}
+                placeholder="Select team member"
+              />
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Reason <span className="font-normal text-gray-400">(optional)</span>
+                </label>
+                <input
+                  value={reassignReason}
+                  onChange={e => setReassignReason(e.target.value)}
+                  placeholder="e.g. Better territorial alignment"
+                  className="w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm"
+                />
+              </div>
+
+              {reassignError   && <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"><Info size={13} className="text-red-500"/><p className="text-xs text-red-600">{reassignError}</p></div>}
+              {reassignSuccess && <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5"><CheckCircle size={13} className="text-green-500"/><p className="text-xs text-green-600">{reassignSuccess}</p></div>}
+            </div>
+            <div className="px-6 pb-5 flex gap-3">
+              <button onClick={() => setShowReassignAction(false)}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleReassign} disabled={!reassignTo || reassigning}
+                className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
+                {reassigning ? <><Loader2 size={14} className="animate-spin"/> Reassigning…</> : <><Users size={14}/> Reassign</>}
+              </button>
+            </div>
           </div>
         </div>
       )}

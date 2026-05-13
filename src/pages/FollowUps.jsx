@@ -22,6 +22,7 @@ import api from '../api/axios'
 import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
+import ConfirmModal from '../components/ui/ConfirmModal'
 
 const priorities = ['low', 'medium', 'high']
 const priorityOptions = priorities.map(p => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))
@@ -671,6 +672,8 @@ export default function FollowUps() {
   const [showAddModal,      setShowAddModal]      = useState(false)
   const [showEditModal,     setShowEditModal]      = useState(false)
   const [showCompleteModal, setShowCompleteModal]  = useState(false)
+  const [showDeleteModal,   setShowDeleteModal]    = useState(false)
+  const [taskToDelete,      setTaskToDelete]       = useState(null)
   const [showExportModal,   setShowExportModal]    = useState(false)
   const [selectedTask,      setSelectedTask]       = useState(null)
   const [completeNotes,     setCompleteNotes]      = useState('')
@@ -773,11 +776,17 @@ export default function FollowUps() {
     }
   }
 
-  const handleDelete = async (task) => {
-    if (window.confirm(`Delete this follow-up task?`)) {
-      const result = await dispatch(deleteFollowUp(task.id))
-      if (deleteFollowUp.fulfilled.match(result)) loadTasks()
-    }
+  const handleDelete = async () => {
+    if (!taskToDelete) return
+    const result = await dispatch(deleteFollowUp(taskToDelete.id))
+    if (deleteFollowUp.fulfilled.match(result)) loadTasks()
+    setShowDeleteModal(false)
+    setTaskToDelete(null)
+  }
+
+  const confirmDelete = (task) => {
+    setTaskToDelete(task)
+    setShowDeleteModal(true)
   }
 
   const openEdit = (task) => {
@@ -870,7 +879,7 @@ export default function FollowUps() {
               task={task}
               onComplete={openComplete}
               onEdit={openEdit}
-              onDelete={handleDelete}
+              onDelete={confirmDelete}
               onConvert={selectable ? (t) => { setConvertTask(t); setShowConvertModal(true) } : undefined}
               canManage={canManage}
               isSelected={selectedTasks.includes(task.id)}
@@ -1106,6 +1115,16 @@ export default function FollowUps() {
         onExport={handleExport} 
         loading={exporting}
         title="Export Follow-ups"
+      />
+
+      <ConfirmModal 
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDelete}
+        title="Delete Follow-up"
+        message={`Are you sure you want to delete this follow-up task? This action cannot be undone.`}
+        confirmText="Delete Task"
+        loading={actionLoading}
       />
     </div>
   )

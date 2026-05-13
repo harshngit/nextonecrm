@@ -1,32 +1,128 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { 
   ArrowLeft, Building2, MapPin, Calendar, 
   Loader2, User, Phone, Mail, ExternalLink, 
-  ShieldCheck, Info, Search, Filter, RefreshCw
+  ShieldCheck, Info, Search, Filter, RefreshCw,
+  FileText, FileImage, Download, Trash2, Plus, X, Check
 } from 'lucide-react'
-import { fetchProjectLeads, clearCurrentProject } from '../store/projectSlice'
+import { 
+  fetchProjectLeads, 
+  clearCurrentProject, 
+  fetchProjectDocuments, 
+  uploadProjectDocuments, 
+  deleteProjectDocument 
+} from '../store/projectSlice'
+import api from '../api/axios'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
 import CustomSelect from '../components/ui/CustomSelect'
+import ConfirmModal from '../components/ui/ConfirmModal'
 
 export default function ProjectDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const dispatch = useDispatch()
 
-  const { currentProject: project, projectLeads: leads, detailLoading, pagination } = useSelector(s => s.projects)
+  const { 
+    currentProject: project, 
+    projectLeads: leads, 
+    projectDocuments: documents,
+    detailLoading, 
+    actionLoading,
+    pagination 
+  } = useSelector(s => s.projects)
 
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [page, setPage] = useState(1)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [docToDelete, setDocToDelete] = useState(null)
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     dispatch(fetchProjectLeads({ id, params: { page } }))
+    dispatch(fetchProjectDocuments(id))
     return () => dispatch(clearCurrentProject())
   }, [dispatch, id, page])
+
+  const handleDownloadAll = async () => {
+    try {
+      const response = await api.get(`/projects/${id}/documents/download-all`, {
+        responseType: 'blob'
+      })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `${project.name}_documents.zip`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch (error) {
+      console.error('Download failed', error)
+    }
+  }
+
+  const handleDownloadSingle = async (docId, fileName) => {
+    try {
+      // Use the specific API: /api/v1/projects/{id}/documents/{docId}/download
+      const response = await api.get(`/projects/${id}/documents/${docId}/download`, {
+        responseType: 'blob'
+      })
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', fileName)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Download failed', error)
+    }
+  }
+
+  const handleFileUpload = async (e) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setUploading(true)
+    setUploadError('')
+
+    const formData = new FormData()
+    // By default, let's assume these are unit_plans as requested by the user
+    // "unit_plans array<string> Unit plan documents (multiple)"
+    Array.from(files).forEach(file => {
+      formData.append('unit_plans', file)
+    })
+
+    try {
+      await dispatch(uploadProjectDocuments({ id, formData })).unwrap()
+      dispatch(fetchProjectDocuments(id))
+    } catch (err) {
+      setUploadError(err || 'Failed to upload documents')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleDeleteDoc = async () => {
+    if (!docToDelete) return
+    await dispatch(deleteProjectDocument({ id, docId: docToDelete.id }))
+    setShowDeleteModal(false)
+    setDocToDelete(null)
+  }
+
+  const confirmDelete = (doc) => {
+    setDocToDelete(doc)
+    setShowDeleteModal(true)
+  }
 
   if (detailLoading && !project) return (
     <div className="flex flex-col items-center justify-center h-[60vh]">
@@ -257,7 +353,140 @@ export default function ProjectDetail() {
               </div>
             </div>
 
-            {/* 4. Quick Actions */}
+            {/* 4. Project Documents */}
+            <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-display text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <FileText size={18} className="text-blue-500" /> Documents
+                </h3>
+                {(documents?.unit_plans?.length > 0 || documents?.creatives?.length > 0) && (
+                  <button 
+                    onClick={handleDownloadAll}
+                    className="text-xs font-bold text-brand hover:underline flex items-center gap-1"
+                  >
+                    <Download size={14} /> Download All
+                  </button>
+                )}
+              </div>
+              
+              <div className="space-y-6">
+                {/* Unit Plans Section */}
+                <div>
+                  <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Unit Plans</h4>
+                  <div className="space-y-2">
+                    {(!documents?.unit_plans || documents.unit_plans.length === 0) ? (
+                      <div className="text-center py-4 bg-gray-50/50 dark:bg-[#0f0f0f]/50 rounded-xl border border-dashed border-gray-100 dark:border-gray-800">
+                        <p className="text-[10px] text-gray-400 italic">No unit plans available</p>
+                      </div>
+                    ) : (
+                      documents.unit_plans.map(doc => (
+                        <div key={doc.id} className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/50 dark:bg-[#0f0f0f]/50 border border-gray-100 dark:border-gray-800 group hover:border-brand/30 transition-all">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500 flex-shrink-0">
+                              <FileText size={14} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-bold text-gray-700 dark:text-gray-300 truncate" title={doc.file_name}>
+                                {doc.file_name}
+                              </p>
+                              <p className="text-[9px] text-gray-400 font-medium">
+                                {doc.file_size_mb} MB · {new Date(doc.uploaded_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => handleDownloadSingle(doc.id, doc.file_name)}
+                              className="p-1.5 text-gray-400 hover:text-brand hover:bg-brand/10 rounded-lg transition-colors"
+                              title="Download"
+                            >
+                              <Download size={14} />
+                            </button>
+                            <button 
+                              onClick={() => confirmDelete(doc)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Creatives Section */}
+                <div>
+                  <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Creatives</h4>
+                  <div className="space-y-2">
+                    {(!documents?.creatives || documents.creatives.length === 0) ? (
+                      <div className="text-center py-4 bg-gray-50/50 dark:bg-[#0f0f0f]/50 rounded-xl border border-dashed border-gray-100 dark:border-gray-800">
+                        <p className="text-[10px] text-gray-400 italic">No creatives available</p>
+                      </div>
+                    ) : (
+                      documents.creatives.map(doc => (
+                        <div key={doc.id} className="flex items-center justify-between p-2.5 rounded-xl bg-purple-50/30 dark:bg-purple-900/5 border border-purple-100/50 dark:border-purple-900/20 group hover:border-purple-400 transition-all">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center text-purple-500 flex-shrink-0">
+                              <FileImage size={14} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-bold text-gray-700 dark:text-gray-300 truncate" title={doc.file_name}>
+                                {doc.file_name}
+                              </p>
+                              <p className="text-[9px] text-gray-400 font-medium">
+                                {doc.file_size_mb} MB · {new Date(doc.uploaded_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => handleDownloadSingle(doc.id, doc.file_name)}
+                              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                              title="Download"
+                            >
+                              <Download size={14} />
+                            </button>
+                            <button 
+                              onClick={() => confirmDelete(doc)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Upload Section */}
+                <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                  <input 
+                    type="file" 
+                    multiple 
+                    ref={fileInputRef} 
+                    onChange={handleFileUpload} 
+                    className="hidden" 
+                  />
+                  <div className="grid grid-cols-1 gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="w-full rounded-xl py-2.5 border-dashed text-xs font-bold"
+                      onClick={() => fileInputRef.current?.click()}
+                      loading={uploading}
+                    >
+                      <Plus size={14} className="mr-2" /> Add Project Documents
+                    </Button>
+                  </div>
+                  {uploadError && <p className="text-[10px] text-red-500 mt-2 text-center">{uploadError}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* 5. Quick Actions */}
             <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-6 shadow-sm">
               <h3 className="font-display text-base font-bold text-gray-900 dark:text-white mb-5 flex items-center gap-2">
                 <RefreshCw size={18} className="text-teal-500" /> Quick Actions
@@ -276,6 +505,16 @@ export default function ProjectDetail() {
           </div>
         </div>
       )}
+
+      <ConfirmModal 
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteDoc}
+        title="Delete Document"
+        message={`Are you sure you want to delete "${docToDelete?.file_name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        loading={actionLoading}
+      />
     </div>
   )
 }
