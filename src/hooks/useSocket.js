@@ -1,134 +1,92 @@
 /**
- * useSocket.js — Next One Realty CRM
+ * src/hooks/useSocket.js
  *
- * Connects the socket when the user is authenticated.
- * Listens for all real-time events and dispatches them to Redux.
- * Disconnects when the user logs out or component unmounts.
- *
- * Usage: call once in Layout.jsx — <Layout> wraps all authenticated routes.
+ * Connect socket when authenticated, disconnect on logout.
+ * Every 'notification:new' event from the server → addNotification in Redux.
  */
-
 import { useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector }     from 'react-redux'
 import { connectSocket, disconnectSocket, getSocket } from '../services/socket'
 import { addNotification, fetchUnreadCount }          from '../store/notificationSlice'
 
-// ── Event → Redux action map ─────────────────────────────────────────────────
-// All events that carry a notification payload and should be pushed to the
-// Redux notifications list + increment the unread badge.
-const NOTIFICATION_EVENTS = [
-  'notification:new',       // universal — fired by createNotification() in every controller
-]
-
-// Non-notification events that need special handling
-const LEAD_EVENTS   = ['lead:created', 'lead:updated', 'lead:assigned']
-const TASK_EVENTS   = ['task:created', 'task:updated', 'task:completed']
-const VISIT_EVENTS  = ['visit:created', 'visit:updated']
-const ATT_EVENTS    = ['attendance:checkin', 'attendance:checkout']
-
 export const useSocket = () => {
-  const dispatch         = useDispatch()
-  const { isAuthenticated, user } = useSelector((s) => s.auth)
-  const [connected,   setConnected]   = useState(false)
-  const [socketId,    setSocketId]    = useState(null)
-  const listenersAdded = useRef(false)
+  const dispatch = useDispatch()
+  const { isAuthenticated, accessToken } = useSelector(s => s.auth)
+  const [connected, setConnected] = useState(false)
+  const registered = useRef(false)
 
   useEffect(() => {
+    // ── Disconnect on logout ─────────────────────────────────
     if (!isAuthenticated) {
       disconnectSocket()
       setConnected(false)
-      setSocketId(null)
-      listenersAdded.current = false
+      registered.current = false
       return
     }
 
-    const token = localStorage.getItem('n1r_access_token')
-    if (!token) return
+    // ── Get token from Redux state or localStorage ───────────
+    const token = accessToken || localStorage.getItem('n1r_access_token')
+    if (!token) { console.warn('[WS] No token found, skipping connect'); return }
 
+    // ── Connect ──────────────────────────────────────────────
     const socket = connectSocket(token)
 
-    // ── Register event listeners only once ───────────────────────────────────
-    if (!listenersAdded.current) {
-      listenersAdded.current = true
+    // ── Register listeners only once ─────────────────────────
+    if (registered.current) return
+    registered.current = true
 
-      // Connection state
-      socket.on('connect', () => {
-        setConnected(true)
-        setSocketId(socket.id)
-        // Re-fetch unread count in case we missed notifications while offline
-        dispatch(fetchUnreadCount())
-      })
+    // Connection state
+    socket.on('connect', () => {
+      setConnected(true)
+      console.log('[WS] Socket connected, id:', socket.id)
+      // Re-sync unread count after reconnect
+      dispatch(fetchUnreadCount())
+    })
 
-      socket.on('disconnect', () => {
-        setConnected(false)
-        setSocketId(null)
-      })
+    socket.on('disconnect', () => {
+      setConnected(false)
+    })
 
-      socket.on('reconnect', () => {
-        setConnected(true)
-        setSocketId(socket.id)
-        dispatch(fetchUnreadCount())
-      })
+    socket.on('reconnect', () => {
+      setConnected(true)
+      dispatch(fetchUnreadCount())
+    })
 
-      // ── Notification events ─────────────────────────────────────────────────
-      // 'notification:new' is fired by createNotification() in every controller.
-      // The payload IS the notification DB row so it goes straight into Redux.
-      NOTIFICATION_EVENTS.forEach((event) => {
-        socket.on(event, (payload) => {
-          console.log(`[WS] ${event}:`, payload?.type, payload?.title)
-          dispatch(addNotification(payload))
-        })
-      })
+    // ── Notification push ─────────────────────────────────────
+    // Backend calls createNotification() → emitToUser(userId, 'notification:new', row)
+    // The payload IS the full notifications DB row
+    socket.on('notification:new', (payload) => {
+      console.log('[WS] notification:new received:', payload?.type, payload?.title)
+      dispatch(addNotification(payload))
+    })
 
-      // ── Lead events (optional: could refresh lead list or show toast) ───────
-      LEAD_EVENTS.forEach((event) => {
-        socket.on(event, (payload) => {
-          console.log(`[WS] ${event}:`, payload)
-          // Leads page will re-fetch on its own polling — no Redux action needed here
-          // Uncomment to force refresh: dispatch(fetchLeads())
-        })
-      })
+    // ── Other real-time events (log only for now) ─────────────
+    ;['lead:created','lead:updated','lead:assigned',
+      'task:created','task:updated',
+      'visit:created','visit:updated',
+      'attendance:checkin','attendance:checkout',
+    ].forEach(evt => {
+      socket.on(evt, (d) => console.log('[WS]', evt, d))
+    })
 
-      // ── Task events ─────────────────────────────────────────────────────────
-      TASK_EVENTS.forEach((event) => {
-        socket.on(event, (payload) => {
-          console.log(`[WS] ${event}:`, payload)
-        })
-      })
-
-      // ── Site visit events ───────────────────────────────────────────────────
-      VISIT_EVENTS.forEach((event) => {
-        socket.on(event, (payload) => {
-          console.log(`[WS] ${event}:`, payload)
-        })
-      })
-
-      // ── Attendance events ───────────────────────────────────────────────────
-      ATT_EVENTS.forEach((event) => {
-        socket.on(event, (payload) => {
-          console.log(`[WS] ${event}:`, payload)
-        })
-      })
-    }
-
-    // Cleanup on unmount / logout
+    // ── Cleanup on auth state change ──────────────────────────
     return () => {
+      // Only remove listeners if logging out
       if (!isAuthenticated) {
         const s = getSocket()
         if (s) {
-          NOTIFICATION_EVENTS.forEach((e) => s.off(e))
-          LEAD_EVENTS.forEach((e)         => s.off(e))
-          TASK_EVENTS.forEach((e)         => s.off(e))
-          VISIT_EVENTS.forEach((e)        => s.off(e))
-          ATT_EVENTS.forEach((e)          => s.off(e))
-          s.off('connect')
-          s.off('disconnect')
-          s.off('reconnect')
+          s.off('connect'); s.off('disconnect'); s.off('reconnect')
+          s.off('notification:new')
+          ;['lead:created','lead:updated','lead:assigned',
+            'task:created','task:updated',
+            'visit:created','visit:updated',
+            'attendance:checkin','attendance:checkout',
+          ].forEach(evt => s.off(evt))
         }
-        listenersAdded.current = false
+        registered.current = false
       }
     }
-  }, [isAuthenticated, dispatch])
+  }, [isAuthenticated, accessToken, dispatch])
 
-  return { connected, socketId }
+  return { connected }
 }

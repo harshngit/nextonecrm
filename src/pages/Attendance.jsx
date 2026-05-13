@@ -13,8 +13,8 @@ import {
   fetchAttendanceCalendar,
   fetchAttendanceByMonth,
   fetchAttendanceByDate,
-  fetchAttendanceSummary,
   fetchTeamAttendance,
+  fetchAttendanceSummary,
   uploadAttendancePhoto,
   checkIn,
   checkOut,
@@ -748,6 +748,360 @@ function DailyView({ dispatch, title = 'Daily Attendance View' }) {
               {r.checkin_photo && <img src={r.checkin_photo} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200 dark:border-gray-700 flex-shrink-0" />}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Sales Manager: Team Daily View (via /attendance/team) ───────────────────
+
+function TeamDailyView({ dispatch }) {
+  const { teamHistory, loading } = useSelector(s => s.attendance)
+  const [date, setDate] = useState(todayStr())
+
+  // Pass same date as both from and to — returns that day's records for the team
+  useEffect(() => {
+    dispatch(fetchTeamAttendance({ from: date, to: date, per_page: 100 }))
+  }, [dispatch, date])
+
+  const records     = teamHistory?.data         || []
+  const teamMembers = teamHistory?.team_members || []
+  const teamSummary = teamHistory?.summary      || {}
+  const teamSize    = teamHistory?.team_size    || 0
+
+  // Build a set of user_ids that have a record today
+  const recordMap = {}
+  records.forEach(r => { recordMap[r.user_id] = r })
+
+  // Every team member gets a row — if no record, show as absent
+  const rows = teamMembers.map(m => ({
+    ...(recordMap[m.id] || {
+      user_id:        m.id,
+      full_name:      m.full_name,
+      role:           m.role,
+      email:          m.email,
+      status:         'absent',
+      check_in_time:  null,
+      check_out_time: null,
+      working_hours:  null,
+      checkin_photo:  null,
+    }),
+    full_name: m.full_name,
+    role:      m.role,
+  }))
+
+  // Summary counts from rows
+  const present  = rows.filter(r => ['present','late'].includes(r.status)).length
+  const late     = rows.filter(r => r.status === 'late').length
+  const absent   = rows.filter(r => r.status === 'absent').length
+  const on_leave = rows.filter(r => ['on_leave','half_day'].includes(r.status)).length
+
+  return (
+    <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
+
+      {/* Header */}
+      <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Team Daily View</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{teamSize} team member{teamSize !== 1 ? 's' : ''}</p>
+        </div>
+        <input
+          type="date"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+          className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]"
+        />
+      </div>
+
+      {/* Summary pills */}
+      <div className="grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-800 border-b border-gray-100 dark:border-gray-800">
+        {[
+          { v: present,  l: 'Present',  c: 'text-emerald-600 dark:text-emerald-400' },
+          { v: late,     l: 'Late',     c: 'text-amber-600 dark:text-amber-400' },
+          { v: absent,   l: 'Absent',   c: 'text-red-500 dark:text-red-400' },
+          { v: on_leave, l: 'On Leave', c: 'text-indigo-600 dark:text-indigo-400' },
+        ].map(x => (
+          <div key={x.l} className="py-3 text-center">
+            <p className={`text-xl font-bold ${x.c}`}>{x.v}</p>
+            <p className="text-[10px] text-gray-400 font-medium">{x.l}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Rows */}
+      {loading.teamHistory ? (
+        <div className="p-8 flex justify-center"><Loader2 size={20} className="animate-spin text-[#0082f3]" /></div>
+      ) : rows.length === 0 ? (
+        <div className="p-8 text-center text-gray-400 text-sm">No team members assigned to you yet</div>
+      ) : (
+        <div className="divide-y divide-gray-50 dark:divide-gray-800/40 max-h-[450px] overflow-y-auto">
+          {rows.map((r, i) => (
+            <div key={r.user_id || i} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${STATUS_CONFIG[r.status]?.bg || 'bg-gray-100 dark:bg-gray-800'}`}>
+                <User size={15} className={STATUS_CONFIG[r.status]?.color || 'text-gray-400'} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate">{r.full_name}</span>
+                  <StatusBadge status={r.status} />
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5 flex-wrap">
+                  <span className="capitalize text-[10px] bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{r.role?.replace(/_/g, ' ')}</span>
+                  {r.check_in_time  && <span className="flex items-center gap-1"><LogIn  size={10} className="text-emerald-500" />{fmtTime(r.check_in_time)}</span>}
+                  {r.check_out_time && <span className="flex items-center gap-1"><LogOut size={10} className="text-rose-500" />{fmtTime(r.check_out_time)}</span>}
+                  {r.working_hours  && <span className="flex items-center gap-1"><Timer  size={10} className="text-[#0082f3]" />{r.working_hours}h</span>}
+                  {r.is_manual_entry && <span className="text-[10px] text-purple-500 bg-purple-50 dark:bg-purple-900/20 px-1.5 py-0.5 rounded">Manual</span>}
+                </div>
+              </div>
+              {r.checkin_photo && (
+                <img src={r.checkin_photo} alt="Check-in" className="w-9 h-9 rounded-lg object-cover border border-gray-200 dark:border-gray-700 flex-shrink-0" />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Sales Manager: Team Month Grid (via /attendance/team) ───────────────────
+
+function TeamMonthGrid({ dispatch }) {
+  const { teamHistory, loading } = useSelector(s => s.attendance)
+  const now   = new Date()
+  const [month, setMonth] = useState(now.getMonth() + 1)
+  const [year,  setYear]  = useState(now.getFullYear())
+
+  // Build from/to from selected month
+  const from = `${year}-${String(month).padStart(2,'0')}-01`
+  const to   = new Date(year, month, 0).toISOString().split('T')[0]
+
+  useEffect(() => {
+    dispatch(fetchTeamAttendance({ from, to, per_page: 100 }))
+  }, [dispatch, from, to])
+
+  const prev = () => { if (month === 1) { setMonth(12); setYear(y => y-1) } else setMonth(m => m-1) }
+  const next = () => { if (month === 12) { setMonth(1); setYear(y => y+1) } else setMonth(m => m+1) }
+
+  const records     = teamHistory?.data         || []
+  const teamMembers = teamHistory?.team_members || []
+  const teamSize    = teamHistory?.team_size    || 0
+
+  // Build list of working days in selected month
+  const allDays = []
+  const cur = new Date(from)
+  const end = new Date(to)
+  while (cur <= end) {
+    allDays.push(cur.toISOString().split('T')[0])
+    cur.setDate(cur.getDate() + 1)
+  }
+  const workDays = allDays.filter(d => ![0,6].includes(new Date(d).getDay()))
+
+  // Build lookup: { user_id: { 'YYYY-MM-DD': record } }
+  const lookup = {}
+  records.forEach(r => {
+    const d = r.date?.split('T')[0] || r.date
+    if (!lookup[r.user_id]) lookup[r.user_id] = {}
+    lookup[r.user_id][d] = r
+  })
+
+  const ABBR       = { present:'P', late:'L', absent:'A', on_leave:'OL', half_day:'H', weekend:'-' }
+  const ABBR_STYLE = {
+    P:  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
+    L:  'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+    A:  'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400',
+    OL: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400',
+    H:  'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-400',
+    '-':'bg-gray-50 text-gray-300 dark:bg-gray-800/30 dark:text-gray-600',
+  }
+
+  return (
+    <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Team Monthly Grid</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{teamSize} team member{teamSize !== 1 ? 's' : ''} · {MONTH_NAMES[month-1]} {year}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={prev} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors"><ChevronLeft size={15}/></button>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 min-w-[110px] text-center">{MONTH_NAMES[month-1]} {year}</span>
+          <button onClick={next} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors"><ChevronRight size={15}/></button>
+        </div>
+      </div>
+
+      {loading.teamHistory ? (
+        <div className="p-10 flex justify-center"><Loader2 size={22} className="animate-spin text-[#0082f3]"/></div>
+      ) : teamMembers.length === 0 ? (
+        <div className="p-10 text-center text-gray-400 text-sm">No team members assigned to you yet</div>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-[#111] sticky top-0 z-10">
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300 min-w-[160px] sticky left-0 bg-gray-50 dark:bg-[#111] z-20">Employee</th>
+                  {workDays.map(d => {
+                    const dt = new Date(d)
+                    return (
+                      <th key={d} className="px-1 py-2 text-center min-w-[36px] font-medium text-gray-500 dark:text-gray-400">
+                        <div>{dt.getDate()}</div>
+                        <div className="text-[9px] text-gray-400">{dt.toLocaleDateString('en-IN',{weekday:'short'}).slice(0,3)}</div>
+                      </th>
+                    )
+                  })}
+                  <th className="px-2 py-3 text-center text-emerald-600 dark:text-emerald-400 font-semibold">P</th>
+                  <th className="px-2 py-3 text-center text-red-500 dark:text-red-400 font-semibold">A</th>
+                  <th className="px-2 py-3 text-center text-amber-600 dark:text-amber-400 font-semibold">L</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800/40">
+                {teamMembers.map((member, mi) => {
+                  const userRecs = lookup[member.id] || {}
+                  let presentCnt=0, absentCnt=0, lateCnt=0
+                  const cells = workDays.map(d => {
+                    const rec = userRecs[d]
+                    const status = rec?.status || 'absent'
+                    if (['present','late'].includes(status)) presentCnt++
+                    else if (status === 'absent') absentCnt++
+                    if (status === 'late') lateCnt++
+                    const abbr  = ABBR[status] || 'A'
+                    const style = ABBR_STYLE[abbr] || ABBR_STYLE['A']
+                    return { d, abbr, style, status }
+                  })
+                  return (
+                    <tr key={member.id} className={mi%2===0?'':'bg-gray-50/40 dark:bg-gray-800/10'}>
+                      <td className={`px-4 py-3 sticky left-0 z-10 ${mi%2===0?'bg-white dark:bg-[#1a1a1a]':'bg-gray-50/40 dark:bg-[#1a1a1a]'}`}>
+                        <div className="font-semibold text-gray-800 dark:text-gray-200">{member.full_name}</div>
+                        <div className="text-[10px] text-gray-400 capitalize">{member.role?.replace(/_/g,' ')}</div>
+                      </td>
+                      {cells.map(({ d, abbr, style }) => (
+                        <td key={d} className="px-1 py-2 text-center">
+                          <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-[10px] font-bold ${style}`}>{abbr}</span>
+                        </td>
+                      ))}
+                      <td className="px-2 py-3 text-center font-bold text-emerald-600 dark:text-emerald-400">{presentCnt}</td>
+                      <td className="px-2 py-3 text-center font-bold text-red-500 dark:text-red-400">{absentCnt}</td>
+                      <td className="px-2 py-3 text-center font-bold text-amber-600 dark:text-amber-400">{lateCnt}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Legend */}
+          <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 flex flex-wrap gap-3">
+            {[['P','Present','bg-emerald-100 text-emerald-700'],['L','Late','bg-amber-100 text-amber-700'],['A','Absent','bg-red-100 text-red-600'],['OL','On Leave','bg-indigo-100 text-indigo-700'],['H','Half Day','bg-pink-100 text-pink-700']].map(([a,l,s])=>(
+              <span key={a} className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${s}`}>{a} = {l}</span>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Sales Manager: Team Summary (via /attendance/team) ───────────────────────
+
+function TeamSummaryTable({ dispatch }) {
+  const { teamHistory, loading } = useSelector(s => s.attendance)
+  const now = new Date()
+  const [from, setFrom] = useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`)
+  const [to,   setTo]   = useState(now.toISOString().split('T')[0])
+
+  useEffect(() => {
+    dispatch(fetchTeamAttendance({ from, to, per_page: 200 }))
+  }, [dispatch, from, to])
+
+  const teamMembers = teamHistory?.team_members || []
+  const records     = teamHistory?.data         || []
+  const teamSummary = teamHistory?.summary      || {}
+  const teamSize    = teamHistory?.team_size    || 0
+
+  // Aggregate per-member stats from records
+  const memberStats = {}
+  teamMembers.forEach(m => {
+    memberStats[m.id] = { full_name: m.full_name, role: m.role, email: m.email,
+      present:0, late:0, absent:0, on_leave:0, total_working_hours:0, days:0 }
+  })
+  records.forEach(r => {
+    if (!memberStats[r.user_id]) return
+    memberStats[r.user_id].days++
+    if (['present','late'].includes(r.status)) memberStats[r.user_id].present++
+    if (r.status === 'late')                   memberStats[r.user_id].late++
+    if (r.status === 'absent')                 memberStats[r.user_id].absent++
+    if (['on_leave','half_day'].includes(r.status)) memberStats[r.user_id].on_leave++
+    memberStats[r.user_id].total_working_hours += parseFloat(r.working_hours || 0)
+  })
+  const statsRows = Object.values(memberStats)
+
+  return (
+    <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Team Attendance Summary</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{teamSize} team member{teamSize!==1?'s':''}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="date" value={from} onChange={e=>setFrom(e.target.value)}
+            className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]"/>
+          <span className="text-gray-400 text-xs">to</span>
+          <input type="date" value={to} onChange={e=>setTo(e.target.value)}
+            className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]"/>
+        </div>
+      </div>
+
+      {/* Team-wide summary pills */}
+      {(teamSummary.present !== undefined) && (
+        <div className="grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-800 border-b border-gray-100 dark:border-gray-800">
+          {[
+            { v: teamSummary.present,  l:'Total Present',  c:'text-emerald-600 dark:text-emerald-400' },
+            { v: teamSummary.late,     l:'Total Late',     c:'text-amber-600 dark:text-amber-400' },
+            { v: teamSummary.absent,   l:'Total Absent',   c:'text-red-500 dark:text-red-400' },
+            { v: teamSummary.on_leave, l:'On Leave',       c:'text-indigo-600 dark:text-indigo-400' },
+          ].map(x=>(
+            <div key={x.l} className="py-4 text-center">
+              <p className={`text-2xl font-bold ${x.c}`}>{x.v ?? 0}</p>
+              <p className="text-[10px] text-gray-400 font-medium mt-0.5">{x.l}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {loading.teamHistory ? (
+        <div className="p-8 flex justify-center"><Loader2 size={20} className="animate-spin text-[#0082f3]"/></div>
+      ) : statsRows.length === 0 ? (
+        <div className="p-8 text-center text-gray-400 text-sm">No team members or no data in this period</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-800/60">
+                {['Employee','Role','Present','Late','Absent','On Leave','Working Hrs'].map(h=>(
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-800/40">
+              {statsRows.map((r,i)=>(
+                <tr key={i} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-700 dark:text-gray-200">{r.full_name}</div>
+                    <div className="text-xs text-gray-400">{r.email}</div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500 capitalize whitespace-nowrap">{r.role?.replace(/_/g,' ')}</td>
+                  <td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400">{r.present}</td>
+                  <td className="px-4 py-3 font-bold text-amber-600 dark:text-amber-400">{r.late}</td>
+                  <td className="px-4 py-3 font-bold text-red-500 dark:text-red-400">{r.absent}</td>
+                  <td className="px-4 py-3 font-bold text-indigo-600 dark:text-indigo-400">{r.on_leave}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300 font-medium">{r.total_working_hours.toFixed(1)}h</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -1679,19 +2033,15 @@ export default function Attendance() {
       {activeTab === 'calendar'   && <CalendarView dispatch={dispatch} />}
       {activeTab === 'history'    && <MyHistory dispatch={dispatch} />}
 
-      {/* sales_manager — backend scopes to their team automatically by role */}
+      {/* sales_manager — uses /attendance/team API, scoped to their team only */}
       {activeTab === 'team-daily' && isSalesMgr && (
-        <DailyView dispatch={dispatch} title="Team Daily View" />
+        <TeamDailyView dispatch={dispatch} />
       )}
       {activeTab === 'team-month' && isSalesMgr && (
-        <AdminMonthGrid
-          dispatch={dispatch}
-          title="Team Monthly Grid"
-          subtitle="Your team members only"
-        />
+        <TeamMonthGrid dispatch={dispatch} />
       )}
       {activeTab === 'summary' && isSalesMgr && (
-        <SummaryTable dispatch={dispatch} isSalesMgr={true} managerId={user?.id} />
+        <TeamSummaryTable dispatch={dispatch} />
       )}
 
       {/* admin / super_admin — all users */}

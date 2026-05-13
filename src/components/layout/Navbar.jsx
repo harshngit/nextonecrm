@@ -5,7 +5,7 @@ import {
   Bell, Search, Menu, LogOut, ChevronDown,
   UserPlus, Phone, Calendar, RefreshCw, CheckCheck,
   Plus, Users, Building2, ClipboardList, Tag,
-  DollarSign, CreditCard, Clock, ShieldCheck, Wifi, WifiOff,
+  DollarSign, CreditCard, Clock, ShieldCheck,
 } from 'lucide-react'
 import { logout } from '../../store/authSlice'
 import { fetchNotifications, fetchUnreadCount, markOneRead } from '../../store/notificationSlice'
@@ -46,13 +46,12 @@ const typeConfig = {
   task_reminder:       { icon: Bell,        color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' },
   task_completed:      { icon: CheckCheck,  color: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' },
   general:             { icon: Bell,        color: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400' },
-
-  // Attendance
   attendance_checkin:  { icon: Clock,        color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' },
   attendance_checkout: { icon: Clock,        color: 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400' },
   attendance_pending:  { icon: ShieldCheck,  color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' },
   attendance_manual:   { icon: ClipboardList,color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' },
   attendance_approved: { icon: ShieldCheck,  color: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' },
+  follow_up_created:   { icon: Phone,        color: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' },
 }
 
 function timeAgo(dateStr) {
@@ -66,7 +65,7 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
 }
 
-export default function Navbar({ collapsed, setMobileOpen, wsConnected }) {
+export default function Navbar({ collapsed, setMobileOpen, wsConnected = false }) {
   const { user }    = useSelector((state) => state.auth)
   const dispatch    = useDispatch()
   const navigate    = useNavigate()
@@ -180,7 +179,6 @@ export default function Navbar({ collapsed, setMobileOpen, wsConnected }) {
         )}
       </div>
 
-      {/* WebSocket connection indicator — tiny dot on the bell */}
       {/* Notifications bell */}
       <div className="relative">
         <button
@@ -188,8 +186,11 @@ export default function Navbar({ collapsed, setMobileOpen, wsConnected }) {
           className="relative w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
         >
           <Bell size={16} />
-          {/* WS live dot */}
-          <span className={`absolute top-0.5 left-0.5 w-2 h-2 rounded-full border border-white dark:border-[#1a1a1a] ${wsConnected ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} title={wsConnected ? 'Live notifications active' : 'Reconnecting...'} />
+          {/* WS live indicator — green = connected, grey = offline */}
+          <span
+            className={`absolute top-0 left-0 w-2 h-2 rounded-full border border-white dark:border-[#1a1a1a] transition-colors ${wsConnected ? 'bg-green-500' : 'bg-gray-400 dark:bg-gray-600'}`}
+            title={wsConnected ? 'Live notifications active' : 'Connecting...'}
+          />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-brand text-white text-[10px] font-bold rounded-full flex items-center justify-center">
               {unreadCount > 9 ? '9+' : unreadCount}

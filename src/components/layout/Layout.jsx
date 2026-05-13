@@ -4,12 +4,10 @@ import Navbar  from './Navbar'
 import { useSocket } from '../../hooks/useSocket'
 
 export default function Layout({ children }) {
-  const [collapsed,   setCollapsed]   = useState(false)
-  const [mobileOpen,  setMobileOpen]  = useState(false)
+  const [collapsed,  setCollapsed]  = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
 
-  // ── WebSocket: connect on mount, disconnect on logout ────────────────────
-  // useSocket handles connect/disconnect lifecycle tied to auth state.
-  // { connected, socketId } available for debug if needed.
+  // Connect WebSocket when authenticated, disconnect on logout
   const { connected } = useSocket()
 
   return (
@@ -25,9 +23,7 @@ export default function Layout({ children }) {
         setMobileOpen={setMobileOpen}
         wsConnected={connected}
       />
-      <main
-        className={`pt-14 min-h-screen transition-all duration-300 ${collapsed ? 'lg:ml-[60px]' : 'lg:ml-[240px]'}`}
-      >
+      <main className={`pt-14 min-h-screen transition-all duration-300 ${collapsed ? 'lg:ml-[60px]' : 'lg:ml-[240px]'}`}>
         <div className="p-4 lg:p-6 animate-fade-in">
           {children}
         </div>
