@@ -75,36 +75,22 @@ export const fetchProjectLeads = createAsyncThunk(
 
 export const fetchProjectDocuments = createAsyncThunk(
   'projects/fetchDocuments',
-  async (id, { rejectWithValue }) => {
+  async (projectId, { rejectWithValue }) => {
     try {
-      const response = await api.get(`/projects/${id}/documents`)
+      const response = await api.get(`/projects/${projectId}/documents`)
       return response.data.data
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch project documents')
-    }
-  }
-)
-
-export const uploadProjectDocuments = createAsyncThunk(
-  'projects/uploadDocuments',
-  async ({ id, formData }, { rejectWithValue }) => {
-    try {
-      const response = await api.post(`/projects/${id}/documents`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      return response.data
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to upload documents')
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch documents')
     }
   }
 )
 
 export const deleteProjectDocument = createAsyncThunk(
   'projects/deleteDocument',
-  async ({ id, docId }, { rejectWithValue }) => {
+  async ({ projectId, docId }, { rejectWithValue }) => {
     try {
-      await api.delete(`/projects/${id}/documents/${docId}`)
-      return docId
+      await api.delete(`/projects/${projectId}/documents/${docId}`)
+      return { projectId, docId }
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete document')
     }
@@ -117,7 +103,8 @@ const projectSlice = createSlice({
     list: [],
     currentProject: null,
     projectLeads: [],
-    projectDocuments: [],
+    projectDocuments: { unit_plans: [], creatives: [] },
+    docsLoading: false,
     pagination: { total: 0, page: 1, per_page: 20, total_pages: 0 },
     loading: false,
     detailLoading: false,
@@ -133,7 +120,10 @@ const projectSlice = createSlice({
     clearCurrentProject: (state) => {
       state.currentProject = null
       state.projectLeads = []
-      state.projectDocuments = []
+      state.projectDocuments = { unit_plans: [], creatives: [] }
+    },
+    clearProjectDocuments: (state) => {
+      state.projectDocuments = { unit_plans: [], creatives: [] }
     }
   },
   extraReducers: (builder) => {
@@ -162,21 +152,23 @@ const projectSlice = createSlice({
       })
       .addCase(fetchProjectLeads.rejected, (state) => { state.detailLoading = false })
 
-      .addCase(fetchProjectDocuments.pending, (state) => { state.detailLoading = true })
+      // fetchProjectDocuments
+      .addCase(fetchProjectDocuments.pending,   (state) => { state.docsLoading = true })
       .addCase(fetchProjectDocuments.fulfilled, (state, action) => {
-        state.detailLoading = false
-        // The API returns { projectId, projectName, totalDocuments, documents: { unit_plans, creatives } }
-        // We want to extract the documents object for easier mapping
+        state.docsLoading = false
         state.projectDocuments = action.payload?.documents || { unit_plans: [], creatives: [] }
       })
-      .addCase(fetchProjectDocuments.rejected, (state) => { state.detailLoading = false })
+      .addCase(fetchProjectDocuments.rejected,  (state) => { state.docsLoading = false })
 
+      // deleteProjectDocument — remove from local state immediately
       .addCase(deleteProjectDocument.fulfilled, (state, action) => {
-        state.projectDocuments = state.projectDocuments.filter(doc => doc.id !== action.payload)
+        const { docId } = action.payload
+        state.projectDocuments.unit_plans = state.projectDocuments.unit_plans.filter(d => d.id !== docId)
+        state.projectDocuments.creatives  = state.projectDocuments.creatives.filter(d => d.id !== docId)
       })
 
       .addMatcher(
-        (action) => ['projects/create', 'projects/update', 'projects/delete', 'projects/uploadDocuments']
+        (action) => ['projects/create', 'projects/update', 'projects/delete']
           .some(t => action.type.startsWith(t)),
         (state, action) => {
           if (action.type.endsWith('/pending')) { state.actionLoading = true; state.actionError = null }
@@ -187,5 +179,5 @@ const projectSlice = createSlice({
   },
 })
 
-export const { clearProjectError, clearCurrentProject } = projectSlice.actions
+export const { clearProjectError, clearCurrentProject, clearProjectDocuments } = projectSlice.actions
 export default projectSlice.reducer
