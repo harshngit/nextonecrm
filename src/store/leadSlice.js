@@ -15,6 +15,19 @@ export const fetchLeads = createAsyncThunk(
   }
 )
 
+// Personal leads for the logged-in user — used by sales_manager to see their own assigned leads
+export const fetchMyLeads = createAsyncThunk(
+  'leads/fetchMyLeads',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/me/leads', { params })
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch my leads')
+    }
+  }
+)
+
 export const fetchLeadById = createAsyncThunk(
   'leads/fetchById',
   async (id, { rejectWithValue }) => {
@@ -128,69 +141,88 @@ export const fetchLeadSources = createAsyncThunk(
 const leadSlice = createSlice({
   name: 'leads',
   initialState: {
-    list: [],
-    currentLead: null,
-    activities: [],
-    sources: [],
-    pagination: { total: 0, page: 1, per_page: 20, total_pages: 0 },
-    loading: false,
+    list:         [],
+    myList:       [],           // personal leads for sales_manager (from /me/leads)
+    myPagination: { total: 0, page: 1, per_page: 20, total_pages: 0 },
+    myLoading:    false,
+    currentLead:  null,
+    activities:   [],
+    sources:      [],
+    pagination:   { total: 0, page: 1, per_page: 20, total_pages: 0 },
+    loading:      false,
     detailLoading: false,
     actionLoading: false,
-    error: null,
-    actionError: null,
+    error:        null,
+    actionError:  null,
   },
   reducers: {
     clearLeadError: (state) => {
-      state.error = null
+      state.error       = null
       state.actionError = null
     },
     clearCurrentLead: (state) => {
       state.currentLead = null
-      state.activities = []
+      state.activities  = []
     },
   },
   extraReducers: (builder) => {
     builder
-      // fetchLeads
-      .addCase(fetchLeads.pending, (state) => { state.loading = true; state.error = null })
+
+      // ── fetchLeads (team / all) ───────────────────────────────────────────
+      .addCase(fetchLeads.pending,   (state) => { state.loading = true; state.error = null })
       .addCase(fetchLeads.fulfilled, (state, action) => {
-        state.loading = false
-        state.list = action.payload.data || []
-        state.pagination = action.payload.pagination || state.pagination
+        state.loading    = false
+        state.list       = action.payload?.data || []
+        state.pagination = action.payload?.pagination || state.pagination
       })
-      .addCase(fetchLeads.rejected, (state, action) => { state.loading = false; state.error = action.payload })
+      .addCase(fetchLeads.rejected,  (state, action) => { state.loading = false; state.error = action.payload })
 
-      // fetchLeadById
-      .addCase(fetchLeadById.pending, (state) => { state.detailLoading = true })
-      .addCase(fetchLeadById.fulfilled, (state, action) => { state.detailLoading = false; state.currentLead = action.payload })
-      .addCase(fetchLeadById.rejected, (state, action) => { state.detailLoading = false; state.error = action.payload })
+      // ── fetchMyLeads (personal — /me/leads) ───────────────────────────────
+      .addCase(fetchMyLeads.pending,   (state) => { state.myLoading = true })
+      .addCase(fetchMyLeads.fulfilled, (state, action) => {
+        state.myLoading    = false
+        state.myList       = action.payload?.data || []
+        state.myPagination = action.payload?.pagination || {}
+      })
+      .addCase(fetchMyLeads.rejected,  (state) => { state.myLoading = false })
 
-      // fetchLeadActivities
-      .addCase(fetchLeadActivities.pending, (state) => { state.detailLoading = true })
+      // ── fetchLeadById ─────────────────────────────────────────────────────
+      .addCase(fetchLeadById.pending,   (state) => { state.detailLoading = true })
+      .addCase(fetchLeadById.fulfilled, (state, action) => {
+        state.detailLoading = false
+        state.currentLead   = action.payload
+      })
+      .addCase(fetchLeadById.rejected,  (state, action) => { state.detailLoading = false; state.error = action.payload })
+
+      // ── fetchLeadActivities ───────────────────────────────────────────────
+      .addCase(fetchLeadActivities.pending,   (state) => { state.detailLoading = true })
       .addCase(fetchLeadActivities.fulfilled, (state, action) => {
         state.detailLoading = false
-        state.activities = action.payload.activities
+        state.activities    = action.payload.activities
       })
-      .addCase(fetchLeadActivities.rejected, (state, action) => { state.detailLoading = false })
+      .addCase(fetchLeadActivities.rejected,  (state) => { state.detailLoading = false })
 
-      // addLeadNote
+      // ── addLeadNote ───────────────────────────────────────────────────────
       .addCase(addLeadNote.fulfilled, (state, action) => {
         if (action.payload.activity) {
           state.activities = [action.payload.activity, ...state.activities]
         }
       })
 
-      // fetchLeadSources
-      .addCase(fetchLeadSources.fulfilled, (state, action) => { state.sources = action.payload || [] })
+      // ── fetchLeadSources ──────────────────────────────────────────────────
+      .addCase(fetchLeadSources.fulfilled, (state, action) => {
+        state.sources = action.payload || []
+      })
 
-      // create / update / delete / status / reassign — generic action loading
+      // ── create / update / delete / status / reassign — action loading ─────
       .addMatcher(
-        (action) => ['leads/create', 'leads/update', 'leads/delete', 'leads/updateStatus', 'leads/reassign', 'leads/addNote']
-          .some(t => action.type.startsWith(t)),
+        (action) =>
+          ['leads/create', 'leads/update', 'leads/delete', 'leads/updateStatus', 'leads/reassign', 'leads/addNote']
+            .some(t => action.type.startsWith(t)),
         (state, action) => {
-          if (action.type.endsWith('/pending')) { state.actionLoading = true; state.actionError = null }
+          if (action.type.endsWith('/pending'))   { state.actionLoading = true;  state.actionError = null }
           if (action.type.endsWith('/fulfilled')) { state.actionLoading = false }
-          if (action.type.endsWith('/rejected')) { state.actionLoading = false; state.actionError = action.payload }
+          if (action.type.endsWith('/rejected'))  { state.actionLoading = false; state.actionError = action.payload }
         }
       )
   },

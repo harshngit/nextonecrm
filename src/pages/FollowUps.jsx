@@ -676,7 +676,7 @@ export default function FollowUps() {
   const [taskToDelete,      setTaskToDelete]       = useState(null)
   const [showExportModal,   setShowExportModal]    = useState(false)
   const [selectedTask,      setSelectedTask]       = useState(null)
-  const [completeNotes,     setCompleteNotes]      = useState('')
+
 
   const [addForm,  setAddForm]  = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
@@ -768,11 +768,11 @@ export default function FollowUps() {
     e.preventDefault()
     // Optimistic UI update
     dispatch(markCompleted(selectedTask.id))
-    const result = await dispatch(completeFollowUp({ id: selectedTask.id, notes: completeNotes }))
+    const result = await dispatch(completeFollowUp(selectedTask.id))
     if (completeFollowUp.fulfilled.match(result)) {
       setSuccess('Task marked as done!')
       loadTasks()
-      setTimeout(() => { setShowCompleteModal(false); setSuccess(''); setCompleteNotes('') }, 600)
+      setTimeout(() => { setShowCompleteModal(false); setSuccess('') }, 600)
     }
   }
 
@@ -807,7 +807,6 @@ export default function FollowUps() {
 
   const openComplete = (task) => {
     setSelectedTask(task)
-    setCompleteNotes('')
     setShowCompleteModal(true)
   }
 
@@ -1058,18 +1057,7 @@ export default function FollowUps() {
               <p className="text-xs text-gray-400 mt-0.5">{selectedTask.lead_name} · {formatDue(selectedTask)}</p>
             </div>
           )}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-              Completion Notes <span className="text-gray-400">(optional)</span>
-            </label>
-            <textarea
-              rows={3}
-              value={completeNotes}
-              onChange={e => setCompleteNotes(e.target.value)}
-              placeholder="Spoke with client, discussed pricing. Will call back next week."
-              className="w-full px-3 py-2 text-sm bg-[#f8fafc] dark:bg-[#0f0f0f] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand resize-none text-gray-900 dark:text-gray-100"
-            />
-          </div>
+
           {success    && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">

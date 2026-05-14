@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users } from 'lucide-react'
-import { fetchLeads, createLead, updateLead, deleteLead, fetchLeadSources, clearLeadError } from '../store/leadSlice'
+import { fetchLeads, fetchMyLeads, createLead, updateLead, deleteLead, fetchLeadSources, clearLeadError } from '../store/leadSlice'
 import { fetchProjects } from '../store/projectSlice'
 import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
@@ -14,7 +14,6 @@ import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
 import ClockPicker from '../components/ui/ClockPicker'
-import ConfirmModal from '../components/ui/ConfirmModal'
 import ConvertLeadModal from '../components/modals/ConvertLeadModal'
 
 const leadStages = [
@@ -194,117 +193,288 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
 
 
 // ─── Bulk Upload Modal ────────────────────────────────────────────────────────
-function BulkUploadModal({ onClose, onSuccess }) {
-  const [step, setStep]         = useState('upload')
-  const [file, setFile]         = useState(null)
-  const [dragging, setDragging] = useState(false)
-  const [uploading,setUploading]= useState(false)
-  const [dlding, setDlding]     = useState(false)
-  const [error, setError]       = useState('')
-  const [result, setResult]     = useState(null)
+function BulkUploadModal({ onClose, onSuccess, salesExecs = [] }) {
+  const [step,       setStep]      = useState('upload')  // upload | result
+  const [file,       setFile]      = useState(null)
+  const [dragging,   setDragging]  = useState(false)
+  const [uploading,  setUploading] = useState(false)
+  const [dlding,     setDlding]    = useState(false)
+  const [error,      setError]     = useState('')
+  const [result,     setResult]    = useState(null)
+
+  // Pre-upload assignment (sent with the file to the API)
+  const [assignTo,   setAssignTo]  = useState('')
+  const [assignReason, setAssignReason] = useState('')
+
   const fileRef = useRef(null)
 
   const downloadTemplate = async () => {
-    try { setDlding(true); const r=await api.get('/leads/bulk/template',{responseType:'blob'}); const u=URL.createObjectURL(r.data); const a=document.createElement('a');a.href=u;a.download='Lead_Bulk_Upload_Template.xlsx';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u) }
-    catch { setError('Failed to download template') } finally { setDlding(false) }
+    try {
+      setDlding(true)
+      const r = await api.get('/leads/bulk/template', { responseType: 'blob' })
+      const u = URL.createObjectURL(r.data)
+      const a = document.createElement('a'); a.href = u; a.download = 'Lead_Bulk_Upload_Template.xlsx'
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u)
+    } catch { setError('Failed to download template') } finally { setDlding(false) }
   }
+
   const handleFile = (f) => {
     if (!f) return
-    const ok=['application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+    const ok = ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
     if (!ok.includes(f.type)) { setError('Only .xlsx or .xls files are allowed'); return }
-    if (f.size > 10*1024*1024) { setError('File must be under 10 MB'); return }
+    if (f.size > 10 * 1024 * 1024) { setError('File must be under 10 MB'); return }
     setError(''); setFile(f)
   }
+
   const handleUpload = async () => {
     if (!file) { setError('Please select a file first'); return }
     setError(''); setUploading(true)
     try {
-      const fd = new FormData(); fd.append('file', file)
-      const r = await api.post('/leads/bulk/upload', fd, { headers:{'Content-Type':'multipart/form-data'} })
-      setResult(r.data.data); setStep('result')
-    } catch(e) { setError(e.response?.data?.message||'Upload failed. Check your file.') }
-    finally { setUploading(false) }
+      const fd = new FormData()
+      fd.append('file', file)
+      // Pass assign_to UUID so the API assigns every imported lead immediately
+      if (assignTo) fd.append('assign_to', assignTo)
+
+      const r = await api.post('/leads/bulk/upload', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setResult(r.data.data)
+      setStep('result')
+    } catch (e) {
+      setError(e.response?.data?.message || 'Upload failed. Check your file.')
+    } finally { setUploading(false) }
   }
+
   const downloadResult = async () => {
     if (!result?.resultFile) return
     const fname = result.resultFile.split('/').pop()
-    try { const r=await api.get(`/leads/bulk/result/${fname}`,{responseType:'blob'}); const u=URL.createObjectURL(r.data); const a=document.createElement('a');a.href=u;a.download=fname;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(u) }
-    catch { setError('Failed to download result file') }
+    try {
+      const r = await api.get(`/leads/bulk/result/${fname}`, { responseType: 'blob' })
+      const u = URL.createObjectURL(r.data)
+      const a = document.createElement('a'); a.href = u; a.download = fname
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u)
+    } catch { setError('Failed to download result file') }
   }
+
+  const assignedUser = salesExecs.find(u => u.id === assignTo)
+
   return (
     <Modal isOpen={true} onClose={onClose} title="Bulk Upload Leads" size="md">
-      {step==='upload' ? (
-        <div className="space-y-5">
+      {step === 'upload' ? (
+        <div className="space-y-4">
+
+          {/* Step 1 — Download template */}
           <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/40">
-            <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0"><span className="text-xs font-bold text-blue-600 dark:text-blue-400">1</span></div>
+            <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-bold text-blue-600 dark:text-blue-400">1</span>
+            </div>
             <div className="flex-1">
               <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Download the template</p>
-              <p className="text-xs text-gray-500 mt-0.5">Fill in: Name*, Phone*, Email, Source, Budget, Location, Project, Status</p>
-              <button onClick={downloadTemplate} disabled={dlding} className="mt-2.5 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold disabled:opacity-60">
+              <p className="text-xs text-gray-500 mt-0.5">
+                Template has real project names &amp; team members from your system.
+                You can also fill the <span className="font-semibold">Assign To</span> column per-row in Excel.
+              </p>
+              <button onClick={downloadTemplate} disabled={dlding}
+                className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold disabled:opacity-60 transition-colors">
                 {dlding ? <Loader2 size={12} className="animate-spin"/> : <Download size={12}/>}
                 {dlding ? 'Downloading…' : 'Download Template (.xlsx)'}
               </button>
             </div>
           </div>
+
+          {/* Step 2 — Upload file */}
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0"><span className="text-xs font-bold text-gray-500">2</span></div>
+            <div className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-bold text-gray-500">2</span>
+            </div>
             <div className="flex-1">
-              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Upload filled file</p>
-              <div onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)}
-                onDrop={e=>{e.preventDefault();setDragging(false);handleFile(e.dataTransfer.files?.[0])}}
-                onClick={()=>fileRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${dragging?'border-brand bg-brand/5':file?'border-green-400 bg-green-50 dark:bg-green-900/10':'border-gray-200 dark:border-gray-700 hover:border-brand hover:bg-brand/5'}`}>
-                <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e=>handleFile(e.target.files?.[0])}/>
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Select your filled Excel</p>
+              <div
+                onDragOver={e => { e.preventDefault(); setDragging(true) }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files?.[0]) }}
+                onClick={() => fileRef.current?.click()}
+                className={`border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all ${
+                  dragging ? 'border-brand bg-brand/5'
+                  : file    ? 'border-green-400 bg-green-50 dark:bg-green-900/10'
+                            : 'border-gray-200 dark:border-gray-700 hover:border-brand hover:bg-brand/5'
+                }`}>
+                <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
+                  onChange={e => handleFile(e.target.files?.[0])}/>
                 {file ? (
                   <div className="flex items-center justify-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center"><FileSpreadsheet size={20} className="text-green-600"/></div>
-                    <div className="text-left"><p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{file.name}</p><p className="text-xs text-gray-400">{(file.size/1024).toFixed(1)} KB</p></div>
-                    <button type="button" onClick={e=>{e.stopPropagation();setFile(null)}} className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-500 hover:bg-red-100 hover:text-red-500"><X size={12}/></button>
+                    <div className="w-9 h-9 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                      <FileSpreadsheet size={18} className="text-green-600"/>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{file.name}</p>
+                      <p className="text-xs text-gray-400">{(file.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <button type="button" onClick={e => { e.stopPropagation(); setFile(null) }}
+                      className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-500 hover:bg-red-100 hover:text-red-500 transition-colors">
+                      <X size={12}/>
+                    </button>
                   </div>
                 ) : (
-                  <><div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-3"><Upload size={20} className="text-gray-400"/></div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Drag & drop your Excel file here</p>
-                  <p className="text-xs text-gray-400 mt-1">or click to browse · .xlsx / .xls · max 10 MB</p></>
+                  <>
+                    <div className="w-11 h-11 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-2">
+                      <Upload size={18} className="text-gray-400"/>
+                    </div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Drag & drop your Excel file here</p>
+                    <p className="text-xs text-gray-400 mt-0.5">or click to browse · .xlsx / .xls · max 10 MB</p>
+                  </>
                 )}
               </div>
             </div>
           </div>
-          {error && <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3"><AlertCircle size={14} className="text-red-500 flex-shrink-0"/><p className="text-xs text-red-600">{error}</p></div>}
-          <div className="flex gap-3">
+
+          {/* Step 3 — Assign leads (optional, overrides Excel column) */}
+          <div className="flex items-start gap-3">
+            <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">3</span>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                Assign all leads to <span className="font-normal text-gray-400">(optional)</span>
+              </p>
+              <p className="text-xs text-gray-500 mb-2">
+                Overrides the Assign To column in Excel — all leads go to this person.
+                Leave empty to use per-row assignment from Excel or keep unassigned.
+              </p>
+              <CustomSelect
+                value={assignTo}
+                onChange={setAssignTo}
+                options={salesExecs.map(u => ({
+                  value: u.id,
+                  label: `${u.first_name} ${u.last_name} · ${u.role.replace(/_/g, ' ')}`,
+                }))}
+                placeholder="Select team member (optional)"
+              />
+              {assignTo && (
+                <div className="mt-2 flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/30 rounded-xl px-3 py-2">
+                  <Users size={12} className="text-indigo-500 flex-shrink-0"/>
+                  <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                    All imported leads will be assigned to <span className="font-semibold">{assignedUser?.first_name} {assignedUser?.last_name}</span>
+                  </p>
+                  <button onClick={() => setAssignTo('')} className="ml-auto text-indigo-400 hover:text-indigo-600">
+                    <X size={11}/>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+              <AlertCircle size={14} className="text-red-500 flex-shrink-0"/>
+              <p className="text-xs text-red-600">{error}</p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-1">
             <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-            <Button className="flex-1" onClick={handleUpload} loading={uploading} disabled={!file||uploading} icon={!uploading?Upload:undefined}>
-              {uploading?'Uploading…':'Upload & Import'}
+            <Button className="flex-1" onClick={handleUpload} loading={uploading}
+              disabled={!file || uploading} icon={!uploading ? Upload : undefined}>
+              {uploading ? 'Uploading…' : assignTo ? `Upload & Assign to ${assignedUser?.first_name}` : 'Upload & Import'}
             </Button>
           </div>
         </div>
+
       ) : (
-        <div className="space-y-5">
+        /* ── Result screen ── */
+        <div className="space-y-4">
+
+          {/* Success header */}
           <div className="flex flex-col items-center gap-2 py-2">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${result?.errors===0?'bg-green-50 dark:bg-green-900/20':'bg-amber-50 dark:bg-amber-900/20'}`}>
-              <CheckCircle2 size={28} className={result?.errors===0?'text-green-500':'text-amber-500'}/>
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+              result?.errors === 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-amber-50 dark:bg-amber-900/20'
+            }`}>
+              <CheckCircle2 size={28} className={result?.errors === 0 ? 'text-green-500' : 'text-amber-500'}/>
             </div>
             <p className="text-base font-bold text-gray-900 dark:text-white">Upload Complete</p>
-            <p className="text-xs text-gray-400">{result?.inserted} of {result?.total} leads imported</p>
+            <p className="text-xs text-gray-400">
+              {result?.inserted} of {result?.total} leads imported
+              {result?.summary?.insertedLeads?.filter(l => l.assigned_to).length > 0 &&
+                ` · ${result.summary.insertedLeads.filter(l => l.assigned_to).length} assigned`}
+            </p>
           </div>
+
+          {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
-            {[{label:'Inserted',val:result?.inserted,c:'text-green-600 dark:text-green-400',bg:'bg-green-50 dark:bg-green-900/20'},{label:'Skipped',val:result?.skipped,c:'text-amber-600 dark:text-amber-400',bg:'bg-amber-50 dark:bg-amber-900/20'},{label:'Errors',val:result?.errors,c:'text-red-600 dark:text-red-400',bg:'bg-red-50 dark:bg-red-900/20'}].map(x=>(
+            {[
+              { label: 'Inserted', val: result?.inserted, c: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
+              { label: 'Skipped',  val: result?.skipped,  c: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+              { label: 'Errors',   val: result?.errors,   c: 'text-red-600 dark:text-red-400',     bg: 'bg-red-50 dark:bg-red-900/20' },
+            ].map(x => (
               <div key={x.label} className={`rounded-xl px-4 py-3 text-center ${x.bg}`}>
-                <p className={`text-2xl font-bold ${x.c}`}>{x.val??0}</p>
+                <p className={`text-2xl font-bold ${x.c}`}>{x.val ?? 0}</p>
                 <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mt-0.5">{x.label}</p>
               </div>
             ))}
           </div>
-          {result?.summary?.errors?.length>0&&<div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-800/40 rounded-xl p-4"><p className="text-xs font-semibold text-red-600 mb-2">Sample errors:</p><div className="space-y-1 max-h-24 overflow-y-auto">{result.summary.errors.map((e,i)=><p key={i} className="text-xs text-red-500">Row {e.row}: {e.error}</p>)}</div></div>}
-          {result?.summary?.skipped?.length>0&&<div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/40 rounded-xl p-4"><p className="text-xs font-semibold text-amber-600 mb-2">Skipped (duplicate phones):</p><div className="space-y-1 max-h-20 overflow-y-auto">{result.summary.skipped.map((s,i)=><p key={i} className="text-xs text-amber-500">Row {s.row}: {s.phone}</p>)}</div></div>}
+
+          {/* Assignment summary */}
+          {result?.inserted > 0 && (() => {
+            const assignedCount   = result?.summary?.insertedLeads?.filter(l => l.assigned_to).length || 0
+            const unassignedCount = (result?.inserted || 0) - assignedCount
+            return assignedCount > 0 ? (
+              <div className="flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/30 rounded-xl">
+                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+                  <Users size={14} className="text-indigo-600 dark:text-indigo-400"/>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                    {assignedCount} lead{assignedCount > 1 ? 's' : ''} assigned
+                    {assignedUser ? ` to ${assignedUser.first_name} ${assignedUser.last_name}` : ''}
+                  </p>
+                  {unassignedCount > 0 && (
+                    <p className="text-[10px] text-indigo-400">{unassignedCount} left unassigned</p>
+                  )}
+                </div>
+              </div>
+            ) : null
+          })()}
+
+          {/* Sample errors */}
+          {result?.summary?.errors?.length > 0 && (
+            <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-800/40 rounded-xl p-3">
+              <p className="text-xs font-semibold text-red-600 mb-1.5">Sample errors:</p>
+              <div className="space-y-1 max-h-20 overflow-y-auto">
+                {result.summary.errors.map((e, i) => (
+                  <p key={i} className="text-xs text-red-500">Row {e.row}: {e.error}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Skipped */}
+          {result?.summary?.skipped?.length > 0 && (
+            <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/40 rounded-xl p-3">
+              <p className="text-xs font-semibold text-amber-600 mb-1.5">Skipped (duplicate phones):</p>
+              <div className="space-y-1 max-h-16 overflow-y-auto">
+                {result.summary.skipped.map((s, i) => (
+                  <p key={i} className="text-xs text-amber-500">Row {s.row}: {s.phone}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-3">
-            {result?.resultFile&&<Button variant="outline" className="flex-1" icon={Download} onClick={downloadResult}>Download Result</Button>}
-            <Button className="flex-1" onClick={()=>{onSuccess();onClose()}}>Done</Button>
+            {result?.resultFile && (
+              <Button variant="outline" className="flex-1" icon={Download} onClick={downloadResult}>
+                Download Result
+              </Button>
+            )}
+            <Button className="flex-1" onClick={() => { onSuccess(); onClose() }}>
+              Done
+            </Button>
           </div>
         </div>
       )}
     </Modal>
   )
 }
+
 
 // ─── Single Reassign Modal (uses /leads/:id/reassign) ─────────────────────────
 function ReassignModal({ lead, salesExecs, onClose, onSuccess }) {
@@ -605,7 +775,8 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess }) {
 export default function Leads() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
-  const { list, loading, pagination, sources, actionLoading, actionError } = useSelector(s => s.leads)
+  const { list, loading, pagination, sources, actionLoading, actionError,
+          myList, myLoading, myPagination } = useSelector(s => s.leads)
   const { list: userList } = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
 
@@ -615,11 +786,13 @@ export default function Leads() {
   const [filterAssigned, setFilterAssigned] = useState('')
   const [page, setPage] = useState(1)
 
+  const isSalesManager = currentUser?.role === 'sales_manager'
+  const [leadsTab, setLeadsTab] = useState('team') // 'my' | 'team'
+  const [myPage,   setMyPage]   = useState(1)
+
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showReassignModal,     setShowReassignModal]     = useState(false)
-  const [showDeleteModal,       setShowDeleteModal]       = useState(false)
-  const [leadToDelete,          setLeadToDelete]          = useState(null)
   const [showBulkReassignModal, setShowBulkReassignModal] = useState(false)
   const [showBulkUploadModal,   setShowBulkUploadModal]   = useState(false)
   const [showExportModal,       setShowExportModal]        = useState(false)
@@ -638,12 +811,19 @@ export default function Leads() {
 
   useEffect(() => {
     const params = { page, per_page: 20 }
-    if (search) params.search = search
-    if (filterStatus) params.status = filterStatus
-    if (filterSource) params.source_id = filterSource
+    if (search)         params.search      = search
+    if (filterStatus)   params.status      = filterStatus
+    if (filterSource)   params.source_id   = filterSource
     if (filterAssigned) params.assigned_to = filterAssigned
     dispatch(fetchLeads(params))
-  }, [dispatch, search, filterStatus, filterSource, filterAssigned, page])
+    // sales_manager also sees their OWN assigned leads via /me/leads
+    if (isSalesManager) {
+      const myParams = { page: myPage, per_page: 20 }
+      if (search)       myParams.search = search
+      if (filterStatus) myParams.status = filterStatus
+      dispatch(fetchMyLeads(myParams))
+    }
+  }, [dispatch, search, filterStatus, filterSource, filterAssigned, page, myPage, isSalesManager])
 
   useEffect(() => {
     dispatch(fetchLeadSources())
@@ -653,7 +833,7 @@ export default function Leads() {
 
   const sourceList = sources?.length > 0 ? sources : defaultSources
   const salesExecs = userList.filter(u =>
-    ['sales_executive', 'sales_manager'].includes(u.role) && u.is_active
+    ['sales_executive', 'sales_manager', 'external_caller'].includes(u.role) && u.is_active
   )
 
   const handleAddLead = async (e) => {
@@ -678,19 +858,11 @@ export default function Leads() {
     }
   }
 
-  const handleDeleteLead = async () => {
-    if (!leadToDelete) return
-    const result = await dispatch(deleteLead(leadToDelete.id))
-    if (deleteLead.fulfilled.match(result)) {
-      dispatch(fetchLeads({ page, per_page: 20 }))
+  const handleDeleteLead = async (lead) => {
+    if (window.confirm(`Delete lead "${lead.name}"?`)) {
+      const result = await dispatch(deleteLead(lead.id))
+      if (deleteLead.fulfilled.match(result)) dispatch(fetchLeads({ page, per_page: 20 }))
     }
-    setShowDeleteModal(false)
-    setLeadToDelete(null)
-  }
-
-  const confirmDeleteLead = (lead) => {
-    setLeadToDelete(lead)
-    setShowDeleteModal(true)
   }
 
   const openEdit = (lead) => {
@@ -828,12 +1000,32 @@ export default function Leads() {
         </div>
       </div>
 
+      {/* Sales Manager tab switcher — My Leads vs Team Leads */}
+      {isSalesManager && (
+        <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-[#111] rounded-xl w-fit">
+          <button onClick={() => setLeadsTab('my')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${leadsTab === 'my' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}>
+            My Leads
+            {myPagination?.total > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand/10 text-brand">{myPagination.total}</span>}
+          </button>
+          <button onClick={() => setLeadsTab('team')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${leadsTab === 'team' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}>
+            Team Leads
+            {pagination?.total > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand/10 text-brand">{pagination.total}</span>}
+          </button>
+        </div>
+      )}
+
       {/* Summary row + inline selection actions */}
-      {!loading && (
+      {!(isSalesManager ? (leadsTab === 'my' ? myLoading : loading) : loading) && (
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm text-gray-500 dark:text-[#888]">
-            Showing <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span>
-            {pagination?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span></>} leads
+            {(() => {
+              const activeList = isSalesManager && leadsTab === 'my' ? myList : list
+              const activePag  = isSalesManager && leadsTab === 'my' ? myPagination : pagination
+              return <>Showing <span className="font-semibold text-gray-900 dark:text-white">{activeList.length}</span>
+                {activePag?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{activePag.total}</span></>} leads</>
+            })()}
           </div>
 
           {/* Inline bulk-action pills — only visible when rows are checked */}
@@ -863,11 +1055,12 @@ export default function Leads() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-2xl overflow-hidden shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 hover:shadow-lg hover:shadow-blue-200/50 dark:hover:shadow-blue-900/30 transition-all duration-200">
-        {loading ? (
+      {/* Table — uses activeList/activePag based on role + tab */}
+      {(({ activeList, activeLoading, activePag, activePage, setActivePage }) => (<>
+      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-200">
+        {activeLoading ? (
           <div className="p-4"><ListSkeleton rows={8} /></div>
-        ) : list.length === 0 ? (
+        ) : activeList.length === 0 ? (
           <div className="py-16 text-center text-gray-400 dark:text-[#888]">
             <Search size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" strokeWidth={1.5} />
             <p className="font-medium">No leads found</p>
@@ -883,7 +1076,7 @@ export default function Leads() {
                       checked={selectedLeads.length === list.length && list.length > 0}
                       onChange={toggleAll} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
                   </th>
-                  {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Finding Location', 'Actions'].map(h => (
+                  {['Lead', 'Phone', 'Source', ...(isSalesManager && leadsTab === 'my' ? [] : ['Assigned']), 'Status', 'Finding Location', 'Actions'].map(h => (
                     <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wide whitespace-nowrap
                       ${['Phone', 'Source', 'Assigned'].includes(h) ? 'hidden md:table-cell' : ''}
                       ${['Finding Location'].includes(h) ? 'hidden xl:table-cell' : ''}
@@ -894,7 +1087,7 @@ export default function Leads() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {list.map(lead => (
+                {activeList.map(lead => (
                   <tr key={lead.id} className="hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-colors">
                     <td className="py-3 pl-4 pr-2">
                       <input type="checkbox" checked={selectedLeads.includes(lead.id)}
@@ -927,14 +1120,16 @@ export default function Leads() {
                         {lead.source_name || lead.source || '—'}
                       </span>
                     </td>
-                    <td className="py-3 px-3 hidden md:table-cell">
-                      {lead.assigned_name ? (
-                        <div className="flex items-center gap-1.5">
-                          <Avatar name={lead.assigned_name} size="xs" />
-                          <span className="text-xs text-gray-600 dark:text-gray-400">{lead.assigned_name}</span>  
-                        </div>
-                      ) : <span className="text-xs text-gray-400">Unassigned</span>}
-                    </td>
+                    {!(isSalesManager && leadsTab === 'my') && (
+                      <td className="py-3 px-3 hidden md:table-cell">
+                        {lead.assigned_name ? (
+                          <div className="flex items-center gap-1.5">
+                            <Avatar name={lead.assigned_name} size="xs" />
+                            <span className="text-xs text-gray-600 dark:text-gray-400">{lead.assigned_name}</span>
+                          </div>
+                        ) : <span className="text-xs text-gray-400">Unassigned</span>}
+                      </td>
+                    )}
                     <td className="py-3 px-3"><Badge label={lead.status || 'New'} /></td>
                     <td className="py-3 px-3 text-xs text-gray-400 hidden xl:table-cell">
                       {lead.location_preference || '—'}
@@ -964,7 +1159,7 @@ export default function Leads() {
                           </button>
                         )}
                         {canDelete && (
-                          <button onClick={() => confirmDeleteLead(lead)}
+                          <button onClick={() => handleDeleteLead(lead)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Delete">
                             <Trash2 size={14} />
                           </button>
@@ -980,15 +1175,22 @@ export default function Leads() {
       </div>
 
       {/* Pagination */}
-      {pagination?.total_pages > 1 && (
+      {activePag?.total_pages > 1 && (
         <div className="flex items-center justify-between px-2 text-xs text-gray-500">
-          <span>Page {pagination.page} of {pagination.total_pages} · {pagination.total} total</span>
+          <span>Page {activePage} of {activePag.total_pages} · {activePag.total} total</span>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
-            <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(p => p + 1)}>Next</Button>
+            <Button size="sm" variant="outline" disabled={activePage===1} onClick={()=>setActivePage(p=>p-1)}>Prev</Button>
+            <Button size="sm" variant="outline" disabled={activePage>=activePag.total_pages} onClick={()=>setActivePage(p=>p+1)}>Next</Button>
           </div>
         </div>
       )}
+      </>))({
+        activeList:    isSalesManager && leadsTab === 'my' ? myList     : list,
+        activeLoading: isSalesManager && leadsTab === 'my' ? myLoading  : loading,
+        activePag:     isSalesManager && leadsTab === 'my' ? myPagination : pagination,
+        activePage:    isSalesManager && leadsTab === 'my' ? myPage     : page,
+        setActivePage: isSalesManager && leadsTab === 'my' ? setMyPage  : setPage,
+      })}
 
       {/* Add Lead Modal */}
       <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setAddSuccess('') }} title="Add New Lead" size="lg">
@@ -1040,8 +1242,9 @@ export default function Leads() {
       {/* Bulk Upload Modal */}
       {showBulkUploadModal && (
         <BulkUploadModal
+          salesExecs={salesExecs}
           onClose={() => setShowBulkUploadModal(false)}
-          onSuccess={() => { dispatch(fetchLeads({ page: 1, per_page: 20 })); setPage(1) }}
+          onSuccess={() => { dispatch(fetchLeads({ page: 1, per_page: 20 })); if (isSalesManager) dispatch(fetchMyLeads({ page: 1, per_page: 20 })); setPage(1) }}
         />
       )}
 
@@ -1078,16 +1281,6 @@ export default function Leads() {
         onExport={handleExport} 
         loading={exporting}
         title="Export Leads"
-      />
-
-      <ConfirmModal 
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={handleDeleteLead}
-        title="Delete Lead"
-        message={`Are you sure you want to delete lead "${leadToDelete?.name}"? This action cannot be undone.`}
-        confirmText="Delete Lead"
-        loading={actionLoading}
       />
     </div>
   )

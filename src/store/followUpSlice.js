@@ -39,9 +39,9 @@ export const updateFollowUp = createAsyncThunk(
 
 export const completeFollowUp = createAsyncThunk(
   'followUps/complete',
-  async ({ id, notes }, { rejectWithValue }) => {
+  async (id, { rejectWithValue }) => {
     try {
-      const response = await api.patch(`/tasks/${id}/complete`, { notes })
+      const response = await api.patch(`/tasks/${id}/complete`, { is_completed: true })
       return { id, ...response.data }
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to complete task')
