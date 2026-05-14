@@ -58,12 +58,20 @@ const defaultForm = {
 // This is the fix for the typing bug — defining a component inside another
 // component causes React to treat it as a new component on every render,
 // unmounting and remounting it, which kills input focus.
-function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
+function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs, currentUser }) {
   const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
+  const isRestricted = ['sales_executive', 'external_caller'].includes(currentUser?.role)
   const sourceOptions = sourceList.map(s => ({ value: s.id, label: s.name }))
   const execOptions = salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
+
+  // Auto-set assigned_to for restricted roles
+  useEffect(() => {
+    if (isRestricted && !formData.assigned_to && currentUser?.id) {
+      setFormData(prev => ({ ...prev, assigned_to: currentUser.id }))
+    }
+  }, [isRestricted, currentUser?.id])
 
   return (
     <div className="space-y-4">
@@ -167,13 +175,24 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
 
       {/* Assign To */}
       <div className="grid grid-cols-1">
-        <CustomSelect
-          label="Assign To"
-          value={formData.assigned_to}
-          onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))}
-          options={execOptions}
-          placeholder="Select team member"
-        />
+        {isRestricted ? (
+          <div>
+            <label className={labelClass}>Assign To</label>
+            <input
+              readOnly
+              value={`${currentUser?.first_name ?? ''} ${currentUser?.last_name ?? ''}`.trim()}
+              className={inputClass + ' cursor-not-allowed opacity-60 bg-gray-50 dark:bg-gray-800/40'}
+            />
+          </div>
+        ) : (
+          <CustomSelect
+            label="Assign To"
+            value={formData.assigned_to}
+            onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))}
+            options={execOptions}
+            placeholder="Select team member"
+          />
+        )}
       </div>
 
       {/* Configuration */}
@@ -193,7 +212,7 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs }) {
 
 
 // ─── Bulk Upload Modal ────────────────────────────────────────────────────────
-function BulkUploadModal({ onClose, onSuccess, salesExecs = [] }) {
+function BulkUploadModal({ onClose, onSuccess, salesExecs = [], currentUser = null }) {
   const [step,       setStep]      = useState('upload')  // upload | result
   const [file,       setFile]      = useState(null)
   const [dragging,   setDragging]  = useState(false)
@@ -203,8 +222,10 @@ function BulkUploadModal({ onClose, onSuccess, salesExecs = [] }) {
   const [result,     setResult]    = useState(null)
 
   // Pre-upload assignment (sent with the file to the API)
-  const [assignTo,   setAssignTo]  = useState('')
-  const [assignReason, setAssignReason] = useState('')
+  // For sales_exec / external_caller: always assign to themselves
+  const isSelfAssign = ['sales_executive', 'external_caller'].includes(currentUser?.role)
+  const [assignTo,       setAssignTo]     = useState(isSelfAssign ? (currentUser?.id || '') : '')
+  const [assignReason,   setAssignReason] = useState('')
 
   const fileRef = useRef(null)
 
@@ -328,28 +349,89 @@ function BulkUploadModal({ onClose, onSuccess, salesExecs = [] }) {
             </div>
           </div>
 
-          {/* Step 3 — Assign leads (optional, overrides Excel column) */}
+          {/* Step 3 — Assign leads */}
           <div className="flex items-start gap-3">
             <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
               <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">3</span>
             </div>
             <div className="flex-1">
-              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                Assign all leads to <span className="font-normal text-gray-400">(optional)</span>
-              </p>
-              <p className="text-xs text-gray-500 mb-2">
-                Overrides the Assign To column in Excel — all leads go to this person.
-                Leave empty to use per-row assignment from Excel or keep unassigned.
-              </p>
-              <CustomSelect
-                value={assignTo}
-                onChange={setAssignTo}
-                options={salesExecs.map(u => ({
-                  value: u.id,
-                  label: `${u.first_name} ${u.last_name} · ${u.role.replace(/_/g, ' ')}`,
-                }))}
-                placeholder="Select team member (optional)"
-              />
+              {isSelfAssign ? (
+                /* sales_executive / external_caller — auto-assigned to themselves */
+                <>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                    Assign all leads to
+                  </p>
+                  <div className="flex items-center gap-3 px-3 py-2.5 bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800/40 rounded-xl">
+                    <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-xs font-bold">
+                        {currentUser?.first_name?.[0]}{currentUser?.last_name?.[0]}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                        {currentUser?.first_name} {currentUser?.last_name}
+                        <span className="ml-2 text-[10px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded-full capitalize">
+                          {currentUser?.role?.replace(/_/g, ' ')}
+                        </span>
+                      </p>
+                      <p className="text-xs text-gray-400">All uploaded leads will be assigned to you</p>
+                    </div>
+                    <CheckCircle2 size={16} className="ml-auto text-indigo-500 flex-shrink-0"/>
+                  </div>
+                </>
+              ) : (
+                /* admin / sales_manager — choose who to assign to */
+                <>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                    Assign all leads to <span className="font-normal text-gray-400">(optional)</span>
+                  </p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Overrides the Assign To column in Excel — all leads go to this person.
+                    Leave empty to use per-row assignment from Excel or keep unassigned.
+                  </p>
+                  {(() => {
+                    const isAdminCaller = ['admin', 'super_admin'].includes(currentUser?.role)
+                    const isMgrCaller   = currentUser?.role === 'sales_manager'
+                    let filtered = []
+                    if (isAdminCaller) {
+                      // Admin can assign to any role — all active team members
+                      filtered = salesExecs
+                    } else if (isMgrCaller) {
+                      filtered = salesExecs.filter(u => u.manager_id === currentUser?.id)
+                    }
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/30 rounded-xl px-3 py-2.5">
+                          <AlertCircle size={13} className="text-amber-500 flex-shrink-0"/>
+                          <p className="text-xs text-amber-600 dark:text-amber-400">
+                            {isMgrCaller ? 'No team members assigned to you yet.' : 'No team members found.'}
+                          </p>
+                        </div>
+                      )
+                    }
+                    const groups = isAdminCaller ? [
+                      { label: 'Sales Managers',   role: 'sales_manager'   },
+                      { label: 'Sales Executives',  role: 'sales_executive'  },
+                      { label: 'External Callers',  role: 'external_caller'  },
+                    ] : [{ label: 'Your Team Members', role: null }]
+                    const options = []
+                    groups.forEach(g => {
+                      const members = g.role ? filtered.filter(u => u.role === g.role) : filtered
+                      if (!members.length) return
+                      options.push({ value: `__hdr_${g.role || 'team'}`, label: `── ${g.label} ──`, disabled: true })
+                      members.forEach(u => options.push({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
+                    })
+                    return (
+                      <CustomSelect
+                        value={assignTo}
+                        onChange={v => { if (!v.startsWith('__hdr_')) setAssignTo(v) }}
+                        options={options}
+                        placeholder="Select team member (optional)"
+                      />
+                    )
+                  })()}
+                </>
+              )}
               {assignTo && (
                 <div className="mt-2 flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/30 rounded-xl px-3 py-2">
                   <Users size={12} className="text-indigo-500 flex-shrink-0"/>
@@ -899,10 +981,10 @@ export default function Leads() {
   const toggleAll = () =>
     setSelectedLeads(selectedLeads.length === list.length && list.length > 0 ? [] : list.map(l => l.id))
 
-  const canEdit      = ['super_admin', 'admin', 'sales_manager', 'sales_executive'].includes(currentUser?.role)
+  const canEdit      = ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'].includes(currentUser?.role)
   const canDelete    = ['super_admin', 'admin'].includes(currentUser?.role)
   const canReassign  = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
-  const canBulkUpload = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
+  const canBulkUpload = true  // all authenticated users can bulk upload — exec/caller auto-assigned to self
 
   const handleExport = async (dateRange) => {
     try {
@@ -988,15 +1070,13 @@ export default function Leads() {
           <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button>
-          {canEdit && (
-            <Button icon={Plus} onClick={() => {
-              const r = ['sales_executive','external_caller'].includes(currentUser?.role)
-              setAddForm({ ...defaultForm, assigned_to: r ? currentUser?.id : '' })
-              dispatch(clearLeadError()); setShowAddModal(true)
-            }}>
-              Add Lead
-            </Button>
-          )}
+          <Button icon={Plus} onClick={() => {
+            const r = ['sales_executive','external_caller'].includes(currentUser?.role)
+            setAddForm({ ...defaultForm, assigned_to: r ? currentUser?.id : '' })
+            dispatch(clearLeadError()); setShowAddModal(true)
+          }}>
+            Add Lead
+          </Button>
         </div>
       </div>
 
@@ -1076,8 +1156,9 @@ export default function Leads() {
                       checked={selectedLeads.length === list.length && list.length > 0}
                       onChange={toggleAll} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
                   </th>
-                  {['Lead', 'Phone', 'Source', ...(isSalesManager && leadsTab === 'my' ? [] : ['Assigned']), 'Status', 'Finding Location', 'Actions'].map(h => (
+                  {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Finding Location', 'Actions'].map(h => (
                     <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wide whitespace-nowrap
+                      ${h === 'Assigned' && isSalesManager && leadsTab === 'my' ? 'hidden' : ''}
                       ${['Phone', 'Source', 'Assigned'].includes(h) ? 'hidden md:table-cell' : ''}
                       ${['Finding Location'].includes(h) ? 'hidden xl:table-cell' : ''}
                       ${h === 'Actions' ? 'text-right' : ''}`}>
@@ -1122,10 +1203,12 @@ export default function Leads() {
                     </td>
                     {!(isSalesManager && leadsTab === 'my') && (
                       <td className="py-3 px-3 hidden md:table-cell">
-                        {lead.assigned_name ? (
+                        {(lead.assigned_name || lead.assigned_to_name || (typeof lead.assigned_to === 'object' && lead.assigned_to?.full_name)) ? (
                           <div className="flex items-center gap-1.5">
-                            <Avatar name={lead.assigned_name} size="xs" />
-                            <span className="text-xs text-gray-600 dark:text-gray-400">{lead.assigned_name}</span>
+                            <Avatar name={lead.assigned_name || lead.assigned_to_name || lead.assigned_to?.full_name} size="xs" />
+                            <span className="text-xs text-gray-600 dark:text-gray-400">
+                              {lead.assigned_name || lead.assigned_to_name || lead.assigned_to?.full_name}
+                            </span>
                           </div>
                         ) : <span className="text-xs text-gray-400">Unassigned</span>}
                       </td>
@@ -1195,7 +1278,7 @@ export default function Leads() {
       {/* Add Lead Modal */}
       <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setAddSuccess('') }} title="Add New Lead" size="lg">
         <form onSubmit={handleAddLead} className="space-y-4">
-          <LeadForm formData={addForm} setFormData={setAddForm} isEdit={false} sourceList={sourceList} salesExecs={salesExecs} />
+          <LeadForm formData={addForm} setFormData={setAddForm} isEdit={false} sourceList={sourceList} salesExecs={salesExecs} currentUser={currentUser} />
           {addSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{addSuccess}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -1208,7 +1291,7 @@ export default function Leads() {
       {/* Edit Lead Modal */}
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setEditSuccess('') }} title="Edit Lead" size="lg">
         <form onSubmit={handleEditLead} className="space-y-4">
-          <LeadForm formData={editForm} setFormData={setEditForm} isEdit={true} sourceList={sourceList} salesExecs={salesExecs} />
+          <LeadForm formData={editForm} setFormData={setEditForm} isEdit={true} sourceList={sourceList} salesExecs={salesExecs} currentUser={currentUser} />
           {editSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{editSuccess}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -1243,6 +1326,7 @@ export default function Leads() {
       {showBulkUploadModal && (
         <BulkUploadModal
           salesExecs={salesExecs}
+          currentUser={currentUser}
           onClose={() => setShowBulkUploadModal(false)}
           onSuccess={() => { dispatch(fetchLeads({ page: 1, per_page: 20 })); if (isSalesManager) dispatch(fetchMyLeads({ page: 1, per_page: 20 })); setPage(1) }}
         />
