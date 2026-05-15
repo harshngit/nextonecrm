@@ -11,7 +11,7 @@ import logo from '../../asset/image.png'
 
 const navItems = [
   { path: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard, roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
-  { path: '/projects',     label: 'Projects',     icon: Building2,       roles: ['super_admin', 'admin'] },
+  { path: '/projects',     label: 'Projects',     icon: Building2,       roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
   { path: '/leads',        label: 'Leads',        icon: Users,           roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
   { path: '/follow-ups',   label: 'Follow-Ups',   icon: PhoneCall,       roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
   { path: '/site-visits',  label: 'Site Visits',  icon: CalendarCheck,   roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
