@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users } from 'lucide-react'
+import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Phone, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users } from 'lucide-react'
 import { fetchLeads, fetchMyLeads, createLead, updateLead, deleteLead, fetchLeadSources, clearLeadError } from '../store/leadSlice'
 import { fetchProjects } from '../store/projectSlice'
 import { fetchUsers } from '../store/userSlice'
@@ -212,6 +212,107 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs, curre
 
 
 // ─── Bulk Upload Modal ────────────────────────────────────────────────────────
+// ─── Inline Phone Cell with Request Button ────────────────────────────────────
+// Shows full number (clickable) if admin or approved access.
+// Shows masked + Request button for non-admin without access.
+// Shows Pending badge if request already submitted.
+function PhoneCell({ lead, canSeePhone }) {
+  const [access,     setAccess]     = useState(null)   // null=loading, {has_access,phone,request}
+  const [requesting, setRequesting] = useState(false)
+  const [showModal,  setShowModal]  = useState(false)
+  const [reason,     setReason]     = useState('')
+  const [reqLoading, setReqLoading] = useState(false)
+  const [reqError,   setReqError]   = useState('')
+  const [reqSuccess, setReqSuccess] = useState('')
+
+  useEffect(() => {
+    if (canSeePhone) { setAccess({ has_access: true, phone: lead.phone }); return }
+    let cancelled = false
+    api.get(`/phone-reveal/check/${lead.id}`)
+      .then(r => { if (!cancelled) setAccess(r.data.data) })
+      .catch(() => { if (!cancelled) setAccess({ has_access: false, phone: null, request: null }) })
+    return () => { cancelled = true }
+  }, [lead.id, canSeePhone, lead.phone])
+
+  const submitRequest = async () => {
+    setReqError(''); setReqLoading(true)
+    try {
+      await api.post('/phone-reveal/request', { lead_id: lead.id, reason: reason || undefined })
+      setReqSuccess('Request submitted!')
+      setAccess(p => ({ ...p, request: { status: 'pending' } }))
+      setTimeout(() => { setShowModal(false); setReqSuccess(''); setReason('') }, 800)
+    } catch(e) { setReqError(e.response?.data?.message || 'Request failed') }
+    finally { setReqLoading(false) }
+  }
+
+  if (access === null) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className="text-sm text-gray-300 dark:text-gray-600 animate-pulse">Loading…</span>
+      </div>
+    )
+  }
+
+  if (canSeePhone || access.has_access) {
+    const phone = access.phone || lead.phone
+    return (
+      <div className="flex flex-col gap-0.5">
+        <a href={`tel:${phone}`} className="text-brand hover:underline font-medium text-sm">{phone}</a>
+        {lead.alternate_phone_number && (
+          <span className="text-[10px] text-gray-400">Alt: {lead.alternate_phone_number}</span>
+        )}
+      </div>
+    )
+  }
+
+  if (access.request?.status === 'pending') {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="text-sm text-gray-500 dark:text-gray-400">{lead.phone?.slice(0,5)}*****</span>
+        <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-full w-fit">
+          ⏳ Pending
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-sm text-gray-500 dark:text-gray-400">{lead.phone?.slice(0,5)}*****</span>
+      <button onClick={() => setShowModal(true)}
+        className="text-[11px] font-semibold text-brand hover:text-brand/80 flex items-center gap-1 w-fit transition-colors">
+        <Phone size={11}/> Request
+      </button>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)}>
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center"><Phone size={16} className="text-brand"/></div>
+              <div><p className="text-sm font-bold text-gray-900 dark:text-white">Request Phone Access</p><p className="text-xs text-gray-400">{lead.name}</p></div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Reason <span className="font-normal text-gray-400">(optional)</span></label>
+              <input value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Need to follow up" autoFocus
+                className="w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"/>
+            </div>
+            {reqError   && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-xl">{reqError}</p>}
+            {reqSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-xl">{reqSuccess}</p>}
+            <div className="flex gap-2">
+              <button onClick={() => setShowModal(false)} className="flex-1 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500">Cancel</button>
+              <button onClick={submitRequest} disabled={reqLoading}
+                className="flex-1 py-2 rounded-xl bg-brand hover:bg-brand/90 text-white text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-60">
+                {reqLoading ? <Loader2 size={13} className="animate-spin"/> : <Phone size={13}/>}
+                {reqLoading ? 'Sending…' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BulkUploadModal({ onClose, onSuccess, salesExecs = [], currentUser = null }) {
   const [step,       setStep]      = useState('upload')  // upload | result
   const [file,       setFile]      = useState(null)
@@ -852,6 +953,122 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess }) {
   )
 }
 
+// ─── Bulk Lead Phone Request Modal ───────────────────────────────────────────
+// Sends POST /phone-reveal/bulk-request for all selected lead IDs
+function BulkLeadPhoneRequestModal({ leadIds, leads, onClose, onSuccess }) {
+  const [reason,  setReason]  = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
+  const [result,  setResult]  = useState(null)
+
+  const selected = leads.filter(l => leadIds.includes(l.id))
+
+  const submit = async () => {
+    setError(''); setLoading(true)
+    try {
+      const r = await api.post('/phone-reveal/bulk-request', {
+        lead_ids: leadIds,
+        reason:   reason || undefined,
+      })
+      setResult(r.data.data)
+    } catch(e) { setError(e.response?.data?.message || 'Bulk request failed') }
+    finally { setLoading(false) }
+  }
+
+  if (result) return (
+    <Modal isOpen={true} onClose={() => { onSuccess(); onClose() }} title="Bulk Request Submitted">
+      <div className="space-y-4 py-2">
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-14 h-14 rounded-2xl bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
+            <CheckCircle2 size={28} className="text-green-500"/>
+          </div>
+          <p className="text-base font-bold text-gray-900 dark:text-white">Requests Submitted!</p>
+          <p className="text-xs text-gray-400">Admin has been notified and will review shortly</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { label: 'Submitted', val: result.inserted, c: 'text-green-600 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-900/20' },
+            { label: 'Skipped',   val: result.skipped,  c: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+          ].map(x => (
+            <div key={x.label} className={`rounded-xl px-4 py-3 text-center ${x.bg}`}>
+              <p className={`text-2xl font-bold ${x.c}`}>{x.val ?? 0}</p>
+              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mt-0.5">{x.label}</p>
+            </div>
+          ))}
+        </div>
+        {result.skipped_details?.length > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/30 rounded-xl p-3 max-h-28 overflow-y-auto">
+            <p className="text-xs font-semibold text-amber-600 mb-1.5">Skipped:</p>
+            {result.skipped_details.map((s, i) => (
+              <p key={i} className="text-xs text-amber-500">{s.lead_name}: {s.reason}</p>
+            ))}
+          </div>
+        )}
+        <Button className="w-full" onClick={() => { onSuccess(); onClose() }}>Done</Button>
+      </div>
+    </Modal>
+  )
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title={`Request ${leadIds.length} Phone Number${leadIds.length > 1 ? 's' : ''}`}>
+      <div className="space-y-4">
+
+        {/* Selected leads preview */}
+        <div className="bg-gray-50 dark:bg-[#111] rounded-xl border border-gray-100 dark:border-gray-800 px-4 py-3">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">
+            {leadIds.length} lead{leadIds.length > 1 ? 's' : ''} selected
+          </p>
+          <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+            {selected.slice(0, 8).map(l => (
+              <span key={l.id} className="text-[10px] font-medium px-2 py-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300">
+                {l.name}
+              </span>
+            ))}
+            {selected.length > 8 && (
+              <span className="text-[10px] text-gray-400 px-2 py-1">+{selected.length - 8} more</span>
+            )}
+          </div>
+        </div>
+
+        {/* Info note */}
+        <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-xl px-3 py-2.5">
+          <AlertCircle size={13} className="text-blue-500 flex-shrink-0 mt-0.5"/>
+          <p className="text-xs text-blue-700 dark:text-blue-300">
+            Admins will be notified and can approve or decline your request. Phone numbers are revealed once approved.
+          </p>
+        </div>
+
+        {/* Reason */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+            Reason <span className="font-normal text-gray-400">(optional — applies to all)</span>
+          </label>
+          <input
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder="e.g. Bulk follow-up campaign"
+            className="w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"
+          />
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2.5">
+            <AlertCircle size={13} className="text-red-500 flex-shrink-0"/>
+            <p className="text-xs text-red-600">{error}</p>
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-1">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button className="flex-1" loading={loading} onClick={submit} icon={!loading ? Phone : undefined}>
+            {loading ? 'Submitting…' : `Request ${leadIds.length} Number${leadIds.length > 1 ? 's' : ''}`}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Main Page Component ──────────────────────────────────────────────────────
 
 export default function Leads() {
@@ -869,6 +1086,8 @@ export default function Leads() {
   const [page, setPage] = useState(1)
 
   const isSalesManager = currentUser?.role === 'sales_manager'
+  const activeLeadListRef = useRef([])
+  const activeLeadList = activeLeadListRef.current
   const [leadsTab, setLeadsTab] = useState('team') // 'my' | 'team'
   const [myPage,   setMyPage]   = useState(1)
 
@@ -877,6 +1096,7 @@ export default function Leads() {
   const [showReassignModal,     setShowReassignModal]     = useState(false)
   const [showBulkReassignModal, setShowBulkReassignModal] = useState(false)
   const [showBulkUploadModal,   setShowBulkUploadModal]   = useState(false)
+  const [showBulkPhoneReqModal, setShowBulkPhoneReqModal] = useState(false)
   const [showExportModal,       setShowExportModal]        = useState(false)
   const [selectedLead, setSelectedLead] = useState(null)
   const [addForm, setAddForm] = useState(defaultForm)
@@ -983,8 +1203,10 @@ export default function Leads() {
 
   const canEdit      = ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'].includes(currentUser?.role)
   const canDelete    = ['super_admin', 'admin'].includes(currentUser?.role)
-  const canReassign  = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
+  const canReassign     = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
+  const canRequestPhone = ['sales_manager', 'sales_executive', 'external_caller'].includes(currentUser?.role)
   const canBulkUpload = true  // all authenticated users can bulk upload — exec/caller auto-assigned to self
+  const canSeePhone  = ['super_admin', 'admin'].includes(currentUser?.role)
 
   const handleExport = async (dateRange) => {
     try {
@@ -1126,6 +1348,12 @@ export default function Leads() {
                   <Users size={13} /> Reassign {selectedLeads.length}
                 </button>
               )}
+              {canRequestPhone && (
+                <button onClick={() => setShowBulkPhoneReqModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97]">
+                  <Phone size={13} /> Request Phones {selectedLeads.length}
+                </button>
+              )}
               <button onClick={() => setSelectedLeads([])}
                 className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                 <X size={12} />
@@ -1136,7 +1364,11 @@ export default function Leads() {
       )}
 
       {/* Table — uses activeList/activePag based on role + tab */}
-      {(({ activeList, activeLoading, activePag, activePage, setActivePage }) => (<>
+      {(({ activeList, activeLoading, activePag, activePage, setActivePage }) => {
+      // Expose activeList so modals outside the IIFE can access it
+      // eslint-disable-next-line no-unused-expressions
+      activeLeadListRef.current = activeList
+      return (<>
       <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-200">
         {activeLoading ? (
           <div className="p-4"><ListSkeleton rows={8} /></div>
@@ -1189,12 +1421,7 @@ export default function Leads() {
                       </div>
                     </td>
                     <td className="py-3 px-3 text-gray-600 dark:text-gray-400 hidden md:table-cell">
-                      <div className="flex flex-col">
-                        <span>{lead.phone}</span>
-                        {lead.alternate_phone_number && (
-                          <span className="text-[10px] text-gray-400">Alt: {lead.alternate_phone_number}</span>
-                        )}
-                      </div>
+                      <PhoneCell lead={lead} canSeePhone={canSeePhone}/>
                     </td>
                     <td className="py-3 px-3 hidden md:table-cell">
                       <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-400">
@@ -1267,7 +1494,7 @@ export default function Leads() {
           </div>
         </div>
       )}
-      </>))({
+      </>)})({
         activeList:    isSalesManager && leadsTab === 'my' ? myList     : list,
         activeLoading: isSalesManager && leadsTab === 'my' ? myLoading  : loading,
         activePag:     isSalesManager && leadsTab === 'my' ? myPagination : pagination,
@@ -1322,6 +1549,16 @@ export default function Leads() {
         />
       )}
 
+      {/* Bulk Phone Request Modal — for selected leads */}
+      {showBulkPhoneReqModal && (
+        <BulkLeadPhoneRequestModal
+          leadIds={selectedLeads}
+          leads={activeLeadList}
+          onClose={() => setShowBulkPhoneReqModal(false)}
+          onSuccess={() => setSelectedLeads([])}
+        />
+      )}
+
       {/* Bulk Upload Modal */}
       {showBulkUploadModal && (
         <BulkUploadModal
@@ -1368,4 +1605,4 @@ export default function Leads() {
       />
     </div>
   )
-}
+} 
