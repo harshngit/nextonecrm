@@ -185,6 +185,7 @@ export default function ProjectDetail() {
 
   const canAdmin  = ['super_admin', 'admin'].includes(user?.role)
   const canUpload = canAdmin
+  const isRestrictedUser = ['sales_manager', 'sales_executive', 'external_caller'].includes(user?.role)
 
   useEffect(() => {
     dispatch(fetchProjectLeads({ id, params: { page } }))
@@ -282,12 +283,12 @@ export default function ProjectDetail() {
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10">
+                <div className={`grid grid-cols-1 ${isRestrictedUser ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-4 mt-10`}>
                   {[
-                    { icon: User,     label: 'Total Leads',    value: pagination.total || leads.length, color: 'text-blue-600 bg-blue-50' },
+                    { icon: User,     label: 'Total Leads',    value: pagination.total || leads.length, color: 'text-blue-600 bg-blue-50', hidden: isRestrictedUser },
                     { icon: MapPin,   label: 'City',           value: project.city || '—',             color: 'text-indigo-600 bg-indigo-50' },
                     { icon: FolderOpen,label: 'Documents',     value: docsLoading ? '…' : totalDocs,   color: 'text-teal-600 bg-teal-50' },
-                  ].map(({ icon: Icon, label, value, color }) => (
+                  ].filter(card => !card.hidden).map(({ icon: Icon, label, value, color }) => (
                     <div key={label} className="p-4 rounded-2xl border border-gray-50 dark:border-gray-800/50 bg-gray-50/50 dark:bg-[#0f0f0f]/50">
                       <div className="flex items-center gap-3 mb-2">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color} dark:bg-opacity-10`}><Icon size={14}/></div>
@@ -407,86 +408,88 @@ export default function ProjectDetail() {
             </div>
 
             {/* 3. Leads Table */}
-            <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-8 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
-                    <User size={18} className="text-brand"/>
-                  </div>
-                  <div>
-                    <h3 className="font-display text-lg font-bold text-gray-900 dark:text-white">Project Leads</h3>
-                    <p className="text-xs text-gray-400">All leads interested in this project</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <div className="relative">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
-                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search leads..."
-                      className="pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-brand w-44 text-gray-900 dark:text-gray-100 placeholder-gray-400"/>
-                  </div>
-                  <button onClick={() => dispatch(fetchProjectLeads({ id, params: { page } }))}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors">
-                    <RefreshCw size={14} className={detailLoading ? 'animate-spin' : ''}/>
-                  </button>
-                </div>
-              </div>
-
-              {detailLoading && leads.length === 0 ? (
-                <div className="py-12 flex flex-col items-center"><Loader2 size={32} className="animate-spin text-brand mb-2"/><p className="text-xs text-gray-400">Fetching leads…</p></div>
-              ) : filteredLeads.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 dark:bg-[#0f0f0f] rounded-[24px] border-2 border-dashed border-gray-100 dark:border-gray-800">
-                  <div className="text-4xl mb-3">👥</div>
-                  <p className="text-sm font-medium text-gray-500">No leads found for this project</p>
-                </div>
-              ) : (
-                <>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left border-b border-gray-100 dark:border-gray-800">
-                          <th className="py-4 px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Lead Name</th>
-                          <th className="py-4 px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
-                          <th className="py-4 px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Assigned To</th>
-                          <th className="py-4 px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                        {filteredLeads.map(lead => (
-                          <tr key={lead.id} className="group hover:bg-gray-50/50 dark:hover:bg-[#0f0f0f]/50 transition-colors">
-                            <td className="py-4 px-2">
-                              <div className="flex items-center gap-3">
-                                <Avatar name={lead.name} size="sm"/>
-                                <span className="font-bold text-gray-900 dark:text-white">{lead.name}</span>
-                              </div>
-                            </td>
-                            <td className="py-4 px-2"><Badge label={lead.status}/></td>
-                            <td className="py-4 px-2">
-                              <div className="flex items-center gap-2">
-                                <Avatar name={lead.assigned_to} size="xs"/>
-                                <span className="text-gray-600 dark:text-gray-400 font-medium">{lead.assigned_to || 'Unassigned'}</span>
-                              </div>
-                            </td>
-                            <td className="py-4 px-2 text-right">
-                              <Button variant="outline" size="sm" className="rounded-lg text-xs h-8"
-                                onClick={() => navigate(`/leads/${lead.id}`)}>View</Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {pagination?.total_pages > 1 && (
-                    <div className="flex items-center justify-between pt-8 px-2 text-xs text-gray-500">
-                      <span>Page {pagination.page} of {pagination.total_pages} · {pagination.total} leads</span>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" disabled={page===1} onClick={() => setPage(p=>p-1)}>Prev</Button>
-                        <Button size="sm" variant="outline" disabled={page>=pagination.total_pages} onClick={() => setPage(p=>p+1)}>Next</Button>
-                      </div>
+            {!isRestrictedUser && (
+              <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-8 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
+                      <User size={18} className="text-brand"/>
                     </div>
-                  )}
-                </>
-              )}
-            </div>
+                    <div>
+                      <h3 className="font-display text-lg font-bold text-gray-900 dark:text-white">Project Leads</h3>
+                      <p className="text-xs text-gray-400">All leads interested in this project</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <div className="relative">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
+                      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search leads..."
+                        className="pl-9 pr-4 py-2 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-brand w-44 text-gray-900 dark:text-gray-100 placeholder-gray-400"/>
+                    </div>
+                    <button onClick={() => dispatch(fetchProjectLeads({ id, params: { page } }))}
+                      className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors">
+                      <RefreshCw size={14} className={detailLoading ? 'animate-spin' : ''}/>
+                    </button>
+                  </div>
+                </div>
+
+                {detailLoading && leads.length === 0 ? (
+                  <div className="py-12 flex flex-col items-center"><Loader2 size={32} className="animate-spin text-brand mb-2"/><p className="text-xs text-gray-400">Fetching leads…</p></div>
+                ) : filteredLeads.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 dark:bg-[#0f0f0f] rounded-[24px] border-2 border-dashed border-gray-100 dark:border-gray-800">
+                    <div className="text-4xl mb-3">👥</div>
+                    <p className="text-sm font-medium text-gray-500">No leads found for this project</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left border-b border-gray-100 dark:border-gray-800">
+                            <th className="py-4 px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Lead Name</th>
+                            <th className="py-4 px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                            <th className="py-4 px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Assigned To</th>
+                            <th className="py-4 px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                          {filteredLeads.map(lead => (
+                            <tr key={lead.id} className="group hover:bg-gray-50/50 dark:hover:bg-[#0f0f0f]/50 transition-colors">
+                              <td className="py-4 px-2">
+                                <div className="flex items-center gap-3">
+                                  <Avatar name={lead.name} size="sm"/>
+                                  <span className="font-bold text-gray-900 dark:text-white">{lead.name}</span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-2"><Badge label={lead.status}/></td>
+                              <td className="py-4 px-2">
+                                <div className="flex items-center gap-2">
+                                  <Avatar name={lead.assigned_to} size="xs"/>
+                                  <span className="text-gray-600 dark:text-gray-400 font-medium">{lead.assigned_to || 'Unassigned'}</span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-2 text-right">
+                                <Button variant="outline" size="sm" className="rounded-lg text-xs h-8"
+                                  onClick={() => navigate(`/leads/${lead.id}`)}>View</Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {pagination?.total_pages > 1 && (
+                      <div className="flex items-center justify-between pt-8 px-2 text-xs text-gray-500">
+                        <span>Page {pagination.page} of {pagination.total_pages} · {pagination.total} leads</span>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" disabled={page===1} onClick={() => setPage(p=>p-1)}>Prev</Button>
+                          <Button size="sm" variant="outline" disabled={page>=pagination.total_pages} onClick={() => setPage(p=>p+1)}>Next</Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* RIGHT COLUMN */}

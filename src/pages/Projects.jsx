@@ -9,6 +9,7 @@ import Button from '../components/ui/Button'
 import api from '../api/axios'
 import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
+import ConfirmModal from '../components/ui/ConfirmModal'
 import CustomSelect from '../components/ui/CustomSelect'
 
 const projectColors = [
@@ -182,6 +183,8 @@ export default function Projects() {
   const [uploadFiles, setUploadFiles] = useState({ unit_plans: [], creatives: [] })
   const [showEditModal, setShowEditModal] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [projectToDelete, setProjectToDelete] = useState(null)
   const [selectedProject, setSelectedProject] = useState(null)
 
   const [addForm,  setAddForm]  = useState(defaultForm)
@@ -242,12 +245,18 @@ export default function Projects() {
     }
   }
 
-  const handleDelete = async (project) => {
-    if (window.confirm(`Delete "${project.name}"? This cannot be undone.`)) {
-      const result = await dispatch(deleteProject(project.id))
-      if (deleteProject.fulfilled.match(result)) {
-        dispatch(fetchProjects({ page, per_page: 20 }))
-      }
+  const handleDelete = (project) => {
+    setProjectToDelete(project)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDeleteProject = async () => {
+    if (!projectToDelete) return
+    const result = await dispatch(deleteProject(projectToDelete.id))
+    if (deleteProject.fulfilled.match(result)) {
+      dispatch(fetchProjects({ page, per_page: 20 }))
+      setShowDeleteModal(false)
+      setProjectToDelete(null)
     }
   }
 
@@ -503,7 +512,7 @@ export default function Projects() {
                     </div>
                   )}
 
-                  <Button onClick={() => navigate(`/projects/${project.id}`)} variant="outline" size="sm" className="w-full mt-auto">View Leads</Button>
+                  <Button onClick={() => navigate(`/projects/${project.id}`)} variant="outline" size="sm" className="w-full mt-auto">View Project</Button>
                 </div>
               </div>
             )
@@ -606,6 +615,17 @@ export default function Projects() {
         onExport={handleExport} 
         loading={exporting}
         title="Export Projects"
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => { setShowDeleteModal(false); setProjectToDelete(null) }}
+        onConfirm={confirmDeleteProject}
+        title="Delete Project"
+        message={`Are you sure you want to delete project "${projectToDelete?.name}"? This will also remove all associated data. This action cannot be undone.`}
+        confirmText="Delete Project"
+        loading={actionLoading}
       />
     </div>
   )
