@@ -241,6 +241,7 @@ const attendanceSlice = createSlice({
       byMonth: false,
       byDate: false,
       summary: false,
+      lateArrivals: false,
       pending: false,
       action: false,
     },
@@ -307,6 +308,14 @@ const attendanceSlice = createSlice({
         state.summary = action.payload 
       })
       .addCase(fetchAttendanceSummary.rejected, (state) => { state.loading.summary = false })
+
+      // fetchLateArrivals
+      .addCase(fetchLateArrivals.pending, (state) => { state.loading.lateArrivals = true })
+      .addCase(fetchLateArrivals.fulfilled, (state, action) => { 
+        state.loading.lateArrivals = false
+        state.lateArrivals = action.payload 
+      })
+      .addCase(fetchLateArrivals.rejected, (state) => { state.loading.lateArrivals = false })
 
       // Generic actions
       .addMatcher(

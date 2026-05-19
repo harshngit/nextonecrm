@@ -15,6 +15,7 @@ import {
   fetchAttendanceByDate,
   fetchTeamAttendance,
   fetchAttendanceSummary,
+  fetchLateArrivals,
   uploadAttendancePhoto,
   checkIn,
   checkOut,
@@ -1846,6 +1847,160 @@ function MyDataOverview({ dispatch }) {
   )
 }
 
+// ─── My Salary Section ───────────────────────────────────────────────────────
+
+function MySalarySection({ dispatch }) {
+  const { myHistory, loading } = useSelector(s => s.attendance)
+  
+  useEffect(() => {
+    // Fetch current month's attendance to get salary info
+    const now = new Date()
+    const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    const to = now.toISOString().split('T')[0]
+    dispatch(fetchMyAttendance({ from, to }))
+  }, [dispatch])
+
+  if (loading.myHistory && !myHistory?.salary) {
+    return (
+      <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-2xl p-6 animate-pulse">
+        <div className="h-4 w-32 bg-gray-100 dark:bg-gray-800 rounded mb-4" />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="h-16 bg-gray-50 dark:bg-gray-800/40 rounded-xl" />
+          <div className="h-16 bg-gray-50 dark:bg-gray-800/40 rounded-xl" />
+        </div>
+      </div>
+    )
+  }
+
+  const S = myHistory?.salary
+  if (!S || S.monthly_salary === null) return null
+
+  return (
+    <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 flex items-center justify-between">
+        <div>
+          <h3 className="text-white font-semibold">My Monthly Earned Salary</h3>
+          <p className="text-emerald-100 text-xs mt-0.5">Live calculation based on attendance</p>
+        </div>
+        <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+          <TrendingUp size={18} className="text-white" />
+        </div>
+      </div>
+
+      <div className="p-5">
+        <div className="grid grid-cols-2 gap-4 mb-5">
+          <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-3 border border-gray-100 dark:border-gray-700">
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Monthly Salary</p>
+            <p className="text-lg font-bold text-gray-900 dark:text-white">₹{S.monthly_salary?.toLocaleString()}</p>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-3 border border-gray-100 dark:border-gray-700">
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Present Days</p>
+            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{S.present_days} <span className="text-xs font-normal text-gray-400">days</span></p>
+          </div>
+        </div>
+
+        <div className="space-y-3 mb-5">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Per Day Salary</span>
+            <span className="font-semibold text-gray-700 dark:text-gray-300">₹{S.per_day_salary?.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Earned This Month</span>
+            <span className="text-xl font-bold text-[#0082f3]">₹{S.earned_salary?.toLocaleString()}</span>
+          </div>
+        </div>
+
+        {S.slip_generated ? (
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl px-4 py-3 flex items-start gap-3 border border-blue-100 dark:border-blue-800">
+            <CheckCircle2 size={16} className="text-[#0082f3] mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-blue-800 dark:text-blue-300">Salary Slip Generated</p>
+              <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">Final: ₹{S.slip_final_salary?.toLocaleString()} (Deductions: ₹{S.slip_deductions})</p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-amber-50 dark:bg-amber-900/10 rounded-xl px-4 py-3 flex items-start gap-3 border border-amber-100 dark:border-amber-900/30">
+            <AlertCircle size={16} className="text-amber-500 mt-0.5" />
+            <p className="text-[11px] text-amber-700 dark:text-amber-400">This is an estimate. Final salary will be calculated at month-end by HR.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Admin: Late Arrivals Report ──────────────────────────────────────────────
+
+function LateArrivalsReport({ dispatch }) {
+  const { lateArrivals, loading } = useSelector(s => s.attendance)
+  const now = new Date()
+  const [from, setFrom] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`)
+  const [to,   setTo]   = useState(now.toISOString().split('T')[0])
+
+  useEffect(() => {
+    dispatch(fetchLateArrivals({ from, to }))
+  }, [dispatch, from, to])
+
+  const data = lateArrivals?.data || []
+
+  return (
+    <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
+      <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Late Arrivals Report</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{data.length} records found</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]" />
+          <span className="text-gray-400 text-xs">to</span>
+          <input type="date" value={to}   onChange={e => setTo(e.target.value)}   className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]" />
+        </div>
+      </div>
+
+      {loading.lateArrivals ? (
+        <div className="p-8 flex justify-center"><Loader2 size={20} className="animate-spin text-[#0082f3]" /></div>
+      ) : data.length === 0 ? (
+        <div className="p-8 text-center text-gray-400 text-sm">No late arrivals in this period</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-800/60">
+                {['Employee', 'Date', 'Check In', 'Location'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-800/40">
+              {data.map((r, i) => (
+                <tr key={r.id || i} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-700 dark:text-gray-200">{r.full_name}</div>
+                    <div className="text-xs text-gray-400">{r.role?.replace(/_/g, ' ')}</div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{fmtDate(r.date)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5 text-amber-600 font-bold">
+                      <LogIn size={12} />
+                      {fmtTime(r.check_in_time)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-start gap-1.5 max-w-[200px]">
+                      <MapPin size={12} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                      <span className="text-xs text-gray-500 truncate">{r.checkin_address || '—'}</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Attendance() {
@@ -1893,6 +2048,7 @@ export default function Attendance() {
     { id: 'monthly',   label: 'Month Grid',    icon: Users,       show: isAdmin },
     { id: 'daily',     label: 'Daily View',    icon: UserCheck,   show: isAdmin },
     { id: 'admin-sum', label: 'Summary',       icon: TrendingUp,  show: isAdmin },
+    { id: 'late-recs', label: 'Late Report',   icon: AlertCircle, show: isAdmin },
     { id: 'approvals', label: 'Approvals',     icon: CheckCircle2,show: isAdmin },
   ].filter(t => t.show)
 
@@ -2006,20 +2162,25 @@ export default function Attendance() {
                 </div>
               )}
             </div>
-            <div className="lg:col-span-2 grid grid-cols-2 gap-4 content-start">
-              <StatCard icon={CheckCircle2} label="Status Today"
-                value={STATUS_CONFIG[todayData?.status || 'absent']?.label || 'Absent'}
-                sub={todayData?.status === 'late' ? 'Arrived late' : todayData?.is_checked_in ? 'On time' : 'Not checked in'}
-                color={todayData?.status === 'present' ? 'green' : todayData?.status === 'late' ? 'amber' : 'red'} />
-              <StatCard icon={Timer} label="Working Hours"
-                value={todayData?.working_hours ? `${todayData.working_hours}h` : '--'}
-                sub="Today so far" color="blue" />
-              <StatCard icon={LogIn} label="Check In"
-                value={todayData?.is_checked_in ? fmtTime(todayData?.check_in_time) : '--:--'}
-                sub={todayData?.checkin_location?.address || 'Not checked in yet'} color="green" />
-              <StatCard icon={LogOut} label="Check Out"
-                value={todayData?.is_checked_out ? fmtTime(todayData?.check_out_time) : '--:--'}
-                sub={todayData?.checkout_location?.address || 'Not checked out yet'} color="red" />
+            <div className="lg:col-span-2 grid grid-cols-1 gap-6">
+              <div className="grid grid-cols-2 gap-4 content-start">
+                <StatCard icon={CheckCircle2} label="Status Today"
+                  value={STATUS_CONFIG[todayData?.status || 'absent']?.label || 'Absent'}
+                  sub={todayData?.status === 'late' ? 'Arrived late' : todayData?.is_checked_in ? 'On time' : 'Not checked in'}
+                  color={todayData?.status === 'present' ? 'green' : todayData?.status === 'late' ? 'amber' : 'red'} />
+                <StatCard icon={Timer} label="Working Hours"
+                  value={todayData?.working_hours ? `${todayData.working_hours}h` : '--'}
+                  sub="Today so far" color="blue" />
+                <StatCard icon={LogIn} label="Check In"
+                  value={todayData?.is_checked_in ? fmtTime(todayData?.check_in_time) : '--:--'}
+                  sub={todayData?.checkin_location?.address || 'Not checked in yet'} color="green" />
+                <StatCard icon={LogOut} label="Check Out"
+                  value={todayData?.is_checked_out ? fmtTime(todayData?.check_out_time) : '--:--'}
+                  sub={todayData?.checkout_location?.address || 'Not checked out yet'} color="red" />
+              </div>
+
+              {/* Live Salary Section (for regular users) */}
+              {!isAdmin && <MySalarySection dispatch={dispatch} />}
             </div>
           </div>
 
@@ -2047,6 +2208,7 @@ export default function Attendance() {
       {/* admin / super_admin — all users */}
       {activeTab === 'monthly'   && isAdmin && <AdminMonthGrid dispatch={dispatch} />}
       {activeTab === 'daily'     && isAdmin && <DailyView      dispatch={dispatch} />}
+      {activeTab === 'late-recs' && isAdmin && <LateArrivalsReport dispatch={dispatch} />}
       {activeTab === 'admin-sum' && isAdmin && <SummaryTable   dispatch={dispatch} />}
       {activeTab === 'approvals' && isAdmin && <ApprovalPanel  dispatch={dispatch} />}
 
