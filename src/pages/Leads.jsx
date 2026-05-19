@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Phone, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users } from 'lucide-react'
+import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Phone, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users, Mic, MicOff, Play, Pause, Trash, Clock, CalendarClock } from 'lucide-react'
 import { fetchLeads, fetchMyLeads, createLead, updateLead, deleteLead, fetchLeadSources, clearLeadError } from '../store/leadSlice'
 import { fetchProjects } from '../store/projectSlice'
 import { fetchUsers } from '../store/userSlice'
@@ -52,21 +52,225 @@ const defaultForm = {
   source: '', source_id: '', project_id: '',
   assigned_to: '', budget: '', location_preference: '',
   notes: '', status: 'New',
+  callback_time: '', next_followup_time: '',
 }
 
-// ─── LeadForm defined OUTSIDE component to prevent remount on every render ───
-// This is the fix for the typing bug — defining a component inside another
-// component causes React to treat it as a new component on every render,
-// unmounting and remounting it, which kills input focus.
-function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs, currentUser }) {
-  const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
-  const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+// ─── CallRecordingsManager ────────────────────────────────────────────────────
+function CallRecordingsManager({ mode, leadId, pending, setPending, existingRecs, onExistingChange }) {
+  const ic = 'w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm'
+  const [uploading,  setUploading]  = useState(false)
+  const [recording,  setRecording]  = useState(false)
+  const [duration,   setDuration]   = useState(0)
+  const [error,      setError]      = useState('')
+  const [deletingId, setDeletingId] = useState(null)
+  const [editIdx,    setEditIdx]    = useState(null)
+  const [metaPhone,  setMetaPhone]  = useState('')
+  const [metaName,   setMetaName]   = useState('')
+  const [playingUrl, setPlayingUrl] = useState(null)
+  const mediaRef  = useRef(null)
+  const chunksRef = useRef([])
+  const timerRef  = useRef(null)
+  const audioRef  = useRef(null)
+  const fileRef   = useRef(null)
+  const fmtDur = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
+  const startRecording = async () => {
+    setError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg'
+      const mr = new MediaRecorder(stream, { mimeType: mime })
+      chunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        clearInterval(timerRef.current)
+        const blob = new Blob(chunksRef.current, { type: mime })
+        const ext  = mime.includes('webm') ? 'webm' : 'ogg'
+        await handleFileReady(blob, `recording_${Date.now()}.${ext}`)
+      }
+      mr.start()
+      mediaRef.current = mr
+      setRecording(true)
+      setDuration(0)
+      timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
+    } catch {
+      setError('Microphone access denied.')
+    }
+  }
+
+  const stopRecording = () => { mediaRef.current?.stop(); setRecording(false) }
+
+  const handleFileReady = async (fileOrBlob, filename) => {
+    setError('')
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('voice_recording', fileOrBlob, filename)
+      const res = await api.post('/leads/upload-recording', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      const { url, filename: savedName } = res.data.data
+      const blobUrl = fileOrBlob instanceof Blob ? URL.createObjectURL(fileOrBlob) : null
+      if (mode === 'add') {
+        setPending(prev => [...prev, { url, phone_number: '', name: savedName || filename, _blobUrl: blobUrl }])
+      } else {
+        await api.post(`/leads/${leadId}/call-recordings`, {
+          call_recording: [{ url, name: savedName || filename, phone_number: '' }],
+        })
+        onExistingChange?.()
+      }
+    } catch (e) {
+      setError(e.response?.data?.message || 'Upload failed.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const onFileInput = async e => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    e.target.value = ''
+    await handleFileReady(f, f.name)
+  }
+
+  const deleteExisting = async recId => {
+    setDeletingId(recId)
+    try {
+      await api.delete(`/leads/${leadId}/call-recordings/${recId}`)
+      onExistingChange?.()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Delete failed')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const removePending = idx => setPending(prev => prev.filter((_, i) => i !== idx))
+
+  const openMeta = (idx, phone, name) => { setEditIdx(idx); setMetaPhone(phone || ''); setMetaName(name || '') }
+  const saveMeta = () => {
+    if (mode === 'add') {
+      setPending(prev => prev.map((r, i) => i === editIdx ? { ...r, phone_number: metaPhone, name: metaName } : r))
+    }
+    setEditIdx(null)
+  }
+
+  const togglePlay = url => {
+    if (playingUrl === url) {
+      audioRef.current?.pause()
+      setPlayingUrl(null)
+    } else {
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null }
+      const a = new Audio(url)
+      a.onended = () => setPlayingUrl(null)
+      a.play()
+      audioRef.current = a
+      setPlayingUrl(url)
+    }
+  }
+
+  const RecCard = ({ url, phone, name, playUrl, onPlay, onDelete, onEdit, deleting }) => (
+    <div className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-[#141414] rounded-xl border border-gray-100 dark:border-gray-800">
+      <button type="button" onClick={onPlay}
+        className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${playingUrl === playUrl ? 'bg-brand text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-brand hover:text-white'}`}>
+        {playingUrl === playUrl ? <Pause size={11} /> : <Play size={11} />}
+      </button>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">{name || 'Recording'}</p>
+        {phone && <p className="text-[11px] text-gray-400">{phone}</p>}
+      </div>
+      <button type="button" onClick={onEdit} className="p-1 rounded-lg text-gray-400 hover:text-brand transition-colors">
+        <Edit2 size={11} />
+      </button>
+      <button type="button" onClick={onDelete} disabled={deleting} className="p-1 rounded-lg text-gray-400 hover:text-red-500 transition-colors">
+        {deleting ? <Loader2 size={11} className="animate-spin" /> : <Trash size={11} />}
+      </button>
+    </div>
+  )
+
+  const recs = mode === 'edit' ? existingRecs : pending
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+          Call Recordings <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        {recs.length > 0 && <span className="text-[11px] text-gray-400">{recs.length} recording{recs.length > 1 ? 's' : ''}</span>}
+      </div>
+
+      {recs.length > 0 && (
+        <div className="space-y-1.5">
+          {mode === 'edit'
+            ? existingRecs.map(rec => (
+                <RecCard key={rec.id}
+                  url={rec.url} phone={rec.phone_number} name={rec.name} playUrl={rec.url}
+                  onPlay={() => togglePlay(rec.url)}
+                  onDelete={() => deleteExisting(rec.id)}
+                  onEdit={() => openMeta(rec.id, rec.phone_number, rec.name)}
+                  deleting={deletingId === rec.id} />
+              ))
+            : pending.map((rec, idx) => (
+                <RecCard key={idx}
+                  url={rec._blobUrl || rec.url} phone={rec.phone_number} name={rec.name}
+                  playUrl={rec._blobUrl || rec.url}
+                  onPlay={() => togglePlay(rec._blobUrl || rec.url)}
+                  onDelete={() => removePending(idx)}
+                  onEdit={() => openMeta(idx, rec.phone_number, rec.name)}
+                  deleting={false} />
+              ))
+          }
+        </div>
+      )}
+
+      {editIdx !== null && (
+        <div className="p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-xl space-y-2">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Edit recording details</p>
+          <input value={metaName} onChange={e => setMetaName(e.target.value)} placeholder="Label e.g. First call - Suresh" className={ic} />
+          <input value={metaPhone} onChange={e => setMetaPhone(e.target.value)} placeholder="Phone e.g. +919876543210" className={ic} />
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setEditIdx(null)} className="flex-1 py-1.5 text-xs text-gray-500 border border-gray-200 dark:border-gray-700 rounded-lg">Cancel</button>
+            <button type="button" onClick={saveMeta} className="flex-1 py-1.5 text-xs font-semibold bg-brand text-white rounded-lg">Save</button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* {recording ? (
+          <button type="button" onClick={stopRecording}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-red-500 hover:bg-red-600 text-white rounded-xl animate-pulse">
+            <MicOff size={12} /> Stop · {fmtDur(duration)}
+          </button>
+        ) : (
+          <button type="button" onClick={startRecording} disabled={uploading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-brand hover:text-brand rounded-xl disabled:opacity-50">
+            <Mic size={12} /> Record
+          </button>
+        )} */}
+        <label className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-brand hover:text-brand rounded-xl cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+          {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+          {uploading ? 'Uploading…' : 'Upload file'}
+          <input ref={fileRef} type="file" accept="audio/*,.webm,.ogg,.mp3,.wav,.aac,.m4a" className="hidden" onChange={onFileInput} />
+        </label>
+      </div>
+
+      {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded-lg">{error}</p>}
+      {mode === 'add' && pending.length > 0 && (
+        <p className="text-[11px] text-gray-400">{pending.length} recording{pending.length > 1 ? 's' : ''} will be attached when you save the lead.</p>
+      )}
+    </div>
+  )
+}
+
+// ─── LeadForm ─────────────────────────────────────────────────────────────────
+function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs, currentUser, leadId, pendingRecordings, setPendingRecordings, existingRecordings, onExistingChange }) {
+  const inputClass = 'w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200'
+  const labelClass = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1'
   const isRestricted = ['sales_executive', 'external_caller'].includes(currentUser?.role)
   const sourceOptions = sourceList.map(s => ({ value: s.id, label: s.name }))
-  const execOptions = salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
+  const execOptions   = salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
 
-  // Auto-set assigned_to for restricted roles
   useEffect(() => {
     if (isRestricted && !formData.assigned_to && currentUser?.id) {
       setFormData(prev => ({ ...prev, assigned_to: currentUser.id }))
@@ -79,23 +283,11 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs, curre
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Full Name *</label>
-          <input
-            required
-            value={formData.name}
-            onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
-            placeholder="Suresh Patel"
-            className={inputClass}
-          />
+          <input required value={formData.name} onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))} placeholder="Suresh Patel" className={inputClass} />
         </div>
         <div>
           <label className={labelClass}>Phone *</label>
-          <input
-            required
-            value={formData.phone}
-            onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-            placeholder="+919876543210"
-            className={inputClass}
-          />
+          <input required value={formData.phone} onChange={e => setFormData(prev => ({ ...prev, phone: e.target.value }))} placeholder="+919876543210" className={inputClass} />
         </div>
       </div>
 
@@ -103,22 +295,11 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs, curre
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Alternate Phone</label>
-          <input
-            value={formData.alternate_phone_number}
-            onChange={e => setFormData(prev => ({ ...prev, alternate_phone_number: e.target.value }))}
-            placeholder="+919876543211"
-            className={inputClass}
-          />
+          <input value={formData.alternate_phone_number} onChange={e => setFormData(prev => ({ ...prev, alternate_phone_number: e.target.value }))} placeholder="+919876543211" className={inputClass} />
         </div>
         <div>
           <label className={labelClass}>Email</label>
-          <input
-            type="email"
-            value={formData.email}
-            onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
-            placeholder="suresh.patel@gmail.com"
-            className={inputClass}
-          />
+          <input type="email" value={formData.email} onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))} placeholder="suresh.patel@gmail.com" className={inputClass} />
         </div>
       </div>
 
@@ -126,93 +307,75 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs, curre
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Budget</label>
-          <input
-            value={formData.budget}
-            onChange={e => setFormData(prev => ({ ...prev, budget: e.target.value }))}
-            placeholder="80-100L"
-            className={inputClass}
-          />
+          <input value={formData.budget} onChange={e => setFormData(prev => ({ ...prev, budget: e.target.value }))} placeholder="80-100L" className={inputClass} />
         </div>
         <div>
           <label className={labelClass}>Finding Location</label>
           <div className="relative">
             <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={formData.location_preference}
-              onChange={e => setFormData(prev => ({ ...prev, location_preference: e.target.value }))}
-              placeholder="Andheri West"
-              className={inputClass + ' pl-8'}
-            />
+            <input value={formData.location_preference} onChange={e => setFormData(prev => ({ ...prev, location_preference: e.target.value }))} placeholder="Andheri West" className={inputClass + ' pl-8'} />
           </div>
+        </div>
+      </div>
+
+      {/* Callback + Follow-up */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}><span className="flex items-center gap-1"><Clock size={11} /> Callback Time</span></label>
+          <input type="datetime-local" value={formData.callback_time ? formData.callback_time.slice(0, 16) : ''}
+            onChange={e => setFormData(prev => ({ ...prev, callback_time: e.target.value ? new Date(e.target.value).toISOString() : '' }))} className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}><span className="flex items-center gap-1"><CalendarClock size={11} /> Next Follow-up</span></label>
+          <input type="datetime-local" value={formData.next_followup_time ? formData.next_followup_time.slice(0, 16) : ''}
+            onChange={e => setFormData(prev => ({ ...prev, next_followup_time: e.target.value ? new Date(e.target.value).toISOString() : '' }))} className={inputClass} />
         </div>
       </div>
 
       {/* Source + Status */}
       <div className={`grid gap-3 ${isEdit ? 'grid-cols-2' : 'grid-cols-1'}`}>
-        <CustomSelect
-          label="Lead Source"
-          value={formData.source_id || formData.source}
+        <CustomSelect label="Lead Source" value={formData.source_id || formData.source}
           onChange={val => {
             const selected = sourceList.find(s => s.id === val)
-            setFormData(prev => ({
-              ...prev,
-              source_id: selected?.id || val,
-              source: selected?.name || val,
-            }))
+            setFormData(prev => ({ ...prev, source_id: selected?.id || val, source: selected?.name || val }))
           }}
-          options={sourceOptions}
-          placeholder="Select Platform"
-        />
-        {isEdit && (
-          <CustomSelect
-            label="Stage"
-            value={formData.status}
-            onChange={val => setFormData(prev => ({ ...prev, status: val }))}
-            options={stageOptions}
-          />
-        )}
+          options={sourceOptions} placeholder="Select Platform" />
+        {isEdit && <CustomSelect label="Stage" value={formData.status} onChange={val => setFormData(prev => ({ ...prev, status: val }))} options={stageOptions} />}
       </div>
 
       {/* Assign To */}
-      <div className="grid grid-cols-1">
+      <div>
         {isRestricted ? (
           <div>
             <label className={labelClass}>Assign To</label>
-            <input
-              readOnly
-              value={`${currentUser?.first_name ?? ''} ${currentUser?.last_name ?? ''}`.trim()}
-              className={inputClass + ' cursor-not-allowed opacity-60 bg-gray-50 dark:bg-gray-800/40'}
-            />
+            <input readOnly value={`${currentUser?.first_name ?? ''} ${currentUser?.last_name ?? ''}`.trim()} className={inputClass + ' cursor-not-allowed opacity-60 bg-gray-50 dark:bg-gray-800/40'} />
           </div>
         ) : (
-          <CustomSelect
-            label="Assign To"
-            value={formData.assigned_to}
-            onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))}
-            options={execOptions}
-            placeholder="Select team member"
-          />
+          <CustomSelect label="Assign To" value={formData.assigned_to} onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))} options={execOptions} placeholder="Select team member" />
         )}
       </div>
 
-      {/* Configuration */}
+      {/* Notes */}
       <div>
-        <label className={labelClass}>Configuration</label>
-        <textarea
-          rows={3}
-          value={formData.notes}
-          onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-          placeholder="Client is looking for 2BHK in a gated community. Ready for site visit next week."
-          className={inputClass}
-        />
+        <label className={labelClass}>Configuration / Notes</label>
+        <textarea rows={3} value={formData.notes} onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+          placeholder="Client is looking for 2BHK in a gated community." className={inputClass} />
       </div>
+
+      {/* Call Recordings */}
+      <CallRecordingsManager
+        mode={isEdit ? 'edit' : 'add'}
+        leadId={leadId}
+        pending={pendingRecordings || []}
+        setPending={setPendingRecordings || (() => {})}
+        existingRecs={existingRecordings || []}
+        onExistingChange={onExistingChange}
+      />
     </div>
   )
 }
 
 
-// ─── Bulk Upload Modal ────────────────────────────────────────────────────────
-// ─── Inline Phone Cell with Request Button ────────────────────────────────────
 // Shows full number (clickable) if admin or approved access.
 // Shows masked + Request button for non-admin without access.
 // Shows Pending badge if request already submitted.
@@ -1110,6 +1273,8 @@ export default function Leads() {
   const [convertSuccess,       setConvertSuccess]       = useState('')
   const [showBulkConvertModal, setShowBulkConvertModal] = useState(false)
   const [editSuccess, setEditSuccess] = useState('')
+  const [pendingRecordings,  setPendingRecordings]  = useState([])   // add mode — recordings to attach on create
+  const [existingRecordings, setExistingRecordings] = useState([])   // edit mode — recordings from API
 
   useEffect(() => {
     const params = { page, per_page: 20 }
@@ -1141,9 +1306,16 @@ export default function Leads() {
   const handleAddLead = async (e) => {
     e.preventDefault()
     dispatch(clearLeadError())
-    const result = await dispatch(createLead(addForm))
+    const payload = { ...addForm }
+    if (pendingRecordings.length > 0) {
+      payload.call_recordings = pendingRecordings.map(({ url, phone_number, name }) => ({
+        url, phone_number: phone_number || undefined, name: name || undefined,
+      }))
+    }
+    const result = await dispatch(createLead(payload))
     if (createLead.fulfilled.match(result)) {
       setAddSuccess('Lead created successfully!')
+      setPendingRecordings([])
       dispatch(fetchLeads({ page, per_page: 20 }))
       setTimeout(() => { setShowAddModal(false); setAddSuccess(''); setAddForm(defaultForm) }, 800)
     }
@@ -1167,22 +1339,29 @@ export default function Leads() {
     }
   }
 
-  const openEdit = (lead) => {
+  const openEdit = async (lead) => {
     setSelectedLead(lead)
     setEditForm({
-      name: lead.name || '', 
-      phone: lead.phone || '', 
+      name: lead.name || '',
+      phone: lead.phone || '',
       alternate_phone_number: lead.alternate_phone_number || '',
       email: lead.email || '',
-      source: lead.source || '', 
+      source: lead.source || '',
       source_id: lead.source_id || '',
-      project_id: lead.project_id || '', 
+      project_id: lead.project_id || '',
       assigned_to: lead.assigned_to || '',
-      budget: lead.budget || '', 
+      budget: lead.budget || '',
       location_preference: lead.location_preference || '',
-      notes: lead.notes || '', 
+      notes: lead.notes || '',
       status: lead.status || 'New',
+      callback_time: lead.callback_time || '',
+      next_followup_time: lead.next_followup_time || '',
     })
+    // Fetch existing call recordings for this lead
+    try {
+      const res = await api.get(`/leads/${lead.id}/call-recordings`)
+      setExistingRecordings(res.data.data?.recordings || [])
+    } catch { setExistingRecordings([]) }
     setShowEditModal(true)
   }
 
@@ -1289,9 +1468,9 @@ export default function Leads() {
               Bulk Upload
             </Button>
           )}
-          <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+          {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
-          </Button>
+          </Button> */}
           <Button icon={Plus} onClick={() => {
             const r = ['sales_executive','external_caller'].includes(currentUser?.role)
             setAddForm({ ...defaultForm, assigned_to: r ? currentUser?.id : '' })
@@ -1503,9 +1682,11 @@ export default function Leads() {
       })}
 
       {/* Add Lead Modal */}
-      <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setAddSuccess('') }} title="Add New Lead" size="lg">
+      <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setAddSuccess(''); setPendingRecordings([]) }} title="Add New Lead" size="lg">
         <form onSubmit={handleAddLead} className="space-y-4">
-          <LeadForm formData={addForm} setFormData={setAddForm} isEdit={false} sourceList={sourceList} salesExecs={salesExecs} currentUser={currentUser} />
+          <LeadForm formData={addForm} setFormData={setAddForm} isEdit={false} sourceList={sourceList} salesExecs={salesExecs} currentUser={currentUser} leadId={null}
+            pendingRecordings={pendingRecordings} setPendingRecordings={setPendingRecordings}
+          />
           {addSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{addSuccess}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -1518,7 +1699,15 @@ export default function Leads() {
       {/* Edit Lead Modal */}
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setEditSuccess('') }} title="Edit Lead" size="lg">
         <form onSubmit={handleEditLead} className="space-y-4">
-          <LeadForm formData={editForm} setFormData={setEditForm} isEdit={true} sourceList={sourceList} salesExecs={salesExecs} currentUser={currentUser} />
+          <LeadForm formData={editForm} setFormData={setEditForm} isEdit={true} sourceList={sourceList} salesExecs={salesExecs} currentUser={currentUser} leadId={selectedLead?.id}
+            existingRecordings={existingRecordings}
+            onExistingChange={async () => {
+              try {
+                const res = await api.get(`/leads/${selectedLead?.id}/call-recordings`)
+                setExistingRecordings(res.data.data?.recordings || [])
+              } catch { setExistingRecordings([]) }
+            }}
+          />
           {editSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{editSuccess}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -1605,4 +1794,4 @@ export default function Leads() {
       />
     </div>
   )
-} 
+}

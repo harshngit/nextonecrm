@@ -584,9 +584,9 @@ export default function SiteVisits() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+          {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
-          </Button>
+          </Button> */}
           {canManage && (
             <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearSiteVisitError()); setShowAddModal(true) }}>
               Schedule Visit

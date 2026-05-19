@@ -9,6 +9,7 @@ import userReducer         from './userSlice'
 import dashboardReducer    from './dashboardSlice'
 import attendanceReducer   from './attendanceSlice'
 import myDataReducer       from './myDataSlice'
+import salaryReducer       from './salarySlice'
 
 export const store = configureStore({
   reducer: {
@@ -22,5 +23,6 @@ export const store = configureStore({
     dashboard:     dashboardReducer,
     attendance:    attendanceReducer,
     myData:        myDataReducer,
+    salary:        salaryReducer,
   },
 })

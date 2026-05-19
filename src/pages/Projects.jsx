@@ -397,11 +397,11 @@ export default function Projects() {
         </div>
 
         <div className="flex items-center gap-2">
-          {isAdminUser && (
+          {/* {isAdminUser && (
             <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
               Export
             </Button>
-          )}
+          )} */}
           {canManage && (
             <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearProjectError()); setShowAddModal(true) }}>
               Add Project

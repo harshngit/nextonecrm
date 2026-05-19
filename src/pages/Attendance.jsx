@@ -600,7 +600,7 @@ function AdminMonthGrid({ dispatch, title = 'Monthly Attendance Grid', subtitle 
           <button onClick={prev} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors"><ChevronLeft size={15} /></button>
           <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 min-w-[110px] text-center">{MONTH_NAMES[month - 1]} {year}</span>
           <button onClick={next} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors"><ChevronRight size={15} /></button>
-          <Button size="sm" variant="outline" icon={Download} onClick={() => handleExportExcel(month, year)}>Export</Button>
+          {/* <Button size="sm" variant="outline" icon={Download} onClick={() => handleExportExcel(month, year)}>Export</Button> */}
         </div>
       </div>
 
@@ -1939,7 +1939,7 @@ export default function Attendance() {
               <Pencil size={13} /> Log My Attendance
             </button>
           )}
-          {isManager && (
+          {/* {isManager && (
             <Button
               variant="outline"
               size="sm"
@@ -1953,7 +1953,7 @@ export default function Attendance() {
             >
               Export Attendance
             </Button>
-          )}
+          )} */}
         </div>
       </div>
 

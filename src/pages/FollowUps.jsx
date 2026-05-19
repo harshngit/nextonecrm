@@ -965,9 +965,9 @@ export default function FollowUps() {
               Convert {selectedTasks.length}
             </button>
           )}
-          <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+          {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
-          </Button>
+          </Button> */}
           <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearFollowUpError()); setShowAddModal(true) }}>
             Add Follow-up
           </Button>

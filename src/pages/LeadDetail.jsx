@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -6,6 +6,7 @@ import {
   ChevronDown, Loader2, UserCheck, MessageSquare,
   Clock, CheckCircle, Info, ExternalLink, ShieldCheck,
   PlusCircle, CalendarPlus, ArrowRight, RefreshCw, History, Users, PhoneCall as PhoneCallIcon,
+  Mic, MicOff, Play, Pause, Upload, Trash, Edit2, Plus, X,
 } from 'lucide-react'
 import api from '../api/axios'
 import CustomSelect from '../components/ui/CustomSelect'
@@ -75,6 +76,118 @@ export default function LeadDetail() {
   const [reassignSuccess,    setReassignSuccess]    = useState('')
   const [activeTab,          setActiveTab]          = useState('activity')
 
+  // ── Call Recordings ────────────────────────────────────────────────────────
+  const [recordings,     setRecordings]     = useState([])
+  const [recsLoading,    setRecsLoading]    = useState(false)
+  const [recsUploading,  setRecsUploading]  = useState(false)
+  const [recsRecording,  setRecsRecording]  = useState(false)
+  const [recDuration,    setRecDuration]    = useState(0)
+  const [recsError,      setRecsError]      = useState('')
+  const [deletingRecId,  setDeletingRecId]  = useState(null)
+  const [playingUrl,     setPlayingUrl]     = useState(null)
+  const [editRecId,      setEditRecId]      = useState(null)
+  const [editName,       setEditName]       = useState('')
+  const [editPhone,      setEditPhone]      = useState('')
+  const mediaRecRef = useRef(null)
+  const chunksRef   = useRef([])
+  const timerRef    = useRef(null)
+  const audioRef    = useRef(null)
+  const fileInputRef = useRef(null)
+  const fmtDur = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+
+  const fetchRecordings = async () => {
+    setRecsLoading(true)
+    try {
+      const res = await api.get(`/leads/${id}/call-recordings`)
+      setRecordings(res.data.data?.recordings || [])
+    } catch { setRecordings([]) }
+    finally { setRecsLoading(false) }
+  }
+
+  const uploadRecordingFile = async (fileOrBlob, filename) => {
+    setRecsError('')
+    setRecsUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('voice_recording', fileOrBlob, filename)
+      const uploadRes = await api.post('/leads/upload-recording', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      const { url, filename: savedName } = uploadRes.data.data
+      await api.post(`/leads/${id}/call-recordings`, {
+        call_recording: [{ url, name: savedName || filename, phone_number: '' }],
+      })
+      fetchRecordings()
+      dispatch(fetchLeadActivities(id))
+    } catch (e) {
+      setRecsError(e.response?.data?.message || 'Upload failed')
+    } finally {
+      setRecsUploading(false)
+    }
+  }
+
+  const startRecording = async () => {
+    setRecsError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg'
+      const mr = new MediaRecorder(stream, { mimeType: mime })
+      chunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        clearInterval(timerRef.current)
+        const blob = new Blob(chunksRef.current, { type: mime })
+        await uploadRecordingFile(blob, `recording_${Date.now()}.${mime.includes('webm') ? 'webm' : 'ogg'}`)
+      }
+      mr.start()
+      mediaRecRef.current = mr
+      setRecsRecording(true)
+      setRecDuration(0)
+      timerRef.current = setInterval(() => setRecDuration(d => d + 1), 1000)
+    } catch {
+      setRecsError('Microphone access denied.')
+    }
+  }
+
+  const stopRecording = () => { mediaRecRef.current?.stop(); setRecsRecording(false) }
+
+  const deleteRecording = async (recId) => {
+    setDeletingRecId(recId)
+    try {
+      await api.delete(`/leads/${id}/call-recordings/${recId}`)
+      setRecordings(prev => prev.filter(r => r.id !== recId))
+      dispatch(fetchLeadActivities(id))
+    } catch (e) {
+      setRecsError(e.response?.data?.message || 'Delete failed')
+    } finally {
+      setDeletingRecId(null)
+    }
+  }
+
+  const saveRecordingMeta = async () => {
+    try {
+      await api.patch(`/leads/${id}/call-recordings/${editRecId}`, { name: editName, phone_number: editPhone })
+      setRecordings(prev => prev.map(r => r.id === editRecId ? { ...r, name: editName, phone_number: editPhone } : r))
+      setEditRecId(null)
+    } catch (e) {
+      setRecsError(e.response?.data?.message || 'Update failed')
+    }
+  }
+
+  const togglePlay = (url) => {
+    if (playingUrl === url) {
+      audioRef.current?.pause(); setPlayingUrl(null)
+    } else {
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null }
+      const a = new Audio(url)
+      a.onended = () => setPlayingUrl(null)
+      a.play()
+      audioRef.current = a
+      setPlayingUrl(url)
+    }
+  }
+
   const fetchReassignHistory = async (pg = 1) => {
     if (!canSeeHistory || !id) return
     try {
@@ -94,6 +207,7 @@ export default function LeadDetail() {
     dispatch(fetchLeadActivities(id))
     dispatch(fetchUsers())
     fetchReassignHistory(1)
+    fetchRecordings()
     return () => dispatch(clearCurrentLead())
   }, [dispatch, id])
 
@@ -335,6 +449,11 @@ export default function LeadDetail() {
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'activity' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
                     <Clock size={14} /> Activity
                   </button>
+                  <button onClick={() => { setActiveTab('recordings'); if (recordings.length === 0) fetchRecordings() }}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'recordings' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+                    <Mic size={14} /> Recordings
+                    {recordings.length > 0 && <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand/10 text-brand">{recordings.length}</span>}
+                  </button>
                   {canSeeHistory && (
                     <button onClick={() => { setActiveTab('history'); if (reassignHistory.length === 0) fetchReassignHistory(1) }}
                       className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'history' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
@@ -412,6 +531,107 @@ export default function LeadDetail() {
                           )
                         })}
                       </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+
+              {/* ── Recordings tab ── */}
+              {activeTab === 'recordings' && (
+                <div className="space-y-4">
+                  {/* Upload/Record actions */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {recsRecording ? (
+                      <button type="button" onClick={stopRecording}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-red-500 hover:bg-red-600 text-white rounded-xl animate-pulse">
+                        <MicOff size={13} /> Stop · {fmtDur(recDuration)}
+                      </button>
+                    ) : (
+                      <button type="button" onClick={startRecording} disabled={recsUploading}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-white dark:bg-[#141414] border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-brand hover:text-brand rounded-xl disabled:opacity-50 transition-all">
+                        <Mic size={13} /> Record
+                      </button>
+                    )}
+                    <label className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-white dark:bg-[#141414] border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-brand hover:text-brand rounded-xl cursor-pointer transition-all ${recsUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                      {recsUploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                      {recsUploading ? 'Uploading…' : 'Upload file'}
+                      <input ref={fileInputRef} type="file" accept="audio/*,.webm,.ogg,.mp3,.wav,.aac,.m4a" className="hidden"
+                        onChange={async e => {
+                          const f = e.target.files?.[0]
+                          if (!f) return
+                          e.target.value = ''
+                          await uploadRecordingFile(f, f.name)
+                        }} />
+                    </label>
+                    <button onClick={fetchRecordings} className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-brand transition-colors">
+                      <RefreshCw size={13} className={recsLoading ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+
+                  {recsError && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-xs text-red-600">
+                      <X size={12} /> {recsError}
+                      <button onClick={() => setRecsError('')} className="ml-auto"><X size={11} /></button>
+                    </div>
+                  )}
+
+                  {/* Edit metadata inline */}
+                  {editRecId && (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-xl space-y-2">
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Edit recording details</p>
+                      <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Label e.g. First call - Suresh"
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-[#141414] border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100" />
+                      <input value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="Phone e.g. +919876543210"
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-[#141414] border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100" />
+                      <div className="flex gap-2">
+                        <button onClick={() => setEditRecId(null)} className="flex-1 py-1.5 text-xs text-gray-500 border border-gray-200 dark:border-gray-700 rounded-lg">Cancel</button>
+                        <button onClick={saveRecordingMeta} className="flex-1 py-1.5 text-xs font-semibold bg-brand text-white rounded-lg">Save</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recordings list */}
+                  {recsLoading ? (
+                    <div className="flex items-center justify-center py-8 text-gray-400">
+                      <Loader2 size={20} className="animate-spin" />
+                    </div>
+                  ) : recordings.length === 0 ? (
+                    <div className="text-center py-10 text-gray-400">
+                      <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-3">
+                        <Mic size={20} className="opacity-40" />
+                      </div>
+                      <p className="text-sm">No recordings yet</p>
+                      <p className="text-xs mt-1">Record or upload a call above</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {recordings.map(rec => (
+                        <div key={rec.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#141414] border border-gray-100 dark:border-gray-800 rounded-xl">
+                          <button onClick={() => togglePlay(rec.url)}
+                            className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${playingUrl === rec.url ? 'bg-brand text-white' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-brand hover:text-white hover:border-brand'}`}>
+                            {playingUrl === rec.url ? <Pause size={14} /> : <Play size={14} />}
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{rec.name || 'Recording'}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {rec.phone_number && <span className="text-xs text-gray-400">{rec.phone_number}</span>}
+                              <span className="text-[11px] text-gray-300 dark:text-gray-600">
+                                {new Date(rec.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              {rec.uploaded_by_name && <span className="text-[11px] text-gray-400">· {rec.uploaded_by_name}</span>}
+                            </div>
+                          </div>
+                          <button onClick={() => { setEditRecId(rec.id); setEditName(rec.name || ''); setEditPhone(rec.phone_number || '') }}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-brand transition-colors" title="Edit">
+                            <Edit2 size={13} />
+                          </button>
+                          <button onClick={() => deleteRecording(rec.id)} disabled={deletingRecId === rec.id}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 transition-colors" title="Delete">
+                            {deletingRecId === rec.id ? <Loader2 size={13} className="animate-spin" /> : <Trash size={13} />}
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

@@ -1,0 +1,845 @@
+import { useState, useEffect } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import {
+  IndianRupee, TrendingUp, Calendar, Users, ChevronDown,
+  Plus, RefreshCw, FileText, CheckCircle, AlertCircle,
+  Clock, Banknote, Wallet, BarChart3, Edit2, History,
+  X, Eye, Loader2, DollarSign,
+} from 'lucide-react'
+import {
+  fetchAllEmployeeSalaries,
+  fetchSalarySlips,
+  fetchMySalary,
+  fetchSalaryHistory,
+  setEmployeeSalary,
+  generateSalarySlip,
+  generateAllSalarySlips,
+  clearError,
+  clearSuccess,
+} from '../store/salarySlice'
+import Modal from '../components/ui/Modal'
+import Avatar from '../components/ui/Avatar'
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+const fmtCurrency = (n) =>
+  n == null ? '—' : `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+const MONTHS = [
+  { v: 1, l: 'January' }, { v: 2, l: 'February' }, { v: 3, l: 'March' },
+  { v: 4, l: 'April' },   { v: 5, l: 'May' },       { v: 6, l: 'June' },
+  { v: 7, l: 'July' },    { v: 8, l: 'August' },    { v: 9, l: 'September' },
+  { v: 10, l: 'October' },{ v: 11, l: 'November' }, { v: 12, l: 'December' },
+]
+
+const thisMonth = new Date().getMonth() + 1
+const thisYear  = new Date().getFullYear()
+const YEARS     = Array.from({ length: 5 }, (_, i) => thisYear - i)
+
+const roleColors = {
+  super_admin:     'text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30',
+  admin:           'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30',
+  sales_manager:   'text-brand bg-brand/10',
+  sales_executive: 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30',
+  external_caller: 'text-sky-600 bg-sky-100 dark:text-sky-400 dark:bg-sky-900/30',
+}
+
+const inputCls = 'w-full px-3 py-2 text-sm bg-white dark:bg-[#141414] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-[#0082f3] text-gray-900 dark:text-gray-100 shadow-sm transition-all'
+const labelCls = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1'
+
+// ── sub-components ────────────────────────────────────────────────────────────
+
+function StatCard({ icon: Icon, label, value, sub, color = 'brand' }) {
+  const colors = {
+    brand:  'bg-[#0082f3]/10 text-[#0082f3]',
+    green:  'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
+    purple: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+    amber:  'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
+  }
+  return (
+    <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 p-5 flex items-center gap-4 shadow-sm">
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${colors[color]}`}>
+        <Icon size={20} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="text-lg font-bold text-gray-900 dark:text-white truncate">{value}</p>
+        {sub && <p className="text-[11px] text-gray-400 truncate">{sub}</p>}
+      </div>
+    </div>
+  )
+}
+
+function SlipBadge({ slip }) {
+  if (!slip) return <span className="text-xs text-gray-400">—</span>
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-full">
+      <CheckCircle size={10} /> Generated
+    </span>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ADMIN VIEW
+// ══════════════════════════════════════════════════════════════════════════════
+
+function AdminSalaryView({ user }) {
+  const dispatch = useDispatch()
+  const { employees, slips, history, loading, error, actionSuccess, lastGenerated } = useSelector(s => s.salary)
+
+  const [tab, setTab]                   = useState('employees')
+  const [filterMonth, setFilterMonth]   = useState(thisMonth)
+  const [filterYear, setFilterYear]     = useState(thisYear)
+
+  // Set Salary modal
+  const [setSalaryModal, setSetSalaryModal] = useState(false)
+  const [setSalaryTarget, setSalaryTargetE] = useState(null) // employee row
+  const [setSalaryForm, setSalaryFormData]     = useState({ monthly_salary: '', effective_from: '', notes: '' })
+
+  // Generate slip modal (single)
+  const [genModal, setGenModal]   = useState(false)
+  const [genTarget, setGenTarget] = useState(null)
+  const [genForm, setGenForm]     = useState({ month: thisMonth, year: thisYear, deductions: '', working_days_override: '', notes: '' })
+
+  // Generate all modal
+  const [genAllModal, setGenAllModal] = useState(false)
+  const [genAllForm, setGenAllForm]   = useState({ month: thisMonth, year: thisYear, working_days_override: '', notes: '' })
+
+  // History modal
+  const [histModal, setHistModal] = useState(false)
+
+  // Result modal (after generate)
+  const [resultModal, setResultModal] = useState(false)
+
+  useEffect(() => {
+    dispatch(fetchAllEmployeeSalaries())
+    dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, per_page: 100 }))
+  }, [dispatch])
+
+  useEffect(() => {
+    if (tab === 'slips') {
+      dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, per_page: 100 }))
+    }
+  }, [tab, filterMonth, filterYear, dispatch])
+
+  useEffect(() => {
+    if (actionSuccess) {
+      if (actionSuccess.includes('Generated')) setResultModal(true)
+      if (actionSuccess.includes('Slip generated')) {
+        setGenModal(false)
+        dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, per_page: 100 }))
+        setTimeout(() => dispatch(clearSuccess()), 3000)
+      }
+      if (actionSuccess.includes('set for')) {
+        setSetSalaryModal(false)
+        dispatch(fetchAllEmployeeSalaries())
+        setTimeout(() => dispatch(clearSuccess()), 3000)
+      }
+    }
+  }, [actionSuccess])
+
+  const openSetSalary = (emp) => {
+    setSalaryTargetE(emp)
+    setSalaryFormData({
+      monthly_salary: emp.monthly_salary || '',
+      effective_from: new Date().toISOString().split('T')[0],
+      notes: '',
+    })
+    setSetSalaryModal(true)
+  }
+
+  const openHistory = (emp) => {
+    dispatch(fetchSalaryHistory(emp.id))
+    setHistModal(true)
+  }
+
+  const openGenerate = (emp) => {
+    setGenTarget(emp)
+    setGenForm({ month: thisMonth, year: thisYear, deductions: '', working_days_override: '', notes: '' })
+    setGenModal(true)
+  }
+
+  const handleSetSalary = () => {
+    if (!setSalaryForm.monthly_salary) return
+    dispatch(setEmployeeSalary({
+      user_id: setSalaryTarget.id,
+      monthly_salary: parseFloat(setSalaryForm.monthly_salary),
+      effective_from: setSalaryForm.effective_from || undefined,
+      notes: setSalaryForm.notes || undefined,
+    }))
+  }
+
+  const handleGenerate = () => {
+    dispatch(generateSalarySlip({
+      user_id: genTarget.id,
+      month:   genForm.month,
+      year:    genForm.year,
+      deductions: genForm.deductions ? parseFloat(genForm.deductions) : 0,
+      working_days_override: genForm.working_days_override ? parseInt(genForm.working_days_override) : undefined,
+      notes: genForm.notes || undefined,
+    }))
+  }
+
+  const handleGenerateAll = () => {
+    dispatch(generateAllSalarySlips({
+      month: genAllForm.month,
+      year:  genAllForm.year,
+      working_days_override: genAllForm.working_days_override ? parseInt(genAllForm.working_days_override) : undefined,
+      notes: genAllForm.notes || undefined,
+    }))
+    setGenAllModal(false)
+  }
+
+  // Quick stats
+  const totalSet      = employees.data?.filter(e => e.salary_set).length || 0
+  const totalNotSet   = (employees.data?.length || 0) - totalSet
+  const totalPayroll  = employees.data?.reduce((s, e) => s + (e.monthly_salary || 0), 0) || 0
+  const totalSlips    = slips.data?.length || 0
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Salary Management</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Set salaries, generate slips and track payroll</p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => { dispatch(fetchAllEmployeeSalaries()); dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, per_page: 100 })) }}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl transition-all"
+          >
+            <RefreshCw size={13} className={loading.employees || loading.slips ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+          <button
+            onClick={() => setGenAllModal(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all shadow-sm"
+          >
+            <FileText size={13} />
+            Generate All Slips
+          </button>
+        </div>
+      </div>
+
+      {/* Toast */}
+      {actionSuccess && !actionSuccess.includes('Generated') && (
+        <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-sm text-green-700 dark:text-green-400">
+          <CheckCircle size={15} /> {actionSuccess}
+        </div>
+      )}
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400">
+          <AlertCircle size={15} /> {error}
+          <button onClick={() => dispatch(clearError())} className="ml-auto"><X size={13} /></button>
+        </div>
+      )}
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={Users}       label="Total Employees"  value={employees.data?.length || 0}  color="brand" />
+        <StatCard icon={CheckCircle} label="Salary Set"       value={totalSet}     sub={`${totalNotSet} pending`}  color="green" />
+        <StatCard icon={Banknote}    label="Monthly Payroll"  value={fmtCurrency(totalPayroll)}                     color="purple" />
+        <StatCard icon={FileText}    label="Slips This Month" value={totalSlips}   sub={`${MONTHS.find(m=>m.v===filterMonth)?.l} ${filterYear}`} color="amber" />
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 dark:bg-[#141414] p-1 rounded-xl w-fit">
+        {[{ v: 'employees', l: 'Employees & Salaries' }, { v: 'slips', l: 'Salary Slips' }].map(t => (
+          <button
+            key={t.v}
+            onClick={() => setTab(t.v)}
+            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${tab === t.v ? 'bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+          >
+            {t.l}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TAB: Employees & Salaries ────────────────────────────────────────── */}
+      {tab === 'employees' && (
+        <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+          {loading.employees ? (
+            <div className="flex items-center justify-center h-40 text-gray-400">
+              <Loader2 size={24} className="animate-spin" />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#141414]">
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Employee</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Role</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Monthly Salary</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Effective From</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Set By</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.data?.map((emp, i) => (
+                    <tr key={emp.id} className={`border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-[#141414] transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/30 dark:bg-white/[0.01]'}`}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar name={emp.full_name} size="sm" />
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white text-sm">{emp.full_name}</p>
+                            <p className="text-xs text-gray-400">{emp.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleColors[emp.role] || 'text-gray-500 bg-gray-100'}`}>
+                          {emp.role?.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {emp.salary_set ? (
+                          <span className="font-bold text-gray-900 dark:text-white">{fmtCurrency(emp.monthly_salary)}</span>
+                        ) : (
+                          <span className="text-xs text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">Not set</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">
+                        {emp.effective_from ? new Date(emp.effective_from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{emp.set_by_name || '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1 justify-end">
+                          <button
+                            onClick={() => openSetSalary(emp)}
+                            title="Set Salary"
+                            className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
+                          >
+                            <IndianRupee size={14} />
+                          </button>
+                          <button
+                            onClick={() => openGenerate(emp)}
+                            title="Generate Slip"
+                            disabled={!emp.salary_set}
+                            className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 transition-colors disabled:opacity-30"
+                          >
+                            <FileText size={14} />
+                          </button>
+                          <button
+                            onClick={() => openHistory(emp)}
+                            title="Salary History"
+                            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors"
+                          >
+                            <History size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!employees.data?.length && (
+                <div className="text-center py-12 text-gray-400">
+                  <Users size={32} className="mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">No employees found</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TAB: Salary Slips ────────────────────────────────────────────────── */}
+      {tab === 'slips' && (
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <select value={filterMonth} onChange={e => setFilterMonth(parseInt(e.target.value))} className={inputCls + ' w-36'}>
+              {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+            </select>
+            <select value={filterYear} onChange={e => setFilterYear(parseInt(e.target.value))} className={inputCls + ' w-28'}>
+              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+            {loading.slips ? (
+              <div className="flex items-center justify-center h-40 text-gray-400">
+                <Loader2 size={24} className="animate-spin" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#141414]">
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Employee</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Month</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Monthly Salary</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Days</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Earned</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Deductions</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Final</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Generated By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {slips.data?.map((slip, i) => (
+                      <tr key={slip.id} className={`border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-[#141414] transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/30 dark:bg-white/[0.01]'}`}>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Avatar name={slip.employee_name} size="sm" />
+                            <div>
+                              <p className="font-medium text-gray-900 dark:text-white">{slip.employee_name}</p>
+                              <p className="text-xs text-gray-400">{slip.employee_role?.replace(/_/g, ' ')}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                          {MONTHS.find(m => m.v === slip.month)?.l} {slip.year}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{fmtCurrency(slip.monthly_salary)}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="text-xs text-gray-500">{slip.present_days}/{slip.working_days}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-blue-600 dark:text-blue-400 font-medium">{fmtCurrency(slip.earned_salary)}</td>
+                        <td className="px-4 py-3 text-right text-red-500">
+                          {slip.deductions > 0 ? `-${fmtCurrency(slip.deductions)}` : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500">{slip.generated_by_name || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {!slips.data?.length && (
+                  <div className="text-center py-12 text-gray-400">
+                    <FileText size={32} className="mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">No slips generated for this period</p>
+                    <p className="text-xs mt-1">Generate slips from the Employees tab</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: Set Salary ──────────────────────────────────────────────── */}
+      <Modal isOpen={setSalaryModal} onClose={() => setSetSalaryModal(false)} title={`Set Salary — ${setSalaryTarget?.full_name}`} size="sm">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+            <Avatar name={setSalaryTarget?.full_name} size="sm" />
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{setSalaryTarget?.full_name}</p>
+              <p className="text-xs text-gray-500">{setSalaryTarget?.role?.replace(/_/g, ' ')}</p>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Monthly Salary (₹) *</label>
+            <div className="relative">
+              <IndianRupee size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="number"
+                min="0"
+                step="500"
+                value={setSalaryForm.monthly_salary}
+                onChange={e => setSalaryFormData(f => ({ ...f, monthly_salary: e.target.value }))}
+                placeholder="35000"
+                className={inputCls + ' pl-9'}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Effective From</label>
+            <input
+              type="date"
+              value={setSalaryForm.effective_from}
+              onChange={e => setSalaryFormData(f => ({ ...f, effective_from: e.target.value }))}
+              className={inputCls}
+            />
+          </div>
+
+          <div>
+            <label className={labelCls}>Notes (optional)</label>
+            <input
+              type="text"
+              value={setSalaryForm.notes}
+              onChange={e => setSalaryFormData(f => ({ ...f, notes: e.target.value }))}
+              placeholder="e.g. Revised after appraisal"
+              className={inputCls}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={() => setSetSalaryModal(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Cancel</button>
+          <button
+            onClick={handleSetSalary}
+            disabled={loading.action || !setSalaryForm.monthly_salary}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all disabled:opacity-50"
+          >
+            {loading.action ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+            Save Salary
+          </button>
+        </div>
+      </Modal>
+
+      {/* ── MODAL: Generate Single Slip ───────────────────────────────────── */}
+      <Modal isOpen={genModal} onClose={() => setGenModal(false)} title={`Generate Slip — ${genTarget?.full_name}`} size="sm">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-xl">
+            <Avatar name={genTarget?.full_name} size="sm" />
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{genTarget?.full_name}</p>
+              <p className="text-xs text-gray-500">Monthly: {fmtCurrency(genTarget?.monthly_salary)}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Month *</label>
+              <select value={genForm.month} onChange={e => setGenForm(f => ({ ...f, month: parseInt(e.target.value) }))} className={inputCls}>
+                {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Year *</label>
+              <select value={genForm.year} onChange={e => setGenForm(f => ({ ...f, year: parseInt(e.target.value) }))} className={inputCls}>
+                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Deductions (₹)</label>
+            <div className="relative">
+              <IndianRupee size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="number" min="0" value={genForm.deductions} onChange={e => setGenForm(f => ({ ...f, deductions: e.target.value }))} placeholder="0" className={inputCls + ' pl-9'} />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Working Days Override <span className="text-gray-400">(leave blank for auto)</span></label>
+            <input type="number" min="1" max="31" value={genForm.working_days_override} onChange={e => setGenForm(f => ({ ...f, working_days_override: e.target.value }))} placeholder="Auto (Mon–Fri count)" className={inputCls} />
+          </div>
+
+          <div>
+            <label className={labelCls}>Notes</label>
+            <input type="text" value={genForm.notes} onChange={e => setGenForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional" className={inputCls} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={() => setGenModal(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Cancel</button>
+          <button
+            onClick={handleGenerate}
+            disabled={loading.action}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-xl transition-all disabled:opacity-50"
+          >
+            {loading.action ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+            Generate
+          </button>
+        </div>
+      </Modal>
+
+      {/* ── MODAL: Generate All ───────────────────────────────────────────── */}
+      <Modal isOpen={genAllModal} onClose={() => setGenAllModal(false)} title="Generate All Salary Slips" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Generate salary slips for <strong className="text-gray-900 dark:text-white">all employees</strong> who have a salary set. Existing slips for the chosen month will be overwritten.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Month *</label>
+              <select value={genAllForm.month} onChange={e => setGenAllForm(f => ({ ...f, month: parseInt(e.target.value) }))} className={inputCls}>
+                {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Year *</label>
+              <select value={genAllForm.year} onChange={e => setGenAllForm(f => ({ ...f, year: parseInt(e.target.value) }))} className={inputCls}>
+                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Working Days Override <span className="text-gray-400">(optional)</span></label>
+            <input type="number" min="1" max="31" value={genAllForm.working_days_override} onChange={e => setGenAllForm(f => ({ ...f, working_days_override: e.target.value }))} placeholder="Auto" className={inputCls} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={() => setGenAllModal(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 transition-colors">Cancel</button>
+          <button
+            onClick={handleGenerateAll}
+            disabled={loading.action}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all disabled:opacity-50"
+          >
+            {loading.action ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+            Generate All
+          </button>
+        </div>
+      </Modal>
+
+      {/* ── MODAL: Salary History ─────────────────────────────────────────── */}
+      <Modal isOpen={histModal} onClose={() => setHistModal(false)} title="Salary History" size="sm">
+        {loading.history ? (
+          <div className="flex items-center justify-center h-24 text-gray-400">
+            <Loader2 size={20} className="animate-spin" />
+          </div>
+        ) : history ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#141414] rounded-xl">
+              <Avatar name={history.employee?.full_name} size="sm" />
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{history.employee?.full_name}</p>
+                <p className="text-xs text-gray-500">{history.employee?.role?.replace(/_/g, ' ')}</p>
+              </div>
+            </div>
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {history.history?.map((h, i) => (
+                <div key={h.id} className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">{fmtCurrency(h.monthly_salary)}</p>
+                    <p className="text-xs text-gray-500">Effective: {new Date(h.effective_from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    {h.notes && <p className="text-xs text-gray-400 italic">{h.notes}</p>}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400">Set by</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-300">{h.set_by_name || '—'}</p>
+                    {i === 0 && <span className="text-[10px] text-green-600 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded-full font-medium">Current</span>}
+                  </div>
+                </div>
+              ))}
+              {!history.history?.length && <p className="text-sm text-gray-400 text-center py-4">No history yet</p>}
+            </div>
+          </div>
+        ) : null}
+        <div className="flex justify-end mt-4">
+          <button onClick={() => setHistModal(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Close</button>
+        </div>
+      </Modal>
+
+      {/* ── MODAL: Generated Result ───────────────────────────────────────── */}
+      <Modal isOpen={resultModal} onClose={() => { setResultModal(false); dispatch(clearSuccess()); dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, per_page: 100 })) }} title="Slips Generated" size="md">
+        {lastGenerated && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-xl">
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">{lastGenerated.total_processed}</p>
+                <p className="text-xs text-gray-500 mt-1">Processed</p>
+              </div>
+              <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
+                <p className="text-2xl font-bold text-red-500">{lastGenerated.total_failed}</p>
+                <p className="text-xs text-gray-500 mt-1">Failed</p>
+              </div>
+              <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{lastGenerated.working_days}</p>
+                <p className="text-xs text-gray-500 mt-1">Working Days</p>
+              </div>
+            </div>
+            <div className="max-h-60 overflow-y-auto space-y-1.5">
+              {lastGenerated.slips?.map(s => (
+                <div key={s.user_id} className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 dark:bg-[#141414]">
+                  <div className="flex items-center gap-2">
+                    <Avatar name={s.full_name} size="sm" />
+                    <span className="text-sm text-gray-800 dark:text-gray-200">{s.full_name}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500">{s.present_days} days present</p>
+                    <p className="text-sm font-bold text-green-600 dark:text-green-400">{fmtCurrency(s.final_salary)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={() => { setResultModal(false); dispatch(clearSuccess()); dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, per_page: 100 })) }}
+            className="px-4 py-2 text-sm font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all"
+          >
+            Done
+          </button>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EMPLOYEE VIEW
+// ══════════════════════════════════════════════════════════════════════════════
+
+function EmployeeSalaryView({ user }) {
+  const dispatch = useDispatch()
+  const { mySalary, loading, error } = useSelector(s => s.salary)
+
+  const [filterMonth, setFilterMonth] = useState('')
+  const [filterYear, setFilterYear]   = useState(thisYear)
+  const [expanded, setExpanded]       = useState(null)
+
+  useEffect(() => {
+    dispatch(fetchMySalary({ year: filterYear }))
+  }, [dispatch, filterYear])
+
+  const slips = mySalary?.salary_slips || []
+
+  const totalEarned = slips.reduce((s, slip) => s + (slip.final_salary || 0), 0)
+
+  const filtered = filterMonth
+    ? slips.filter(s => s.month === parseInt(filterMonth))
+    : slips
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">My Salary</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Your monthly salary and payment history</p>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400">
+          <AlertCircle size={15} /> {error}
+        </div>
+      )}
+
+      {/* Current salary card */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="sm:col-span-2 bg-gradient-to-br from-[#0082f3] to-[#006fd4] rounded-2xl p-5 text-white shadow-lg shadow-blue-500/20">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-blue-100 text-xs font-medium uppercase tracking-wider">Monthly Salary</p>
+              <p className="text-3xl font-bold mt-1">
+                {loading.mySalary ? '—' : mySalary?.current_monthly_salary ? fmtCurrency(mySalary.current_monthly_salary.amount) : 'Not Set'}
+              </p>
+              {mySalary?.current_monthly_salary?.effective_from && (
+                <p className="text-blue-200 text-xs mt-1">
+                  Effective from {new Date(mySalary.current_monthly_salary.effective_from).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+              <Wallet size={22} />
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-white/20">
+            <p className="text-blue-100 text-xs">Total earned {filterYear} (slips generated)</p>
+            <p className="text-xl font-bold">{fmtCurrency(totalEarned)}</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <StatCard icon={FileText} label="Total Slips" value={slips.length} sub={`Year ${filterYear}`} color="brand" />
+          <StatCard icon={Calendar} label="Latest Month" value={slips[0] ? slips[0].month_label : '—'} color="green" />
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <select value={filterYear} onChange={e => setFilterYear(parseInt(e.target.value))} className={inputCls + ' w-28'}>
+          {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className={inputCls + ' w-36'}>
+          <option value="">All Months</option>
+          {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+        </select>
+        <button onClick={() => dispatch(fetchMySalary({ year: filterYear }))} className="p-2 rounded-xl border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all">
+          <RefreshCw size={14} className={loading.mySalary ? 'animate-spin' : ''} />
+        </button>
+      </div>
+
+      {/* Slip cards */}
+      {loading.mySalary ? (
+        <div className="flex items-center justify-center h-32 text-gray-400">
+          <Loader2 size={24} className="animate-spin" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
+          <FileText size={36} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
+          <p className="text-sm text-gray-500">No salary slips found</p>
+          <p className="text-xs text-gray-400 mt-1">Your admin hasn't generated a slip for this period yet</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(slip => (
+            <div key={slip.id} className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+              {/* Header row */}
+              <button
+                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-[#141414] transition-colors text-left"
+                onClick={() => setExpanded(expanded === slip.id ? null : slip.id)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                    <FileText size={18} className="text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900 dark:text-white">{slip.month_label}</p>
+                    <p className="text-xs text-gray-500">{slip.present_days} / {slip.working_days} working days</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400">Final Salary</p>
+                    <p className="text-base font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</p>
+                  </div>
+                  <ChevronDown size={16} className={`text-gray-400 transition-transform ${expanded === slip.id ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+
+              {/* Expanded breakdown */}
+              {expanded === slip.id && (
+                <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-800">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                    {[
+                      { label: 'Monthly Salary', value: fmtCurrency(slip.monthly_salary), sub: 'Base' },
+                      { label: 'Per Day',         value: fmtCurrency(slip.per_day_salary),  sub: `÷ ${slip.working_days} days` },
+                      { label: 'Days Present',    value: `${slip.present_days}`, sub: `Absent: ${slip.absent_days}` },
+                      { label: 'Earned Salary',   value: fmtCurrency(slip.earned_salary),  sub: 'Before deductions' },
+                    ].map(item => (
+                      <div key={item.label} className="p-3 bg-gray-50 dark:bg-[#141414] rounded-xl">
+                        <p className="text-xs text-gray-500">{item.label}</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white mt-0.5">{item.value}</p>
+                        <p className="text-[11px] text-gray-400">{item.sub}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Calculation summary */}
+                  <div className="mt-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-xl border border-green-100 dark:border-green-900/30">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-400">Earned Salary</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{fmtCurrency(slip.earned_salary)}</span>
+                    </div>
+                    {slip.deductions > 0 && (
+                      <div className="flex items-center justify-between text-sm mt-1">
+                        <span className="text-red-500">Deductions</span>
+                        <span className="font-medium text-red-500">- {fmtCurrency(slip.deductions)}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-green-200 dark:border-green-800/50">
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">Final Salary</span>
+                      <span className="text-lg font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</span>
+                    </div>
+                  </div>
+
+                  {slip.notes && (
+                    <p className="text-xs text-gray-400 mt-2 italic">{slip.notes}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ROOT PAGE — role router
+// ══════════════════════════════════════════════════════════════════════════════
+
+export default function Salary() {
+  const user = useSelector(s => s.auth.user)
+
+  const isAdmin = ['super_admin', 'admin'].includes(user?.role)
+
+  return isAdmin ? <AdminSalaryView user={user} /> : <EmployeeSalaryView user={user} />
+}

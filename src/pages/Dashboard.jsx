@@ -830,9 +830,9 @@ export default function Dashboard() {
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">{greeting}, {user?.first_name} 👋</h1>
           <p className="text-xs text-gray-400 mt-0.5">{new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p>
         </div>
-        {isAdmin && (
+        {/* {isAdmin && (
           <ExportMenu isAdmin={isAdmin} setShowExportModal={setShowExportModal} setExportModule={setExportModule} exportingKey={exportingKey}/>
-        )}
+        )} */}
       </div>
 
       {/* Role-split content */}

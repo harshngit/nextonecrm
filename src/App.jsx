@@ -21,6 +21,7 @@ import Notifications from './pages/Notifications'
 import UserManagement from './pages/UserManagement'
 import Attendance from './pages/Attendance'
 import PhoneRequests from './pages/PhoneRequests'
+import Salary from './pages/Salary'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useSelector((state) => state.auth)
@@ -83,6 +84,7 @@ function AppRoutes() {
         <Route path="/follow-ups"   element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><FollowUps /></Layout></RoleProtectedRoute>} />
         <Route path="/follow-ups/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><FollowUpDetail /></Layout></RoleProtectedRoute>} />
         <Route path="/attendance"   element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Attendance /></Layout></RoleProtectedRoute>} />
+        <Route path="/salary"       element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Salary /></Layout></RoleProtectedRoute>} />
 
         {/* Admin Only Roles */}
         <Route path="/projects"     element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Projects /></Layout></RoleProtectedRoute>} />
