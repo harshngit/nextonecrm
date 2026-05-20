@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Edit2, Trash2, Shield, UserPlus, Mail, Phone, Lock, RefreshCw, Eye, EyeOff, Download, UserCheck } from 'lucide-react'
-import { fetchUsers, createUser, updateUser, deleteUser, updateUserRole, assignManager, clearUserError } from '../store/userSlice'
+import { fetchUsers, createUser, updateUser, deleteUser, updateUserRole, assignManager, clearUserError, fetchRoles } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -12,20 +12,20 @@ import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
 
-const allRoles = [
-  { value: 'super_admin',     label: 'Super Admin' },
-  { value: 'admin',           label: 'Admin' },
-  { value: 'sales_manager',   label: 'Sales Manager' },
-  { value: 'sales_executive', label: 'Sales Executive' },
-  { value: 'external_caller', label: 'External Caller' },
-]
-
 const roleColors = {
   super_admin:    'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30',
   admin:          'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30',
   sales_manager:  'text-brand bg-brand/10 dark:bg-brand/15',
   sales_executive:'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30',
   external_caller:'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
+  associate:      'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
+  associate_partner:'text-pink-600 dark:text-pink-400 bg-pink-100 dark:bg-pink-900/30',
+  partner:        'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30',
+  team_leader:    'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
+  cluster:        'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30',
+  cluster_head:   'text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-900/30',
+  digital_marketing:'text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-900/30',
+  hr_admin:       'text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30',
 }
 
 const defaultForm = {
@@ -35,7 +35,7 @@ const defaultForm = {
 }
 
 // ── User Form (admin/super_admin only) ────────────────────────────────────────
-function UserForm({ form, setForm, editMode, showPassword, setShowPassword }) {
+function UserForm({ form, setForm, editMode, showPassword, setShowPassword, roles }) {
   const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200 disabled:opacity-50"
   const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
   return (
@@ -95,7 +95,7 @@ function UserForm({ form, setForm, editMode, showPassword, setShowPassword }) {
           </div>
         </div>
       )}
-      <CustomSelect label="Role" required value={form.role} onChange={val => setForm({ ...form, role: val })} options={allRoles} />
+      <CustomSelect label="Role" required value={form.role} onChange={val => setForm({ ...form, role: val })} options={roles} />
     </div>
   )
 }
@@ -165,7 +165,7 @@ function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, l
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function UserManagement() {
   const dispatch = useDispatch()
-  const { list, loading, actionLoading, actionError } = useSelector(s => s.users)
+  const { list, roles, loading, actionLoading, actionError } = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
 
   const isSalesManager = currentUser?.role === 'sales_manager'
@@ -188,6 +188,10 @@ export default function UserManagement() {
   const [showPassword,    setShowPassword]    = useState(false)
   const [exporting,       setExporting]       = useState(false)
   const [form,            setForm]            = useState(defaultForm)
+
+  useEffect(() => {
+    dispatch(fetchRoles())
+  }, [dispatch])
 
   // sales_manager: API already scopes to their team; fetch without is_active to get all
   useEffect(() => {
@@ -217,7 +221,7 @@ export default function UserManagement() {
   // Role filter options — sales_manager doesn't need the filter (always scoped)
   const roleFilterOptions = [
     { value: '', label: 'All Roles' },
-    ...allRoles,
+    ...roles,
   ]
 
   const handleOpenModal = (user = null) => {
@@ -503,7 +507,7 @@ export default function UserManagement() {
       {/* Register / Edit Modal — admin/super_admin only */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editMode ? 'Edit User' : 'Register New User'}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <UserForm form={form} setForm={setForm} editMode={editMode} showPassword={showPassword} setShowPassword={setShowPassword} />
+          <UserForm form={form} setForm={setForm} editMode={editMode} showPassword={showPassword} setShowPassword={setShowPassword} roles={roles} />
           {success     && <p className="text-center text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 py-2 rounded-xl">{success}</p>}
           {actionError && <p className="text-center text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 rounded-xl">{actionError}</p>}
           <div className="pt-2 flex gap-3">

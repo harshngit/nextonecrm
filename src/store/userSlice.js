@@ -92,12 +92,25 @@ export const assignManager = createAsyncThunk(
   }
 )
 
+export const fetchRoles = createAsyncThunk(
+  'users/fetchRoles',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/users/roles')
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch roles')
+    }
+  }
+)
+
 // ── Slice ─────────────────────────────────────────────────────────────────────
 
 const userSlice = createSlice({
   name: 'users',
   initialState: {
     list: [],
+    roles: [],
     currentUser: null,
     loading: false,
     detailLoading: false,
@@ -127,6 +140,11 @@ const userSlice = createSlice({
       .addCase(fetchUserById.pending, (state) => { state.detailLoading = true })
       .addCase(fetchUserById.fulfilled, (state, action) => { state.detailLoading = false; state.currentUser = action.payload })
       .addCase(fetchUserById.rejected, (state, action) => { state.detailLoading = false; state.error = action.payload })
+
+      // fetchRoles
+      .addCase(fetchRoles.fulfilled, (state, action) => {
+        state.roles = action.payload.data || []
+      })
 
       // Action matchers for create / update / delete / role / assignManager
       .addMatcher(
