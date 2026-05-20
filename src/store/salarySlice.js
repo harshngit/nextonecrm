@@ -94,6 +94,20 @@ export const fetchMySalary = createAsyncThunk(
   }
 )
 
+// Employee: fetch attendance records with day-wise salary info
+// Uses GET /attendance/me which returns { data[], summary, salary{ per_day_salary, ... } }
+export const fetchMyAttendanceForSalary = createAsyncThunk(
+  'salary/fetchMyAttendanceForSalary',
+  async (params, { rejectWithValue }) => {
+    try {
+      const res = await api.get('/attendance/me', { params })
+      return res.data  // { data[], summary, salary, pagination, period }
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to fetch attendance')
+    }
+  }
+)
+
 // ── Slice ─────────────────────────────────────────────────────────────────────
 
 const salarySlice = createSlice({
@@ -105,14 +119,16 @@ const salarySlice = createSlice({
     history:       null,   // { employee, history[] }
     // employee view
     mySalary:      null,   // { current_monthly_salary, salary_slips[] }
+    myAttendance:  null,   // { data[], summary, salary{ per_day_salary, earned_salary }, period }
     // last generated result
     lastGenerated: null,
     loading: {
-      employees: false,
-      slips:     false,
-      history:   false,
-      mySalary:  false,
-      action:    false,
+      employees:    false,
+      slips:        false,
+      history:      false,
+      mySalary:     false,
+      myAttendance: false,
+      action:       false,
     },
     error:         null,
     actionSuccess: null,
@@ -142,6 +158,11 @@ const salarySlice = createSlice({
       .addCase(fetchMySalary.pending,   (state) => { state.loading.mySalary = true; state.error = null })
       .addCase(fetchMySalary.fulfilled, (state, action) => { state.loading.mySalary = false; state.mySalary = action.payload })
       .addCase(fetchMySalary.rejected,  (state, action) => { state.loading.mySalary = false; state.error = action.payload })
+
+      // fetchMyAttendanceForSalary
+      .addCase(fetchMyAttendanceForSalary.pending,   (state) => { state.loading.myAttendance = true; state.error = null })
+      .addCase(fetchMyAttendanceForSalary.fulfilled, (state, action) => { state.loading.myAttendance = false; state.myAttendance = action.payload })
+      .addCase(fetchMyAttendanceForSalary.rejected,  (state, action) => { state.loading.myAttendance = false; state.error = action.payload })
 
       // setEmployeeSalary
       .addCase(setEmployeeSalary.pending,   (state) => { state.loading.action = true; state.error = null; state.actionSuccess = null })

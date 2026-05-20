@@ -1,0 +1,472 @@
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
+import {
+  ArrowLeft, IndianRupee, Calendar, RefreshCw, Loader2,
+  AlertCircle, CheckCircle, LogIn, LogOut, Timer, ChevronLeft,
+  ChevronRight, Banknote, TrendingUp, FileText, Users,
+} from 'lucide-react'
+import api from '../api/axios'
+import Avatar from '../components/ui/Avatar'
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+const fmtCurrency = (n) =>
+  n == null ? '—' : `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+const fmtTime = (ts) => {
+  if (!ts) return '--:--'
+  return new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+}
+
+const fmtDate = (d) => {
+  if (!d) return '-'
+  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const MONTHS = [
+  { v: 1, l: 'January' }, { v: 2, l: 'February' }, { v: 3, l: 'March' },
+  { v: 4, l: 'April' },   { v: 5, l: 'May' },       { v: 6, l: 'June' },
+  { v: 7, l: 'July' },    { v: 8, l: 'August' },    { v: 9, l: 'September' },
+  { v: 10, l: 'October' },{ v: 11, l: 'November' }, { v: 12, l: 'December' },
+]
+
+const thisMonth = new Date().getMonth() + 1
+const thisYear  = new Date().getFullYear()
+const YEARS     = Array.from({ length: 5 }, (_, i) => thisYear - i)
+
+const STATUS_CONFIG = {
+  present:  { label: 'Present',  dot: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  late:     { label: 'Late',     dot: 'bg-amber-500',   badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  absent:   { label: 'Absent',   dot: 'bg-red-500',     badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  on_leave: { label: 'On Leave', dot: 'bg-indigo-500',  badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
+  half_day: { label: 'Half Day', dot: 'bg-pink-500',    badge: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300' },
+}
+
+const roleColors = {
+  super_admin:     'text-purple-600 bg-purple-100 dark:text-purple-400 dark:bg-purple-900/30',
+  admin:           'text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30',
+  sales_manager:   'text-[#0082f3] bg-blue-50 dark:bg-blue-900/20',
+  sales_executive: 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30',
+  external_caller: 'text-sky-600 bg-sky-100 dark:text-sky-400 dark:bg-sky-900/30',
+}
+
+// ── StatCard ──────────────────────────────────────────────────────────────────
+
+function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
+  const colors = {
+    blue:   'bg-[#0082f3]/10 text-[#0082f3]',
+    green:  'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
+    amber:  'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
+    red:    'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
+    purple: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+  }
+  return (
+    <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 p-4 shadow-sm flex items-center gap-3">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${colors[color]}`}>
+        <Icon size={18} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="text-base font-bold text-gray-900 dark:text-white truncate">{value}</p>
+        {sub && <p className="text-[11px] text-gray-400 truncate">{sub}</p>}
+      </div>
+    </div>
+  )
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
+export default function SalaryDetail() {
+  const { user_id } = useParams()
+  const navigate    = useNavigate()
+
+  const [month, setMonth] = useState(thisMonth)
+  const [year,  setYear]  = useState(thisYear)
+
+  // Employee info
+  const [employee,    setEmployee]    = useState(null)
+  const [empLoading,  setEmpLoading]  = useState(true)
+  const [empError,    setEmpError]    = useState('')
+
+  // Salary set for this employee
+  const [salaryInfo,  setSalaryInfo]  = useState(null)  // { monthly_salary, per_day_salary, effective_from }
+
+  // Attendance / day-wise data
+  const [attData,     setAttData]     = useState([])
+  const [attSalary,   setAttSalary]   = useState(null)  // { monthly_salary, per_day_salary, earned_salary, present_days }
+  const [attSummary,  setAttSummary]  = useState(null)
+  const [attLoading,  setAttLoading]  = useState(false)
+  const [attError,    setAttError]    = useState('')
+
+  // Generated slips for this user
+  const [slips,       setSlips]       = useState([])
+  const [slipsLoading,setSlipsLoading]= useState(false)
+
+  // ── Fetch employee info + salary ───────────────────────────────────────────
+  useEffect(() => {
+    const load = async () => {
+      setEmpLoading(true)
+      setEmpError('')
+      try {
+        // Get all employees with salaries to find this one
+        const res = await api.get('/salary/employees')
+        const emp = res.data.data?.data?.find(e => e.id === user_id)
+        if (emp) {
+          setEmployee(emp)
+          setSalaryInfo({
+            monthly_salary: emp.monthly_salary,
+            per_day_salary:  emp.per_day_salary,
+            effective_from:  emp.effective_from,
+            set_by_name:     emp.set_by_name,
+          })
+        } else {
+          setEmpError('Employee not found')
+        }
+      } catch (e) {
+        setEmpError(e.response?.data?.message || 'Failed to load employee')
+      } finally {
+        setEmpLoading(false)
+      }
+    }
+    load()
+  }, [user_id])
+
+  // ── Fetch attendance + day-wise salary ────────────────────────────────────
+  const fetchAttendance = async () => {
+    setAttLoading(true)
+    setAttError('')
+    try {
+      const from = `${year}-${String(month).padStart(2, '0')}-01`
+      const to   = new Date(year, month, 0).toISOString().split('T')[0]
+      const res  = await api.get(`/attendance/user/${user_id}`, {
+        params: { from, to, per_page: 31 },
+      })
+      setAttData(res.data.data || [])
+      setAttSummary(res.data.summary || null)
+      setAttSalary(res.data.salary || null)
+    } catch (e) {
+      setAttError(e.response?.data?.message || 'Failed to load attendance')
+      setAttData([])
+    } finally {
+      setAttLoading(false)
+    }
+  }
+
+  // ── Fetch salary slips for this user ──────────────────────────────────────
+  const fetchSlips = async () => {
+    setSlipsLoading(true)
+    try {
+      const res = await api.get('/salary/slips', {
+        params: { user_id, month, year, per_page: 1 },
+      })
+      setSlips(res.data.data || [])
+    } catch {
+      setSlips([])
+    } finally {
+      setSlipsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchAttendance()
+    fetchSlips()
+  }, [user_id, month, year])
+
+  // ── Salary calculation per day ────────────────────────────────────────────
+  const perDay = attSalary?.per_day_salary || salaryInfo?.per_day_salary || null
+
+  const dayEarned = (status) => {
+    if (!perDay) return null
+    if (['present', 'late'].includes(status)) return parseFloat(perDay)
+    if (status === 'half_day') return parseFloat(perDay) * 0.5
+    return 0
+  }
+
+  const totalEarnedPeriod = attData.reduce((sum, r) => sum + (dayEarned(r.status) || 0), 0)
+
+  // ── Month navigation ──────────────────────────────────────────────────────
+  const prevMonth = () => { if (month === 1) { setMonth(12); setYear(y => y - 1) } else setMonth(m => m - 1) }
+  const nextMonth = () => { if (month === 12) { setMonth(1); setYear(y => y + 1) } else setMonth(m => m + 1) }
+
+  const slip = slips[0] || null
+
+  if (empLoading) return (
+    <div className="flex items-center justify-center h-[60vh]">
+      <Loader2 size={32} className="animate-spin text-[#0082f3]" />
+    </div>
+  )
+
+  if (empError) return (
+    <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+      <AlertCircle size={32} className="text-red-400" />
+      <p className="text-gray-500">{empError}</p>
+      <button onClick={() => navigate('/salary')} className="text-sm text-[#0082f3] hover:underline">← Back to Salary</button>
+    </div>
+  )
+
+  const monthLabel = `${MONTHS.find(m => m.v === month)?.l} ${year}`
+
+  return (
+    <div className="space-y-6 pb-10">
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <button
+          onClick={() => navigate('/salary')}
+          className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-[#0082f3] transition-colors group"
+        >
+          <div className="w-8 h-8 rounded-full bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 flex items-center justify-center group-hover:border-[#0082f3]/30 transition-all">
+            <ArrowLeft size={15} />
+          </div>
+          Back to Salary
+        </button>
+        <button
+          onClick={() => { fetchAttendance(); fetchSlips() }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-[#0082f3] hover:text-[#0082f3] transition-all"
+        >
+          <RefreshCw size={13} className={attLoading ? 'animate-spin' : ''} /> Refresh
+        </button>
+      </div>
+
+      {/* ── Employee profile card ───────────────────────────────────────────── */}
+      <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-[#0082f3] to-blue-600 px-6 py-5 flex items-center gap-4">
+          <Avatar name={employee?.full_name} size="lg" />
+          <div className="flex-1 min-w-0">
+            <h1 className="text-white font-bold text-lg truncate">{employee?.full_name}</h1>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${roleColors[employee?.role] || 'bg-white/20 text-white'}`}>
+                {employee?.role?.replace(/_/g, ' ')}
+              </span>
+              <span className="text-blue-200 text-xs">{employee?.email}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Salary info row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-gray-100 dark:divide-gray-800">
+          {[
+            { l: 'Monthly Salary',  v: salaryInfo?.monthly_salary ? fmtCurrency(salaryInfo.monthly_salary) : 'Not Set', c: 'text-gray-900 dark:text-white' },
+            { l: 'Per Day Salary',  v: salaryInfo?.per_day_salary  ? fmtCurrency(salaryInfo.per_day_salary)  : '—',       c: 'text-emerald-600 dark:text-emerald-400' },
+            { l: 'Effective From',  v: salaryInfo?.effective_from  ? new Date(salaryInfo.effective_from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—', c: 'text-gray-700 dark:text-gray-300' },
+            { l: 'Set By',          v: salaryInfo?.set_by_name || '—', c: 'text-gray-700 dark:text-gray-300' },
+          ].map(x => (
+            <div key={x.l} className="px-4 py-3 text-center sm:text-left">
+              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">{x.l}</p>
+              <p className={`text-sm font-bold mt-0.5 ${x.c}`}>{x.v}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Month selector ──────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <button onClick={prevMonth} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors">
+            <ChevronLeft size={15} />
+          </button>
+          <span className="text-sm font-bold text-gray-800 dark:text-gray-200 min-w-[130px] text-center">{monthLabel}</span>
+          <button onClick={nextMonth} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors">
+            <ChevronRight size={15} />
+          </button>
+        </div>
+
+        {/* Quick year select */}
+        <select value={year} onChange={e => setYear(parseInt(e.target.value))}
+          className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1a1a1a] text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]">
+          {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+
+      {/* ── Summary stats ───────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard icon={CheckCircle}  label="Present Days"   value={attSummary?.present ?? '—'}                              sub="Full day" color="green" />
+        <StatCard icon={AlertCircle}  label="Absent Days"    value={attSummary?.absent  ?? '—'}                              sub="No pay"   color="red" />
+        <StatCard icon={Calendar}     label="On Leave"        value={(attSummary?.on_leave ?? 0)}                             sub="Leave days" color="amber" />
+        <StatCard icon={TrendingUp}   label="Earned (Est.)"  value={totalEarnedPeriod > 0 ? fmtCurrency(totalEarnedPeriod) : '—'} sub={monthLabel} color="blue" />
+      </div>
+
+      {/* ── Generated slip banner (if exists) ───────────────────────────────── */}
+      {slip && (
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-2xl border border-green-200 dark:border-green-800/40 px-5 py-4">
+          <div className="flex items-start justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                <FileText size={16} className="text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-green-800 dark:text-green-300">Salary Slip Generated — {monthLabel}</p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">Generated by {slip.generated_by_name || 'Admin'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-6 flex-wrap text-sm">
+              <div className="text-right">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide">Earned</p>
+                <p className="font-bold text-gray-800 dark:text-gray-200">{fmtCurrency(slip.earned_salary)}</p>
+              </div>
+              {slip.deductions > 0 && (
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wide">Deductions</p>
+                  <p className="font-bold text-red-500">-{fmtCurrency(slip.deductions)}</p>
+                </div>
+              )}
+              <div className="text-right">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wide">Final</p>
+                <p className="text-lg font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Day-wise table ───────────────────────────────────────────────────── */}
+      <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+
+        {/* Table header */}
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-gray-900 dark:text-white">Day-wise Attendance & Salary</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{monthLabel} · {attData.length} records</p>
+          </div>
+          {perDay && (
+            <span className="text-xs bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-3 py-1 rounded-full font-semibold">
+              Per Day: {fmtCurrency(perDay)}
+            </span>
+          )}
+        </div>
+
+        {attError && (
+          <div className="flex items-center gap-2 px-5 py-3 bg-red-50 dark:bg-red-900/20 text-sm text-red-600 dark:text-red-400">
+            <AlertCircle size={14} /> {attError}
+          </div>
+        )}
+
+        {attLoading ? (
+          <div className="flex items-center justify-center py-12 text-gray-400">
+            <Loader2 size={24} className="animate-spin" />
+          </div>
+        ) : attData.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <Calendar size={32} className="mx-auto mb-2 opacity-40" />
+            <p className="text-sm">No attendance records for {monthLabel}</p>
+          </div>
+        ) : (
+          <>
+            {/* Column headers */}
+            <div className="grid grid-cols-[2fr_1.2fr_1fr_1fr_1fr] gap-2 px-5 py-2 bg-gray-50 dark:bg-[#141414] border-b border-gray-100 dark:border-gray-800 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+              <span>Date</span>
+              <span>Status</span>
+              <span className="text-center">Check-in</span>
+              <span className="text-center">Check-out</span>
+              <span className="text-right">Earned</span>
+            </div>
+
+            {/* Rows */}
+            <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
+              {attData.map((rec, i) => {
+                const d      = rec.date?.split('T')[0] || rec.date
+                const earned = dayEarned(rec.status)
+                const cfg    = STATUS_CONFIG[rec.status] || STATUS_CONFIG.absent
+
+                return (
+                  <div
+                    key={rec.id || i}
+                    className={`grid grid-cols-[2fr_1.2fr_1fr_1fr_1fr] gap-2 items-center px-5 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors ${i % 2 !== 0 ? 'bg-gray-50/30 dark:bg-white/[0.01]' : ''}`}
+                  >
+                    {/* Date */}
+                    <div>
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{fmtDate(d)}</p>
+                      <p className="text-[11px] text-gray-400">
+                        {new Date(d).toLocaleDateString('en-IN', { weekday: 'short' })}
+                        {rec.working_hours ? ` · ${rec.working_hours}h` : ''}
+                      </p>
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.badge}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
+                        {cfg.label}
+                      </span>
+                      {rec.is_manual_entry && (
+                        <span className="ml-1 text-[10px] text-purple-500 bg-purple-50 dark:bg-purple-900/20 px-1.5 py-0.5 rounded">Manual</span>
+                      )}
+                    </div>
+
+                    {/* Check-in */}
+                    <div className="text-center">
+                      {rec.check_in_time ? (
+                        <span className="flex items-center justify-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                          <LogIn size={10} />{fmtTime(rec.check_in_time)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-300 dark:text-gray-700">—</span>
+                      )}
+                    </div>
+
+                    {/* Check-out */}
+                    <div className="text-center">
+                      {rec.check_out_time ? (
+                        <span className="flex items-center justify-center gap-1 text-xs text-rose-500 font-medium">
+                          <LogOut size={10} />{fmtTime(rec.check_out_time)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-300 dark:text-gray-700">—</span>
+                      )}
+                    </div>
+
+                    {/* Earned */}
+                    <div className="text-right">
+                      {earned !== null ? (
+                        <>
+                          <p className={`text-sm font-bold ${earned > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-400'}`}>
+                            {earned > 0 ? `+${fmtCurrency(earned)}` : '₹0'}
+                          </p>
+                          <p className="text-[10px] text-gray-400">
+                            {rec.status === 'half_day' ? '50%' : earned > 0 ? 'full' : 'no pay'}
+                          </p>
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-300 dark:text-gray-700">—</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Footer — running total */}
+            <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#141414]">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
+                  <span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">{attData.filter(r => ['present','late'].includes(r.status)).length}</span> full days
+                  </span>
+                  <span>
+                    <span className="font-bold text-pink-500">{attData.filter(r => r.status === 'half_day').length}</span> half days
+                  </span>
+                  <span>
+                    <span className="font-bold text-red-500">{attData.filter(r => r.status === 'absent').length}</span> absent
+                  </span>
+                  <span>
+                    <span className="font-bold text-indigo-500">{attData.filter(r => r.status === 'on_leave').length}</span> on leave
+                  </span>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-400">Total Earned — {monthLabel}</p>
+                  <p className="text-xl font-bold text-[#0082f3]">{fmtCurrency(totalEarnedPeriod)}</p>
+                  {slip && (
+                    <p className="text-[11px] text-green-600 dark:text-green-400 mt-0.5">
+                      Slip: {fmtCurrency(slip.final_salary)} (after deductions)
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

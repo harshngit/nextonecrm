@@ -22,6 +22,7 @@ import UserManagement from './pages/UserManagement'
 import Attendance from './pages/Attendance'
 import PhoneRequests from './pages/PhoneRequests'
 import Salary from './pages/Salary'
+import SalaryDetail from './pages/SalaryDetail'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useSelector((state) => state.auth)
@@ -84,13 +85,14 @@ function AppRoutes() {
         <Route path="/follow-ups"   element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><FollowUps /></Layout></RoleProtectedRoute>} />
         <Route path="/follow-ups/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><FollowUpDetail /></Layout></RoleProtectedRoute>} />
         <Route path="/attendance"   element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Attendance /></Layout></RoleProtectedRoute>} />
-        <Route path="/salary"       element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Salary /></Layout></RoleProtectedRoute>} />
+        <Route path="/salary"          element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Salary /></Layout></RoleProtectedRoute>} />
+        <Route path="/salary/:user_id" element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><SalaryDetail /></Layout></RoleProtectedRoute>} />
 
         {/* Admin Only Roles */}
         <Route path="/projects"     element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Projects /></Layout></RoleProtectedRoute>} />
         <Route path="/projects/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><ProjectDetail /></Layout></RoleProtectedRoute>} />
-        <Route path="/team"         element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><Team /></Layout></RoleProtectedRoute>} />
-        <Route path="/team/:id"    element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><UserDetail /></Layout></RoleProtectedRoute>} />
+        <Route path="/team"         element={<RoleProtectedRoute allowedRoles={['super_admin', 'admin', 'sales_manager']}><Layout><Team /></Layout></RoleProtectedRoute>} />
+        <Route path="/team/:id"    element={<RoleProtectedRoute allowedRoles={['super_admin', 'admin', 'sales_manager']}><Layout><UserDetail /></Layout></RoleProtectedRoute>} />
         <Route path="/users"        element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><UserManagement /></Layout></RoleProtectedRoute>} />
         <Route path="/phone-requests" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><PhoneRequests /></Layout></RoleProtectedRoute>} />
         

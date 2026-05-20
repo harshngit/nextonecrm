@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import {
   IndianRupee, TrendingUp, Calendar, Users, ChevronDown,
   Plus, RefreshCw, FileText, CheckCircle, AlertCircle,
   Clock, Banknote, Wallet, BarChart3, Edit2, History,
-  X, Eye, Loader2, DollarSign,
+  X, Eye, Loader2, DollarSign, LogIn, LogOut, Timer, ArrowRight,
 } from 'lucide-react'
 import {
   fetchAllEmployeeSalaries,
   fetchSalarySlips,
   fetchMySalary,
   fetchSalaryHistory,
+  fetchMyAttendanceForSalary,
   setEmployeeSalary,
   generateSalarySlip,
   generateAllSalarySlips,
@@ -46,6 +48,25 @@ const roleColors = {
 
 const inputCls = 'w-full px-3 py-2 text-sm bg-white dark:bg-[#141414] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-[#0082f3] text-gray-900 dark:text-gray-100 shadow-sm transition-all'
 const labelCls = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1'
+
+// Status config for day-wise view
+const STATUS_CONFIG = {
+  present:  { label: 'Present',  dot: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  late:     { label: 'Late',     dot: 'bg-amber-500',   badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  absent:   { label: 'Absent',   dot: 'bg-red-500',     badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  on_leave: { label: 'On Leave', dot: 'bg-indigo-500',  badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
+  half_day: { label: 'Half Day', dot: 'bg-pink-500',    badge: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300' },
+}
+
+const fmtTime = (ts) => {
+  if (!ts) return '--:--'
+  return new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+}
+
+const fmtDate = (d) => {
+  if (!d) return '-'
+  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
 // ── sub-components ────────────────────────────────────────────────────────────
 
@@ -84,7 +105,8 @@ function SlipBadge({ slip }) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function AdminSalaryView({ user }) {
-  const dispatch = useDispatch()
+  const dispatch  = useDispatch()
+  const navigate  = useNavigate()
   const { employees, slips, history, loading, error, actionSuccess, lastGenerated } = useSelector(s => s.salary)
 
   const [tab, setTab]                   = useState('employees')
@@ -94,7 +116,13 @@ function AdminSalaryView({ user }) {
   // Set Salary modal
   const [setSalaryModal, setSetSalaryModal] = useState(false)
   const [setSalaryTarget, setSalaryTargetE] = useState(null) // employee row
-  const [setSalaryForm, setSalaryFormData]     = useState({ monthly_salary: '', effective_from: '', notes: '' })
+  const [setSalaryForm, setSalaryFormData] = useState({
+    monthly_salary:        '',
+    per_day_salary:        '',
+    working_days_in_month: '26',
+    effective_from:        '',
+    notes:                 '',
+  })
 
   // Generate slip modal (single)
   const [genModal, setGenModal]   = useState(false)
@@ -140,10 +168,16 @@ function AdminSalaryView({ user }) {
 
   const openSetSalary = (emp) => {
     setSalaryTargetE(emp)
+    const monthly = emp.monthly_salary ? String(emp.monthly_salary) : ''
+    const perDay  = emp.per_day_salary
+      ? String(emp.per_day_salary)
+      : monthly ? (parseFloat(monthly) / 26).toFixed(2) : ''
     setSalaryFormData({
-      monthly_salary: emp.monthly_salary || '',
-      effective_from: new Date().toISOString().split('T')[0],
-      notes: '',
+      monthly_salary:        monthly,
+      per_day_salary:        perDay,
+      working_days_in_month: '26',
+      effective_from:        new Date().toISOString().split('T')[0],
+      notes:                 '',
     })
     setSetSalaryModal(true)
   }
@@ -160,12 +194,14 @@ function AdminSalaryView({ user }) {
   }
 
   const handleSetSalary = () => {
-    if (!setSalaryForm.monthly_salary) return
+    if (!setSalaryForm.monthly_salary && !setSalaryForm.per_day_salary) return
     dispatch(setEmployeeSalary({
-      user_id: setSalaryTarget.id,
-      monthly_salary: parseFloat(setSalaryForm.monthly_salary),
-      effective_from: setSalaryForm.effective_from || undefined,
-      notes: setSalaryForm.notes || undefined,
+      user_id:               setSalaryTarget.id,
+      monthly_salary:        setSalaryForm.monthly_salary        ? parseFloat(setSalaryForm.monthly_salary)        : undefined,
+      per_day_salary:        setSalaryForm.per_day_salary        ? parseFloat(setSalaryForm.per_day_salary)        : undefined,
+      working_days_in_month: setSalaryForm.working_days_in_month ? parseInt(setSalaryForm.working_days_in_month)   : 26,
+      effective_from:        setSalaryForm.effective_from        || undefined,
+      notes:                 setSalaryForm.notes                 || undefined,
     }))
   }
 
@@ -307,6 +343,13 @@ function AdminSalaryView({ user }) {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
                           <button
+                            onClick={() => navigate(`/salary/${emp.id}`)}
+                            title="View Day-wise Salary"
+                            className="p-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 dark:text-purple-400 transition-colors"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <button
                             onClick={() => openSetSalary(emp)}
                             title="Set Salary"
                             className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
@@ -423,6 +466,8 @@ function AdminSalaryView({ user }) {
       {/* ── MODAL: Set Salary ──────────────────────────────────────────────── */}
       <Modal isOpen={setSalaryModal} onClose={() => setSetSalaryModal(false)} title={`Set Salary — ${setSalaryTarget?.full_name}`} size="sm">
         <div className="space-y-4">
+
+          {/* Employee info */}
           <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
             <Avatar name={setSalaryTarget?.full_name} size="sm" />
             <div>
@@ -431,22 +476,107 @@ function AdminSalaryView({ user }) {
             </div>
           </div>
 
+          {/* Working days — controls conversion ratio */}
           <div>
-            <label className={labelCls}>Monthly Salary (₹) *</label>
+            <label className={labelCls}>
+              Working Days / Month
+              <span className="text-gray-400 font-normal ml-1">(used for monthly ↔ per day conversion)</span>
+            </label>
+            <input
+              type="number" min="1" max="31"
+              value={setSalaryForm.working_days_in_month}
+              onChange={e => {
+                const wd = parseInt(e.target.value) || 26
+                setSalaryFormData(f => {
+                  const m = parseFloat(f.monthly_salary)
+                  const p = parseFloat(f.per_day_salary)
+                  if (!isNaN(m) && m > 0)
+                    return { ...f, working_days_in_month: e.target.value, per_day_salary: (m / wd).toFixed(2) }
+                  if (!isNaN(p) && p > 0)
+                    return { ...f, working_days_in_month: e.target.value, monthly_salary: (p * wd).toFixed(2) }
+                  return { ...f, working_days_in_month: e.target.value }
+                })
+              }}
+              placeholder="26"
+              className={inputCls}
+            />
+          </div>
+
+          {/* Monthly salary */}
+          <div>
+            <label className={labelCls}>Monthly Salary (₹)</label>
             <div className="relative">
               <IndianRupee size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
-                type="number"
-                min="0"
-                step="500"
+                type="number" min="0" step="500"
                 value={setSalaryForm.monthly_salary}
-                onChange={e => setSalaryFormData(f => ({ ...f, monthly_salary: e.target.value }))}
+                onChange={e => {
+                  const val = e.target.value
+                  const wd  = parseInt(setSalaryForm.working_days_in_month) || 26
+                  setSalaryFormData(f => ({
+                    ...f,
+                    monthly_salary: val,
+                    per_day_salary: val && !isNaN(parseFloat(val))
+                      ? (parseFloat(val) / wd).toFixed(2) : '',
+                  }))
+                }}
                 placeholder="35000"
                 className={inputCls + ' pl-9'}
               />
             </div>
           </div>
 
+          {/* Per day salary — auto-calculated but editable */}
+          <div>
+            <label className={labelCls}>
+              Per Day Salary (₹)
+              <span className="text-gray-400 font-normal ml-1">— auto-calculated or enter directly</span>
+            </label>
+            <div className="relative">
+              <IndianRupee size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="number" min="0" step="10"
+                value={setSalaryForm.per_day_salary}
+                onChange={e => {
+                  const val = e.target.value
+                  const wd  = parseInt(setSalaryForm.working_days_in_month) || 26
+                  setSalaryFormData(f => ({
+                    ...f,
+                    per_day_salary: val,
+                    monthly_salary: val && !isNaN(parseFloat(val))
+                      ? (parseFloat(val) * wd).toFixed(2) : '',
+                  }))
+                }}
+                placeholder="Auto-calculated"
+                className={inputCls + ' pl-9'}
+              />
+            </div>
+          </div>
+
+          {/* Live preview */}
+          {(setSalaryForm.monthly_salary || setSalaryForm.per_day_salary) && (
+            <div className="bg-gray-50 dark:bg-[#141414] rounded-xl p-3 border border-gray-100 dark:border-gray-800 space-y-1.5">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Preview</p>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500">Monthly</span>
+                <span className="font-bold text-gray-900 dark:text-white">
+                  {setSalaryForm.monthly_salary ? fmtCurrency(parseFloat(setSalaryForm.monthly_salary)) : '—'}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500">Per Day</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  {setSalaryForm.per_day_salary ? fmtCurrency(parseFloat(setSalaryForm.per_day_salary)) : '—'}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs border-t border-gray-200 dark:border-gray-700 pt-1.5">
+                <span className="text-gray-500">Working days / month</span>
+                <span className="font-medium text-gray-600 dark:text-gray-300">{setSalaryForm.working_days_in_month || 26} days</span>
+              </div>
+            </div>
+          )}
+
+          {/* Effective from */}
           <div>
             <label className={labelCls}>Effective From</label>
             <input
@@ -457,8 +587,9 @@ function AdminSalaryView({ user }) {
             />
           </div>
 
+          {/* Notes */}
           <div>
-            <label className={labelCls}>Notes (optional)</label>
+            <label className={labelCls}>Notes <span className="text-gray-400 font-normal">(optional)</span></label>
             <input
               type="text"
               value={setSalaryForm.notes}
@@ -467,12 +598,18 @@ function AdminSalaryView({ user }) {
               className={inputCls}
             />
           </div>
+
         </div>
         <div className="flex justify-end gap-2 mt-5">
-          <button onClick={() => setSetSalaryModal(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Cancel</button>
+          <button
+            onClick={() => setSetSalaryModal(false)}
+            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
           <button
             onClick={handleSetSalary}
-            disabled={loading.action || !setSalaryForm.monthly_salary}
+            disabled={loading.action || (!setSalaryForm.monthly_salary && !setSalaryForm.per_day_salary)}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all disabled:opacity-50"
           >
             {loading.action ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
@@ -668,30 +805,54 @@ function AdminSalaryView({ user }) {
 
 function EmployeeSalaryView({ user }) {
   const dispatch = useDispatch()
-  const { mySalary, loading, error } = useSelector(s => s.salary)
+  const { mySalary, myAttendance, loading, error } = useSelector(s => s.salary)
 
+  const [tab,         setTab]         = useState('slips')   // 'slips' | 'daywise'
   const [filterMonth, setFilterMonth] = useState('')
-  const [filterYear, setFilterYear]   = useState(thisYear)
-  const [expanded, setExpanded]       = useState(null)
+  const [filterYear,  setFilterYear]  = useState(thisYear)
+  const [expanded,    setExpanded]    = useState(null)
+
+  // Selected month/year for day-wise tab
+  const [dwMonth, setDwMonth] = useState(thisMonth)
+  const [dwYear,  setDwYear]  = useState(thisYear)
 
   useEffect(() => {
     dispatch(fetchMySalary({ year: filterYear }))
   }, [dispatch, filterYear])
 
-  const slips = mySalary?.salary_slips || []
+  // Fetch attendance when day-wise tab is active
+  useEffect(() => {
+    if (tab === 'daywise') {
+      const from = `${dwYear}-${String(dwMonth).padStart(2, '0')}-01`
+      const to   = new Date(dwYear, dwMonth, 0).toISOString().split('T')[0]
+      dispatch(fetchMyAttendanceForSalary({ from, to, per_page: 31 }))
+    }
+  }, [dispatch, tab, dwMonth, dwYear])
 
+  const slips       = mySalary?.salary_slips || []
   const totalEarned = slips.reduce((s, slip) => s + (slip.final_salary || 0), 0)
+  const filtered    = filterMonth ? slips.filter(s => s.month === parseInt(filterMonth)) : slips
 
-  const filtered = filterMonth
-    ? slips.filter(s => s.month === parseInt(filterMonth))
-    : slips
+  // Day-wise data
+  const attData   = myAttendance?.data     || []
+  const attSalary = myAttendance?.salary   // { per_day_salary, monthly_salary, earned_salary, present_days }
+  const attSum    = myAttendance?.summary
+
+  const perDay = attSalary?.per_day_salary || null
+
+  const dayEarned = (status) => {
+    if (!perDay) return null
+    if (['present', 'late'].includes(status)) return perDay
+    if (status === 'half_day') return perDay * 0.5
+    return 0
+  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">My Salary</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Your monthly salary and payment history</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Your salary, daily earnings and payment history</p>
       </div>
 
       {error && (
@@ -709,8 +870,13 @@ function EmployeeSalaryView({ user }) {
               <p className="text-3xl font-bold mt-1">
                 {loading.mySalary ? '—' : mySalary?.current_monthly_salary ? fmtCurrency(mySalary.current_monthly_salary.amount) : 'Not Set'}
               </p>
-              {mySalary?.current_monthly_salary?.effective_from && (
+              {mySalary?.current_monthly_salary?.per_day_salary && (
                 <p className="text-blue-200 text-xs mt-1">
+                  Per day: ₹{parseFloat(mySalary.current_monthly_salary.per_day_salary).toFixed(2)}
+                </p>
+              )}
+              {mySalary?.current_monthly_salary?.effective_from && (
+                <p className="text-blue-200 text-xs mt-0.5">
                   Effective from {new Date(mySalary.current_monthly_salary.effective_from).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}
                 </p>
               )}
@@ -726,106 +892,252 @@ function EmployeeSalaryView({ user }) {
         </div>
 
         <div className="flex flex-col gap-3">
-          <StatCard icon={FileText} label="Total Slips" value={slips.length} sub={`Year ${filterYear}`} color="brand" />
-          <StatCard icon={Calendar} label="Latest Month" value={slips[0] ? slips[0].month_label : '—'} color="green" />
+          <StatCard icon={FileText} label="Total Slips"   value={slips.length}              sub={`Year ${filterYear}`} color="brand" />
+          <StatCard icon={Calendar} label="Latest Month"  value={slips[0] ? slips[0].month_label : '—'} color="green" />
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <select value={filterYear} onChange={e => setFilterYear(parseInt(e.target.value))} className={inputCls + ' w-28'}>
-          {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className={inputCls + ' w-36'}>
-          <option value="">All Months</option>
-          {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
-        </select>
-        <button onClick={() => dispatch(fetchMySalary({ year: filterYear }))} className="p-2 rounded-xl border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all">
-          <RefreshCw size={14} className={loading.mySalary ? 'animate-spin' : ''} />
-        </button>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 dark:bg-[#141414] p-1 rounded-xl w-fit">
+        {[
+          { v: 'slips',   l: 'Salary Slips' },
+          { v: 'daywise', l: 'Day-wise Earnings' },
+        ].map(t => (
+          <button key={t.v} onClick={() => setTab(t.v)}
+            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${tab === t.v ? 'bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}>
+            {t.l}
+          </button>
+        ))}
       </div>
 
-      {/* Slip cards */}
-      {loading.mySalary ? (
-        <div className="flex items-center justify-center h-32 text-gray-400">
-          <Loader2 size={24} className="animate-spin" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
-          <FileText size={36} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
-          <p className="text-sm text-gray-500">No salary slips found</p>
-          <p className="text-xs text-gray-400 mt-1">Your admin hasn't generated a slip for this period yet</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map(slip => (
-            <div key={slip.id} className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-              {/* Header row */}
-              <button
-                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-[#141414] transition-colors text-left"
-                onClick={() => setExpanded(expanded === slip.id ? null : slip.id)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                    <FileText size={18} className="text-green-600 dark:text-green-400" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-white">{slip.month_label}</p>
-                    <p className="text-xs text-gray-500">{slip.present_days} / {slip.working_days} working days</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400">Final Salary</p>
-                    <p className="text-base font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</p>
-                  </div>
-                  <ChevronDown size={16} className={`text-gray-400 transition-transform ${expanded === slip.id ? 'rotate-180' : ''}`} />
-                </div>
-              </button>
+      {/* ── TAB: Salary Slips ──────────────────────────────────────────────────── */}
+      {tab === 'slips' && (
+        <>
+          <div className="flex items-center gap-3 flex-wrap">
+            <select value={filterYear}  onChange={e => setFilterYear(parseInt(e.target.value))}  className={inputCls + ' w-28'}>
+              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className={inputCls + ' w-36'}>
+              <option value="">All Months</option>
+              {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+            </select>
+            <button onClick={() => dispatch(fetchMySalary({ year: filterYear }))}
+              className="p-2 rounded-xl border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all">
+              <RefreshCw size={14} className={loading.mySalary ? 'animate-spin' : ''} />
+            </button>
+          </div>
 
-              {/* Expanded breakdown */}
-              {expanded === slip.id && (
-                <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-800">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-                    {[
-                      { label: 'Monthly Salary', value: fmtCurrency(slip.monthly_salary), sub: 'Base' },
-                      { label: 'Per Day',         value: fmtCurrency(slip.per_day_salary),  sub: `÷ ${slip.working_days} days` },
-                      { label: 'Days Present',    value: `${slip.present_days}`, sub: `Absent: ${slip.absent_days}` },
-                      { label: 'Earned Salary',   value: fmtCurrency(slip.earned_salary),  sub: 'Before deductions' },
-                    ].map(item => (
-                      <div key={item.label} className="p-3 bg-gray-50 dark:bg-[#141414] rounded-xl">
-                        <p className="text-xs text-gray-500">{item.label}</p>
-                        <p className="text-sm font-bold text-gray-900 dark:text-white mt-0.5">{item.value}</p>
-                        <p className="text-[11px] text-gray-400">{item.sub}</p>
+          {loading.mySalary ? (
+            <div className="flex items-center justify-center h-32 text-gray-400">
+              <Loader2 size={24} className="animate-spin" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
+              <FileText size={36} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
+              <p className="text-sm text-gray-500">No salary slips found</p>
+              <p className="text-xs text-gray-400 mt-1">Your admin hasn't generated a slip for this period yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map(slip => (
+                <div key={slip.id} className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-[#141414] transition-colors text-left"
+                    onClick={() => setExpanded(expanded === slip.id ? null : slip.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                        <FileText size={18} className="text-green-600 dark:text-green-400" />
                       </div>
-                    ))}
-                  </div>
-
-                  {/* Calculation summary */}
-                  <div className="mt-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-xl border border-green-100 dark:border-green-900/30">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Earned Salary</span>
-                      <span className="font-medium text-gray-900 dark:text-white">{fmtCurrency(slip.earned_salary)}</span>
-                    </div>
-                    {slip.deductions > 0 && (
-                      <div className="flex items-center justify-between text-sm mt-1">
-                        <span className="text-red-500">Deductions</span>
-                        <span className="font-medium text-red-500">- {fmtCurrency(slip.deductions)}</span>
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-white">{slip.month_label}</p>
+                        <p className="text-xs text-gray-500">{slip.present_days} / {slip.working_days} working days</p>
                       </div>
-                    )}
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-green-200 dark:border-green-800/50">
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">Final Salary</span>
-                      <span className="text-lg font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</span>
                     </div>
-                  </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-xs text-gray-400">Final Salary</p>
+                        <p className="text-base font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</p>
+                      </div>
+                      <ChevronDown size={16} className={`text-gray-400 transition-transform ${expanded === slip.id ? 'rotate-180' : ''}`} />
+                    </div>
+                  </button>
 
-                  {slip.notes && (
-                    <p className="text-xs text-gray-400 mt-2 italic">{slip.notes}</p>
+                  {expanded === slip.id && (
+                    <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-800">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                        {[
+                          { label: 'Monthly Salary', value: fmtCurrency(slip.monthly_salary), sub: 'Base' },
+                          { label: 'Per Day',         value: fmtCurrency(slip.per_day_salary),  sub: `÷ ${slip.working_days} days` },
+                          { label: 'Days Present',    value: `${slip.present_days}`,            sub: `Absent: ${slip.absent_days}` },
+                          { label: 'Earned Salary',   value: fmtCurrency(slip.earned_salary),  sub: 'Before deductions' },
+                        ].map(item => (
+                          <div key={item.label} className="p-3 bg-gray-50 dark:bg-[#141414] rounded-xl">
+                            <p className="text-xs text-gray-500">{item.label}</p>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white mt-0.5">{item.value}</p>
+                            <p className="text-[11px] text-gray-400">{item.sub}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-xl border border-green-100 dark:border-green-900/30">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">Earned Salary</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{fmtCurrency(slip.earned_salary)}</span>
+                        </div>
+                        {slip.deductions > 0 && (
+                          <div className="flex items-center justify-between text-sm mt-1">
+                            <span className="text-red-500">Deductions</span>
+                            <span className="font-medium text-red-500">- {fmtCurrency(slip.deductions)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-green-200 dark:border-green-800/50">
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">Final Salary</span>
+                          <span className="text-lg font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</span>
+                        </div>
+                      </div>
+                      {slip.notes && <p className="text-xs text-gray-400 mt-2 italic">{slip.notes}</p>}
+                    </div>
                   )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── TAB: Day-wise Earnings ────────────────────────────────────────────── */}
+      {tab === 'daywise' && (
+        <div className="space-y-4">
+          {/* Month/year filter */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <select value={dwMonth} onChange={e => setDwMonth(parseInt(e.target.value))} className={inputCls + ' w-36'}>
+              {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+            </select>
+            <select value={dwYear}  onChange={e => setDwYear(parseInt(e.target.value))}  className={inputCls + ' w-28'}>
+              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <button
+              onClick={() => {
+                const from = `${dwYear}-${String(dwMonth).padStart(2, '0')}-01`
+                const to   = new Date(dwYear, dwMonth, 0).toISOString().split('T')[0]
+                dispatch(fetchMyAttendanceForSalary({ from, to, per_page: 31 }))
+              }}
+              className="p-2 rounded-xl border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all"
+            >
+              <RefreshCw size={14} className={loading.myAttendance ? 'animate-spin' : ''} />
+            </button>
+          </div>
+
+          {/* Summary strip */}
+          {attSalary?.monthly_salary && (
+            <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-[#0082f3] to-blue-600 px-5 py-4">
+                <p className="text-blue-100 text-xs font-medium uppercase tracking-wider mb-1">
+                  {MONTHS.find(m => m.v === dwMonth)?.l} {dwYear} — Salary Summary
+                </p>
+                <p className="text-white text-2xl font-bold">{fmtCurrency(attSalary.earned_salary)}</p>
+                <p className="text-blue-200 text-xs mt-0.5">Earned so far · {attSalary.present_days} days present</p>
+              </div>
+              <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-800">
+                {[
+                  { l: 'Monthly Base',  v: fmtCurrency(attSalary.monthly_salary),  c: 'text-gray-800 dark:text-gray-200' },
+                  { l: 'Per Day',       v: fmtCurrency(attSalary.per_day_salary),   c: 'text-emerald-600 dark:text-emerald-400' },
+                  { l: 'Days Present',  v: `${attSalary.present_days}`,             c: 'text-[#0082f3]' },
+                ].map(x => (
+                  <div key={x.l} className="px-4 py-3 text-center">
+                    <p className={`text-base font-bold ${x.c}`}>{x.v}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{x.l}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Day-wise list */}
+          {loading.myAttendance ? (
+            <div className="flex items-center justify-center h-40 text-gray-400">
+              <Loader2 size={24} className="animate-spin" />
+            </div>
+          ) : attData.length === 0 ? (
+            <div className="text-center py-12 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
+              <Calendar size={32} className="mx-auto mb-2 opacity-40 text-gray-400" />
+              <p className="text-sm text-gray-500">No attendance records for this month</p>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+              {/* Table header */}
+              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-5 py-3 bg-gray-50 dark:bg-[#141414] border-b border-gray-100 dark:border-gray-800 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                <span>Date</span>
+                <span className="text-center">Status</span>
+                <span className="text-center">Hours</span>
+                <span className="text-right">Earned</span>
+              </div>
+
+              <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
+                {attData.map(rec => {
+                  const d      = rec.date?.split('T')[0] || rec.date
+                  const earned = dayEarned(rec.status)
+                  const cfg    = STATUS_CONFIG[rec.status] || STATUS_CONFIG.absent
+                  return (
+                    <div key={rec.id} className="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center px-5 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
+                      {/* Date + times */}
+                      <div>
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{fmtDate(d)}</p>
+                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400">
+                          {rec.check_in_time  && <span className="flex items-center gap-0.5"><LogIn  size={9} className="text-emerald-500" />{fmtTime(rec.check_in_time)}</span>}
+                          {rec.check_out_time && <span className="flex items-center gap-0.5"><LogOut size={9} className="text-rose-500"    />{fmtTime(rec.check_out_time)}</span>}
+                        </div>
+                      </div>
+
+                      {/* Status badge */}
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${cfg.badge}`}>
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${cfg.dot}`} />
+                        {cfg.label}
+                      </span>
+
+                      {/* Working hours */}
+                      <span className="text-xs text-gray-400 text-center">
+                        {rec.working_hours ? `${rec.working_hours}h` : '—'}
+                      </span>
+
+                      {/* Earned */}
+                      <div className="text-right min-w-[80px]">
+                        {earned !== null ? (
+                          <>
+                            <p className={`text-sm font-bold ${earned > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-400'}`}>
+                              {earned > 0 ? `+${fmtCurrency(earned)}` : '₹0'}
+                            </p>
+                            <p className="text-[10px] text-gray-400">
+                              {rec.status === 'half_day' ? '50%' : earned > 0 ? 'full' : 'no pay'}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-xs text-gray-300 dark:text-gray-700">—</p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Running total footer */}
+              {perDay && attData.length > 0 && (
+                <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#141414] flex items-center justify-between">
+                  <span className="text-xs text-gray-500">
+                    {attData.filter(r => ['present','late'].includes(r.status)).length} full + {attData.filter(r => r.status === 'half_day').length} half days
+                  </span>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400">Total Earned This Period</p>
+                    <p className="text-base font-bold text-[#0082f3]">
+                      {fmtCurrency(
+                        attData.reduce((sum, r) => sum + (dayEarned(r.status) || 0), 0)
+                      )}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
