@@ -30,9 +30,14 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
           isOpen ? 'border-brand ring-1 ring-brand/20' : 'border-[#e2e8f0] dark:border-[#2a2a2a]'
         } text-gray-900 dark:text-gray-100 shadow-sm`}
       >
-        <span className={!selectedOption ? 'text-gray-400' : ''}>
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
+        <div className="flex items-center gap-2 overflow-hidden">
+          {selectedOption?.color && (
+            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: selectedOption.color }} />
+          )}
+          <span className={`truncate ${!selectedOption ? 'text-gray-400' : ''}`}>
+            {selectedOption ? selectedOption.label : placeholder}
+          </span>
+        </div>
         <ChevronDown
           size={16}
           className={`text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180 text-brand' : ''}`}
@@ -52,13 +57,16 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
                     onChange(opt.value)
                     setIsOpen(false)
                   }}
-                  className={`px-4 py-2 text-sm cursor-pointer transition-colors ${
+                  className={`px-4 py-2 text-sm cursor-pointer transition-colors flex items-center gap-2 ${
                     value === opt.value
                       ? 'bg-brand/10 text-brand font-medium'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
                 >
-                  {opt.label}
+                  {opt.color && (
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: opt.color }} />
+                  )}
+                  <span className="truncate">{opt.label}</span>
                 </div>
               ))
             )}

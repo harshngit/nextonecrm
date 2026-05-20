@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Phone, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users, Mic, MicOff, Play, Pause, Trash, Clock, CalendarClock } from 'lucide-react'
-import { fetchLeads, fetchMyLeads, createLead, updateLead, deleteLead, fetchLeadSources, clearLeadError } from '../store/leadSlice'
+import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Phone, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users, Mic, MicOff, Play, Pause, Trash, Clock, CalendarClock, Settings2, Check } from 'lucide-react'
+import { fetchLeads, fetchMyLeads, createLead, updateLead, deleteLead, fetchLeadSources, clearLeadError, addLeadSource, updateLeadSource, deleteLeadSource, fetchLeadStatuses } from '../store/leadSlice'
 import { fetchProjects } from '../store/projectSlice'
 import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
@@ -264,7 +264,7 @@ function CallRecordingsManager({ mode, leadId, pending, setPending, existingRecs
 }
 
 // ─── LeadForm ─────────────────────────────────────────────────────────────────
-function LeadForm({ formData, setFormData, isEdit, sourceList, salesExecs, currentUser, leadId, pendingRecordings, setPendingRecordings, existingRecordings, onExistingChange }) {
+function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, salesExecs, currentUser, leadId, pendingRecordings, setPendingRecordings, existingRecordings, onExistingChange }) {
   const inputClass = 'w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200'
   const labelClass = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1'
   const isRestricted = ['sales_executive', 'external_caller'].includes(currentUser?.role)
@@ -1232,12 +1232,155 @@ function BulkLeadPhoneRequestModal({ leadIds, leads, onClose, onSuccess }) {
   )
 }
 
+// ─── Lead Source Management Modal ───────────────────────────────────────────
+function LeadSourceManagementModal({ isOpen, onClose }) {
+  const dispatch = useDispatch()
+  const { sources, actionLoading } = useSelector(s => s.leads)
+  const [newName, setNewName] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editName, setEditName] = useState('')
+  const [error, setError] = useState('')
+
+  const handleAdd = async (e) => {
+    e.preventDefault()
+    if (!newName.trim()) return
+    setError('')
+    const res = await dispatch(addLeadSource(newName.trim()))
+    if (addLeadSource.fulfilled.match(res)) {
+      setNewName('')
+    } else {
+      setError(res.payload || 'Failed to add source')
+    }
+  }
+
+  const handleUpdate = async (id) => {
+    if (!editName.trim()) return
+    setError('')
+    const res = await dispatch(updateLeadSource({ id, name: editName.trim() }))
+    if (updateLeadSource.fulfilled.match(res)) {
+      setEditingId(null)
+    } else {
+      setError(res.payload || 'Failed to update source')
+    }
+  }
+
+  const toggleStatus = async (source) => {
+    setError('')
+    const res = await dispatch(updateLeadSource({ id: source.id, is_active: !source.is_active }))
+    if (!updateLeadSource.fulfilled.match(res)) {
+      setError(res.payload || 'Failed to update status')
+    }
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure? This may fail if the source is in use.')) return
+    setError('')
+    const res = await dispatch(deleteLeadSource(id))
+    if (!deleteLeadSource.fulfilled.match(res)) {
+      setError(res.payload || 'Failed to delete. Try deactivating instead.')
+    }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Manage Lead Sources" size="md">
+      <div className="space-y-6">
+        {/* Add New */}
+        <form onSubmit={handleAdd} className="flex gap-2">
+          <input
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="New source name (e.g. LinkedIn)"
+            className="flex-1 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3]"
+          />
+          <Button type="submit" loading={actionLoading} disabled={!newName.trim()} icon={Plus}>Add</Button>
+        </form>
+
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">
+            <AlertCircle size={13} className="text-red-500 flex-shrink-0"/>
+            <p className="text-[11px] text-red-600">{error}</p>
+          </div>
+        )}
+
+        {/* List */}
+        <div className="border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden bg-gray-50/30 dark:bg-gray-900/20">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-100 dark:border-gray-800">
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Source Name</th>
+                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-500">Status</th>
+                <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {sources.map(s => (
+                <tr key={s.id} className="hover:bg-white/50 dark:hover:bg-gray-800/40 transition-colors">
+                  <td className="px-4 py-3">
+                    {editingId === s.id ? (
+                      <input
+                        autoFocus
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleUpdate(s.id)}
+                        className="w-full px-2 py-1 text-sm bg-white dark:bg-gray-800 border border-[#0082f3] rounded-lg outline-none"
+                      />
+                    ) : (
+                      <span className={`font-medium ${s.is_active ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 italic'}`}>
+                        {s.name} {!s.is_active && '(Inactive)'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      onClick={() => toggleStatus(s)}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                        s.is_active 
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                      }`}
+                    >
+                      {s.is_active ? 'Active' : 'Hidden'}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end gap-1">
+                      {editingId === s.id ? (
+                        <>
+                          <button onClick={() => handleUpdate(s.id)} className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg"><Check size={14}/></button>
+                          <button onClick={() => setEditingId(null)} className="p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><X size={14}/></button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => { setEditingId(s.id); setEditName(s.name) }} className="p-1.5 text-gray-400 hover:text-[#0082f3] hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"><Edit2 size={14}/></button>
+                          <button onClick={() => handleDelete(s.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"><Trash2 size={14}/></button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {sources.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="px-4 py-8 text-center text-gray-400 text-xs italic">No sources defined yet.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[10px] text-gray-400 text-center italic">
+          Inactive sources are hidden from the "Add Lead" dropdown but remain on existing leads.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Main Page Component ──────────────────────────────────────────────────────
 
 export default function Leads() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
-  const { list, loading, pagination, sources, actionLoading, actionError,
+  const { list, loading, pagination, sources, statuses, actionLoading, actionError,
           myList, myLoading, myPagination } = useSelector(s => s.leads)
   const { list: userList } = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
@@ -1249,13 +1392,30 @@ export default function Leads() {
   const [page, setPage] = useState(1)
 
   const isSalesManager = currentUser?.role === 'sales_manager'
+  const isAdminOrManager = ['admin', 'super_admin', 'manager'].includes(currentUser?.role)
   const activeLeadListRef = useRef([])
   const activeLeadList = activeLeadListRef.current
-  const [leadsTab, setLeadsTab] = useState('team') // 'my' | 'team'
+  const [leadsTab, setLeadsTab] = useState(isSalesManager ? 'my' : 'team') // 'my' | 'team'
   const [myPage,   setMyPage]   = useState(1)
+
+  const stageOptions = useMemo(() => {
+    if (statuses?.length > 0) {
+      return statuses.filter(s => s.is_active).map(s => ({ value: s.key, label: s.label }))
+    }
+    return leadStages
+  }, [statuses])
+
+  const statusMap = useMemo(() => {
+    const map = {}
+    if (statuses?.length > 0) {
+      statuses.forEach(s => { map[s.key] = s })
+    }
+    return map
+  }, [statuses])
 
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showSourceModal, setShowSourceModal] = useState(false)
   const [showReassignModal,     setShowReassignModal]     = useState(false)
   const [showBulkReassignModal, setShowBulkReassignModal] = useState(false)
   const [showBulkUploadModal,   setShowBulkUploadModal]   = useState(false)
@@ -1294,6 +1454,7 @@ export default function Leads() {
 
   useEffect(() => {
     dispatch(fetchLeadSources())
+    dispatch(fetchLeadStatuses())
     dispatch(fetchUsers())
     dispatch(fetchProjects())
   }, [dispatch])
@@ -1463,6 +1624,11 @@ export default function Leads() {
           </button>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {isAdminOrManager && (
+            <Button variant="outline" size="sm" icon={Settings2} onClick={() => setShowSourceModal(true)}>
+              Manage Sources
+            </Button>
+          )}
           {canBulkUpload && (
             <Button variant="outline" size="sm" icon={Upload} onClick={() => setShowBulkUploadModal(true)}>
               Bulk Upload
@@ -1619,7 +1785,12 @@ export default function Leads() {
                         ) : <span className="text-xs text-gray-400">Unassigned</span>}
                       </td>
                     )}
-                    <td className="py-3 px-3"><Badge label={lead.status || 'New'} /></td>
+                    <td className="py-3 px-3">
+                      <Badge 
+                        label={lead.status || 'New'} 
+                        color={statusMap[lead.status?.toLowerCase()]?.color} 
+                      />
+                    </td>
                     <td className="py-3 px-3 text-xs text-gray-400 hidden xl:table-cell">
                       {lead.location_preference || '—'}
                     </td>
@@ -1684,7 +1855,10 @@ export default function Leads() {
       {/* Add Lead Modal */}
       <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setAddSuccess(''); setPendingRecordings([]) }} title="Add New Lead" size="lg">
         <form onSubmit={handleAddLead} className="space-y-4">
-          <LeadForm formData={addForm} setFormData={setAddForm} isEdit={false} sourceList={sourceList} salesExecs={salesExecs} currentUser={currentUser} leadId={null}
+          <LeadForm formData={addForm} setFormData={setAddForm} isEdit={false} 
+            sourceList={sourceList.filter(s => s.is_active !== false)} 
+            stageOptions={stageOptions}
+            salesExecs={salesExecs} currentUser={currentUser} leadId={null}
             pendingRecordings={pendingRecordings} setPendingRecordings={setPendingRecordings}
           />
           {addSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{addSuccess}</p>}
@@ -1699,7 +1873,10 @@ export default function Leads() {
       {/* Edit Lead Modal */}
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setEditSuccess('') }} title="Edit Lead" size="lg">
         <form onSubmit={handleEditLead} className="space-y-4">
-          <LeadForm formData={editForm} setFormData={setEditForm} isEdit={true} sourceList={sourceList} salesExecs={salesExecs} currentUser={currentUser} leadId={selectedLead?.id}
+          <LeadForm formData={editForm} setFormData={setEditForm} isEdit={true} 
+            sourceList={sourceList.filter(s => s.is_active !== false || s.id === editForm.source_id)} 
+            stageOptions={stageOptions}
+            salesExecs={salesExecs} currentUser={currentUser} leadId={selectedLead?.id}
             existingRecordings={existingRecordings}
             onExistingChange={async () => {
               try {
@@ -1791,6 +1968,12 @@ export default function Leads() {
         onExport={handleExport} 
         loading={exporting}
         title="Export Leads"
+      />
+
+      {/* Lead Source Management Modal */}
+      <LeadSourceManagementModal 
+        isOpen={showSourceModal} 
+        onClose={() => setShowSourceModal(false)} 
       />
     </div>
   )

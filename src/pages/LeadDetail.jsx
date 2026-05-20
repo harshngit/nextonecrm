@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -6,18 +6,22 @@ import {
   ChevronDown, Loader2, UserCheck, MessageSquare,
   Clock, CheckCircle, Info, ExternalLink, ShieldCheck,
   PlusCircle, CalendarPlus, ArrowRight, RefreshCw, History, Users, PhoneCall as PhoneCallIcon,
-  Mic, MicOff, Play, Pause, Upload, Trash, Edit2, Plus, X,
+  Mic, MicOff, Play, Pause, Upload, Trash, Edit2, Plus, X, Settings2, Trash2, ArrowUp, ArrowDown, Palette, Check, Building2
 } from 'lucide-react'
 import api from '../api/axios'
 import CustomSelect from '../components/ui/CustomSelect'
-import { fetchLeadById, fetchLeadActivities, addLeadNote, updateLeadStatus, clearCurrentLead } from '../store/leadSlice'
+import { 
+  fetchLeadById, fetchLeadActivities, addLeadNote, updateLeadStatus, clearCurrentLead,
+  fetchLeadStatuses, addLeadStatus, updateLeadStatusConfig, deleteLeadStatus, reorderLeadStatuses
+} from '../store/leadSlice'
 import { fetchUsers } from '../store/userSlice'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
+import Modal from '../components/ui/Modal'
 import ConvertLeadModal from '../components/modals/ConvertLeadModal'
 
-const leadStages = [
+const defaultLeadStages = [
   { value: 'new',                  label: 'New' },
   { value: 'contacted',            label: 'Contacted' },
   { value: 'interested',           label: 'Interested' },
@@ -39,12 +43,246 @@ const activityIconMap = {
   reassigned: { emoji: '👤', color: 'bg-indigo-50 dark:bg-indigo-900/20', icon: UserCheck },
 }
 
+// ─── Lead Status Management Modal ────────────────────────────────────────────
+function LeadStatusManagementModal({ isOpen, onClose }) {
+  const dispatch = useDispatch()
+  const { statuses, actionLoading } = useSelector(s => s.leads)
+  const [error, setError] = useState('')
+  
+  // Form for new status
+  const [newStatus, setNewStatus] = useState({ label: '', color: '#6b7280' })
+  
+  // Inline editing
+  const [editingId, setEditingId] = useState(null)
+  const [editForm, setEditForm] = useState({ label: '', color: '', is_active: true })
+
+  useEffect(() => {
+    if (isOpen) dispatch(fetchLeadStatuses(true))
+  }, [isOpen, dispatch])
+
+  const handleAdd = async (e) => {
+    e.preventDefault()
+    if (!newStatus.label.trim()) return
+    setError('')
+    const res = await dispatch(addLeadStatus({
+      label: newStatus.label.trim(),
+      color: newStatus.color,
+      sort_order: (statuses[statuses.length - 1]?.sort_order || 0) + 1
+    }))
+    if (addLeadStatus.fulfilled.match(res)) {
+      setNewStatus({ label: '', color: '#6b7280' })
+    } else {
+      setError(res.payload || 'Failed to add status')
+    }
+  }
+
+  const handleUpdate = async (id) => {
+    if (!editForm.label.trim()) return
+    setError('')
+    const res = await dispatch(updateLeadStatusConfig({ 
+      id, 
+      statusData: { label: editForm.label.trim(), color: editForm.color, is_active: editForm.is_active } 
+    }))
+    if (updateLeadStatusConfig.fulfilled.match(res)) {
+      setEditingId(null)
+    } else {
+      setError(res.payload || 'Failed to update status')
+    }
+  }
+
+  const handleDelete = async (id, isSystem) => {
+    if (isSystem) {
+      alert('System statuses cannot be deleted. You can deactivate them instead.')
+      return
+    }
+    if (!window.confirm('Delete this status? This will fail if leads are currently using it.')) return
+    setError('')
+    const res = await dispatch(deleteLeadStatus(id))
+    if (!deleteLeadStatus.fulfilled.match(res)) {
+      setError(res.payload || 'Delete failed. It might be in use.')
+    }
+  }
+
+  const handleMove = async (index, direction) => {
+    const newOrder = [...statuses]
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= newOrder.length) return
+    
+    // Swap
+    const temp = newOrder[index]
+    newOrder[index] = newOrder[targetIndex]
+    newOrder[targetIndex] = temp
+    
+    // Update sort_order based on new array positions
+    const payload = newOrder.map((s, i) => ({ id: s.id, sort_order: i + 1 }))
+    const res = await dispatch(reorderLeadStatuses(payload))
+    if (!reorderLeadStatuses.fulfilled.match(res)) {
+      setError('Failed to reorder')
+    }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Manage Pipeline Statuses" size="lg">
+      <div className="space-y-6">
+        
+        {/* Add New Status */}
+        <div className="bg-gray-50 dark:bg-gray-800/40 rounded-2xl p-4 border border-gray-100 dark:border-gray-700">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Add Custom Status</p>
+          <form onSubmit={handleAdd} className="flex flex-wrap gap-3">
+            <input
+              value={newStatus.label}
+              onChange={e => setNewStatus(s => ({ ...s, label: e.target.value }))}
+              placeholder="e.g. Warm Lead"
+              className="flex-1 min-w-[200px] px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand"
+            />
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+              <Palette size={14} className="text-gray-400" />
+              <input 
+                type="color" 
+                value={newStatus.color} 
+                onChange={e => setNewStatus(s => ({ ...s, color: e.target.value }))}
+                className="w-6 h-6 rounded cursor-pointer bg-transparent border-none"
+              />
+            </div>
+            <Button type="submit" loading={actionLoading} disabled={!newStatus.label.trim()} icon={Plus}>Add Status</Button>
+          </form>
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">
+            <Info size={14} className="text-red-500" />
+            <p className="text-xs text-red-600">{error}</p>
+          </div>
+        )}
+
+        {/* Status List */}
+        <div className="border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden bg-white dark:bg-[#1a1a1a]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-100 dark:border-gray-800">
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-10">Order</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status Label</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Badge Preview</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Visibility</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {statuses.map((s, idx) => (
+                  <tr key={s.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col items-center gap-1">
+                        <button 
+                          onClick={() => handleMove(idx, 'up')} 
+                          disabled={idx === 0 || actionLoading}
+                          className="p-0.5 text-gray-400 hover:text-brand disabled:opacity-20"
+                        >
+                          <ArrowUp size={14} />
+                        </button>
+                        <span className="text-[10px] font-bold text-gray-400">{s.sort_order}</span>
+                        <button 
+                          onClick={() => handleMove(idx, 'down')} 
+                          disabled={idx === statuses.length - 1 || actionLoading}
+                          className="p-0.5 text-gray-400 hover:text-brand disabled:opacity-20"
+                        >
+                          <ArrowDown size={14} />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {editingId === s.id ? (
+                        <input
+                          autoFocus
+                          value={editForm.label}
+                          onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
+                          className="w-full px-2 py-1.5 text-sm bg-white dark:bg-gray-800 border border-brand rounded-lg outline-none"
+                        />
+                      ) : (
+                        <div className="flex flex-col">
+                          <span className={`font-semibold ${s.is_active ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400'}`}>
+                            {s.label}
+                          </span>
+                          <span className="text-[10px] text-gray-400 font-mono">{s.key}</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-3">
+                        {editingId === s.id ? (
+                          <input 
+                            type="color" 
+                            value={editForm.color} 
+                            onChange={e => setEditForm(f => ({ ...f, color: e.target.value }))}
+                            className="w-6 h-6 rounded cursor-pointer bg-transparent border-none"
+                          />
+                        ) : null}
+                        <span 
+                          className="px-3 py-1 rounded-full text-[10px] font-bold text-white shadow-sm"
+                          style={{ backgroundColor: editingId === s.id ? editForm.color : (s.color || '#6b7280') }}
+                        >
+                          {editingId === s.id ? editForm.label : s.label}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => {
+                          if (editingId === s.id) {
+                            setEditForm(f => ({ ...f, is_active: !f.is_active }))
+                          } else {
+                            dispatch(updateLeadStatusConfig({ id: s.id, statusData: { is_active: !s.is_active } }))
+                          }
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                          (editingId === s.id ? editForm.is_active : s.is_active)
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500'
+                        }`}
+                      >
+                        {(editingId === s.id ? editForm.is_active : s.is_active) ? 'Active' : 'Inactive'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-1">
+                        {editingId === s.id ? (
+                          <>
+                            <button onClick={() => handleUpdate(s.id)} className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-xl transition-colors"><Check size={16}/></button>
+                            <button onClick={() => setEditingId(null)} className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors"><X size={16}/></button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => { setEditingId(s.id); setEditForm({ label: s.label, color: s.color || '#6b7280', is_active: s.is_active }) }} className="p-2 text-gray-400 hover:text-brand hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-colors"><Edit2 size={16}/></button>
+                            <button onClick={() => handleDelete(s.id, s.is_system)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"><Trash2 size={16}/></button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-800/30">
+          <Info size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
+          <p className="text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
+            <span className="font-bold">System statuses</span> cannot be deleted but can be deactivated to hide them from the pipeline. 
+            Reordering statuses changes their sequence in the pipeline progress bar and selection dropdowns.
+          </p>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 export default function LeadDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const dispatch = useDispatch()
 
-  const { currentLead: lead, activities, detailLoading, actionLoading } = useSelector(s => s.leads)
+  const { currentLead: lead, activities, detailLoading, actionLoading, statuses } = useSelector(s => s.leads)
   const { list: userList } = useSelector(s => s.users)
 
   const { user: currentUser } = useSelector(s => s.auth)
@@ -52,6 +290,20 @@ export default function LeadDetail() {
   const [newStatus, setNewStatus] = useState('')
   const [noteError, setNoteError] = useState('')
   const [showConvertModal, setShowConvertModal] = useState(false)
+  const [showStatusModal, setShowStatusModal] = useState(false)
+
+  const isAdmin = ['admin', 'super_admin'].includes(currentUser?.role)
+  const leadStages = statuses?.length > 0 
+    ? statuses.filter(s => s.is_active).map(s => ({ value: s.key, label: s.label, color: s.color }))
+    : defaultLeadStages
+
+  const statusMap = useMemo(() => {
+    const map = {}
+    leadStages.forEach(s => { map[s.value] = s })
+    return map
+  }, [leadStages])
+
+  const currentStatusObj = statusMap[lead?.status] || statusMap[lead?.status?.toLowerCase()]
 
   // Reassignment history — visible for admin, super_admin, sales_manager
   const canSeeHistory = ['admin', 'super_admin', 'sales_manager'].includes(currentUser?.role)
@@ -206,6 +458,7 @@ export default function LeadDetail() {
     dispatch(fetchLeadById(id))
     dispatch(fetchLeadActivities(id))
     dispatch(fetchUsers())
+    dispatch(fetchLeadStatuses())
     fetchReassignHistory(1)
     fetchRecordings()
     return () => dispatch(clearCurrentLead())
@@ -348,7 +601,11 @@ export default function LeadDetail() {
                   <div className="flex-1 space-y-2 mb-2">
                     <div className="flex flex-wrap items-center gap-3">
                       <h1 className="font-display text-3xl font-bold text-gray-900 dark:text-white">{lead.name}</h1>
-                      <Badge label={lead.status || 'New'} className="px-3 py-1 text-xs" />
+                      <Badge 
+                        label={lead.status || 'New'} 
+                        color={currentStatusObj?.color} 
+                        className="px-3 py-1 text-xs" 
+                      />
                     </div>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
                       <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-brand" /> ID: {lead.id?.slice?.(0, 8) || lead.id}</span>
@@ -717,21 +974,40 @@ export default function LeadDetail() {
             
             {/* 4. Status Update Card */}
             <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-6 shadow-sm">
-              <h3 className="font-display text-base font-bold text-gray-900 dark:text-white mb-5 flex items-center gap-2">
-                <CheckCircle size={18} className="text-green-500" /> Pipeline Status
-              </h3>
-              
-              <div className="space-y-4">
-                <div className="relative">
-                  <select
-                    value={newStatus}
-                    onChange={e => setNewStatus(e.target.value)}
-                    className="w-full appearance-none pl-4 pr-10 py-3 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-gray-900 dark:text-gray-100 font-semibold"
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-display text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <CheckCircle size={18} className="text-green-500" /> Pipeline Status
+                </h3>
+                {isAdmin && (
+                  <button onClick={() => setShowStatusModal(true)} 
+                    className="p-2 text-gray-400 hover:text-brand hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all"
+                    title="Manage Statuses"
                   >
-                    {leadStages.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
-                  <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <Settings2 size={16} />
+                  </button>
+                )}
+              </div>
+              
+              <div className="space-y-5">
+                <div className="flex items-center gap-3 p-3 bg-gray-50/50 dark:bg-[#0f0f0f]/50 border border-gray-100 dark:border-gray-800 rounded-2xl">
+                  <div 
+                    className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm"
+                    style={{ backgroundColor: currentStatusObj?.color || '#6b7280' }}
+                  >
+                    <RefreshCw size={18} />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Current Stage</div>
+                    <div className="text-sm font-bold text-gray-900 dark:text-white">{currentStatusObj?.label || 'New'}</div>
+                  </div>
                 </div>
+
+                <CustomSelect
+                  value={newStatus}
+                  onChange={setNewStatus}
+                  options={leadStages}
+                  placeholder="Select new stage..."
+                />
                 
                 <Button 
                   className="w-full rounded-2xl py-3 font-bold shadow-lg shadow-blue-500/20" 
@@ -933,6 +1209,12 @@ export default function LeadDetail() {
           }}
         />
       )}
+
+      {/* Lead Status Management Modal */}
+      <LeadStatusManagementModal 
+        isOpen={showStatusModal} 
+        onClose={() => setShowStatusModal(false)} 
+      />
     </div>
   )
 }

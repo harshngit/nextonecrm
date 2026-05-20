@@ -18,7 +18,7 @@ const statusColors = {
   'Commercial': 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
 }
 
-export default function Badge({ label, className = '' }) {
+export default function Badge({ label, className = '', color }) {
   const formatLabel = (str) => {
      if (!str) return '';
      // If it's already in the statusColors, return as is (to handle 'Follow-up' etc)
@@ -32,10 +32,13 @@ export default function Badge({ label, className = '' }) {
    }
 
   const formattedLabel = formatLabel(label);
-  const colorClass = statusColors[formattedLabel] || statusColors[label] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+  const colorClass = color ? '' : (statusColors[formattedLabel] || statusColors[label] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400')
   
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass} ${className}`}>
+    <span 
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass} ${className}`}
+      style={color ? { backgroundColor: `${color}20`, color: color, border: `1px solid ${color}40` } : {}}
+    >
       {formattedLabel}
     </span>
   )

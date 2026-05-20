@@ -128,10 +128,106 @@ export const fetchLeadSources = createAsyncThunk(
   'leads/fetchSources',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await api.get('dashboard/lead-sources')
+      const response = await api.get('/config/lead-sources')
       return response.data.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch lead sources')
+    }
+  }
+)
+
+export const addLeadSource = createAsyncThunk(
+  'leads/addSource',
+  async (name, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/config/lead-sources', { name })
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to add lead source')
+    }
+  }
+)
+
+export const updateLeadSource = createAsyncThunk(
+  'leads/updateSource',
+  async ({ id, name, is_active }, { rejectWithValue }) => {
+    try {
+      const response = await api.put(`/config/lead-sources/${id}`, { name, is_active })
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update lead source')
+    }
+  }
+)
+
+export const deleteLeadSource = createAsyncThunk(
+  'leads/deleteSource',
+  async (id, { rejectWithValue }) => {
+    try {
+      await api.delete(`/config/lead-sources/${id}`)
+      return id
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete lead source')
+    }
+  }
+)
+
+export const fetchLeadStatuses = createAsyncThunk(
+  'leads/fetchStatuses',
+  async (includeInactive = false, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/config/lead-statuses', { params: { include_inactive: includeInactive } })
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch lead statuses')
+    }
+  }
+)
+
+export const addLeadStatus = createAsyncThunk(
+  'leads/addStatus',
+  async (statusData, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/config/lead-statuses', statusData)
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to add lead status')
+    }
+  }
+)
+
+export const updateLeadStatusConfig = createAsyncThunk(
+  'leads/updateStatusConfig',
+  async ({ id, statusData }, { rejectWithValue }) => {
+    try {
+      const response = await api.put(`/config/lead-statuses/${id}`, statusData)
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update lead status')
+    }
+  }
+)
+
+export const deleteLeadStatus = createAsyncThunk(
+  'leads/deleteStatus',
+  async (id, { rejectWithValue }) => {
+    try {
+      await api.delete(`/config/lead-statuses/${id}`)
+      return id
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete lead status')
+    }
+  }
+)
+
+export const reorderLeadStatuses = createAsyncThunk(
+  'leads/reorderStatuses',
+  async (order, { rejectWithValue }) => {
+    try {
+      const response = await api.patch('/config/lead-statuses/reorder', { order })
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to reorder lead statuses')
     }
   }
 )
@@ -148,6 +244,7 @@ const leadSlice = createSlice({
     currentLead:  null,
     activities:   [],
     sources:      [],
+    statuses:     [],
     pagination:   { total: 0, page: 1, per_page: 20, total_pages: 0 },
     loading:      false,
     detailLoading: false,
@@ -214,10 +311,43 @@ const leadSlice = createSlice({
         state.sources = action.payload || []
       })
 
+      .addCase(addLeadSource.fulfilled, (state, action) => {
+        state.sources = [action.payload, ...state.sources]
+      })
+
+      .addCase(updateLeadSource.fulfilled, (state, action) => {
+        state.sources = state.sources.map(s => s.id === action.payload.id ? action.payload : s)
+      })
+
+      .addCase(deleteLeadSource.fulfilled, (state, action) => {
+        state.sources = state.sources.filter(s => s.id !== action.payload)
+      })
+
+      // ── fetchLeadStatuses ──────────────────────────────────────────────────
+      .addCase(fetchLeadStatuses.fulfilled, (state, action) => {
+        state.statuses = action.payload || []
+      })
+
+      .addCase(addLeadStatus.fulfilled, (state, action) => {
+        state.statuses = [...state.statuses, action.payload].sort((a, b) => a.sort_order - b.sort_order)
+      })
+
+      .addCase(updateLeadStatusConfig.fulfilled, (state, action) => {
+        state.statuses = state.statuses.map(s => s.id === action.payload.id ? action.payload : s).sort((a, b) => a.sort_order - b.sort_order)
+      })
+
+      .addCase(deleteLeadStatus.fulfilled, (state, action) => {
+        state.statuses = state.statuses.filter(s => s.id !== action.payload)
+      })
+
+      .addCase(reorderLeadStatuses.fulfilled, (state, action) => {
+        state.statuses = action.payload || []
+      })
+
       // ── create / update / delete / status / reassign — action loading ─────
       .addMatcher(
         (action) =>
-          ['leads/create', 'leads/update', 'leads/delete', 'leads/updateStatus', 'leads/reassign', 'leads/addNote']
+          ['leads/create', 'leads/update', 'leads/delete', 'leads/updateStatus', 'leads/reassign', 'leads/addNote', 'leads/addSource', 'leads/updateSource', 'leads/deleteSource', 'leads/addStatus', 'leads/updateStatusConfig', 'leads/deleteStatus', 'leads/reorderStatuses']
             .some(t => action.type.startsWith(t)),
         (state, action) => {
           if (action.type.endsWith('/pending'))   { state.actionLoading = true;  state.actionError = null }
