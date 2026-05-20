@@ -1733,9 +1733,10 @@ export default function Leads() {
                       checked={selectedLeads.length === list.length && list.length > 0}
                       onChange={toggleAll} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
                   </th>
-                  {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Finding Location', 'Actions'].map(h => (
+                  {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Finding Location', 'Actions']
+                    .filter(h => !(h === 'Assigned' && isSalesManager && leadsTab === 'my'))
+                    .map(h => (
                     <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wide whitespace-nowrap
-                      ${h === 'Assigned' && isSalesManager && leadsTab === 'my' ? 'hidden' : ''}
                       ${['Phone', 'Source', 'Assigned'].includes(h) ? 'hidden md:table-cell' : ''}
                       ${['Finding Location'].includes(h) ? 'hidden xl:table-cell' : ''}
                       ${h === 'Actions' ? 'text-right' : ''}`}>

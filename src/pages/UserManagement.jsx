@@ -31,6 +31,7 @@ const roleColors = {
 const defaultForm = {
   first_name: '', last_name: '', email: '',
   phone_number: '', password: '', role: 'sales_executive',
+  address: '', emergency_contact_number: ''
 }
 
 // ── User Form (admin/super_admin only) ────────────────────────────────────────
@@ -56,12 +57,31 @@ function UserForm({ form, setForm, editMode, showPassword, setShowPassword }) {
           <input required type="email" disabled={editMode} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="priya@nextonerealty.com" className={inputClass + " pl-9"} />
         </div>
       </div>
-      <div>
-        <label className={labelClass}>Phone Number *</label>
-        <div className="relative">
-          <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input required={!editMode} value={form.phone_number} onChange={e => setForm({ ...form, phone_number: e.target.value })} placeholder="+919123456789" className={inputClass + " pl-9"} />
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Phone Number *</label>
+          <div className="relative">
+            <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input required={!editMode} value={form.phone_number} onChange={e => setForm({ ...form, phone_number: e.target.value })} placeholder="+919123456789" className={inputClass + " pl-9"} />
+          </div>
         </div>
+        <div>
+          <label className={labelClass}>Emergency Contact</label>
+          <div className="relative">
+            <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={form.emergency_contact_number} onChange={e => setForm({ ...form, emergency_contact_number: e.target.value })} placeholder="+919876543211" className={inputClass + " pl-9"} />
+          </div>
+        </div>
+      </div>
+      <div>
+        <label className={labelClass}>Residential Address</label>
+        <textarea 
+          value={form.address} 
+          onChange={e => setForm({ ...form, address: e.target.value })} 
+          placeholder="102, Andheri West, Mumbai - 400053" 
+          rows={2}
+          className={inputClass + " resize-none py-2"} 
+        />
       </div>
       {!editMode && (
         <div>
@@ -203,7 +223,16 @@ export default function UserManagement() {
   const handleOpenModal = (user = null) => {
     if (user) {
       setEditMode(true); setSelectedUser(user)
-      setForm({ first_name: user.first_name, last_name: user.last_name, email: user.email, phone_number: user.phone_number || '', role: user.role, password: '' })
+      setForm({ 
+        first_name: user.first_name, 
+        last_name: user.last_name, 
+        email: user.email, 
+        phone_number: user.phone_number || '', 
+        role: user.role, 
+        password: '',
+        address: user.address || '',
+        emergency_contact_number: user.emergency_contact_number || ''
+      })
     } else {
       setEditMode(false); setSelectedUser(null); setForm(defaultForm)
     }
