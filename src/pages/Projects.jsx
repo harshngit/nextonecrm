@@ -19,13 +19,6 @@ const projectColors = [
   'from-rose-400/20 to-pink-400/20',
 ]
 
-const projectTypes = [
-  { value: 'Residential', label: 'Residential' },
-  { value: 'Commercial', label: 'Commercial' },
-  { value: 'Mixed', label: 'Mixed Use' },
-  { value: 'Plots', label: 'Plots / Land' },
-]
-
 const projectStatuses = [
   { value: 'active', label: 'Active' },
   { value: 'upcoming', label: 'Upcoming' },
@@ -38,10 +31,7 @@ const defaultForm = {
   developer: '',
   city: '',
   locality: '',
-  type: 'Residential',
-  configurations: '',
-  price_min: '',
-  price_max: '',
+  price_range: '',
   total_units: '',
   description: '',
   status: 'active',
@@ -49,9 +39,24 @@ const defaultForm = {
 }
 
 // ── Form defined OUTSIDE to prevent typing/focus loss bug ────────────────────
-function ProjectForm({ formData, setFormData }) {
+function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
   const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+
+  const handleFileChange = (e, type) => {
+    const files = Array.from(e.target.files)
+    setUploadFiles(prev => ({
+      ...prev,
+      [type]: [...prev[type], ...files]
+    }))
+  }
+
+  const removeFile = (type, index) => {
+    setUploadFiles(prev => ({
+      ...prev,
+      [type]: prev[type].filter((_, i) => i !== index)
+    }))
+  }
 
   return (
     <div className="space-y-4">
@@ -92,14 +97,8 @@ function ProjectForm({ formData, setFormData }) {
         </div>
       </div>
 
-      {/* Type + Status */}
-      <div className="grid grid-cols-2 gap-3">
-        <CustomSelect
-          label="Type"
-          value={formData.type}
-          onChange={val => setFormData(p => ({ ...p, type: val }))}
-          options={projectTypes}
-        />
+      {/* Status */}
+      <div className="grid grid-cols-1 gap-3">
         <CustomSelect
           label="Status"
           value={formData.status}
@@ -108,31 +107,13 @@ function ProjectForm({ formData, setFormData }) {
         />
       </div>
 
-      {/* Configurations */}
+      {/* Price Range (Simplified as per user request) */}
       <div>
-        <label className={lc}>Configurations</label>
-        <input value={formData.configurations}
-          onChange={e => setFormData(p => ({ ...p, configurations: e.target.value }))}
-          placeholder="2BHK, 3BHK, 4BHK"
+        <label className={lc}>Price Range (e.g. 80L - 1.5Cr)</label>
+        <input value={formData.price_range}
+          onChange={e => setFormData(p => ({ ...p, price_range: e.target.value }))}
+          placeholder="80L - 1.5Cr"
           className={ic} />
-      </div>
-
-      {/* Price Min + Max */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={lc}>Price Min (₹)</label>
-          <input value={formData.price_min}
-            onChange={e => setFormData(p => ({ ...p, price_min: e.target.value }))}
-            placeholder="8500000"
-            className={ic} />
-        </div>
-        <div>
-          <label className={lc}>Price Max (₹)</label>
-          <input value={formData.price_max}
-            onChange={e => setFormData(p => ({ ...p, price_max: e.target.value }))}
-            className={ic}
-            placeholder="24000000" />
-        </div>
       </div>
 
       {/* Total Units + RERA */}
@@ -160,6 +141,67 @@ function ProjectForm({ formData, setFormData }) {
           onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
           placeholder="Brief overview of project features, amenities..."
           className={ic} />
+      </div>
+
+      {/* File Uploads */}
+      <div className="grid grid-cols-2 gap-4 pt-2">
+        {/* Unit Plans */}
+        <div>
+          <label className={lc}>Unit Plans</label>
+          <div className="relative group">
+            <input 
+              type="file" 
+              multiple 
+              onChange={(e) => handleFileChange(e, 'unit_plans')}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            />
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl group-hover:border-brand group-hover:bg-brand/5 transition-all">
+              <Paperclip size={14} className="text-gray-400 group-hover:text-brand" />
+              <span className="text-xs text-gray-500 group-hover:text-brand">Upload Unit Plans</span>
+            </div>
+          </div>
+          {uploadFiles.unit_plans?.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {uploadFiles.unit_plans.map((file, idx) => (
+                <div key={idx} className="flex items-center justify-between px-2 py-1 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg group">
+                  <span className="text-[10px] text-blue-600 dark:text-blue-400 truncate flex-1 mr-2">{file.name}</span>
+                  <button onClick={() => removeFile('unit_plans', idx)} className="text-gray-400 hover:text-red-500 transition-colors">
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Creatives */}
+        <div>
+          <label className={lc}>Creatives</label>
+          <div className="relative group">
+            <input 
+              type="file" 
+              multiple 
+              onChange={(e) => handleFileChange(e, 'creatives')}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            />
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl group-hover:border-brand group-hover:bg-brand/5 transition-all">
+              <Paperclip size={14} className="text-gray-400 group-hover:text-brand" />
+              <span className="text-xs text-gray-500 group-hover:text-brand">Upload Creatives</span>
+            </div>
+          </div>
+          {uploadFiles.creatives?.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {uploadFiles.creatives.map((file, idx) => (
+                <div key={idx} className="flex items-center justify-between px-2 py-1 bg-purple-50/50 dark:bg-purple-900/10 rounded-lg group">
+                  <span className="text-[10px] text-purple-600 dark:text-purple-400 truncate flex-1 mr-2">{file.name}</span>
+                  <button onClick={() => removeFile('creatives', idx)} className="text-gray-400 hover:text-red-500 transition-colors">
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -207,30 +249,57 @@ export default function Projects() {
   const handleAdd = async (e) => {
     e.preventDefault()
     dispatch(clearProjectError())
+    
     try {
-      // Build multipart/form-data so files travel with the project fields
-      const fd = new FormData()
-      Object.entries(addForm).forEach(([k, v]) => { if (v !== '' && v !== null && v !== undefined) fd.append(k, v) })
-      uploadFiles.unit_plans.forEach(f => fd.append('unit_plans', f))
-      uploadFiles.creatives.forEach(f  => fd.append('creatives',  f))
-
-      const res = await api.post('/projects', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-      if (res.data.success) {
-        const docCount = res.data.data?.documents?.count || 0
-        setSuccess(`Project created!${docCount > 0 ? ` ${docCount} document${docCount > 1 ? 's' : ''} uploaded.` : ''}`)
-        setUploadFiles({ unit_plans: [], creatives: [] })
-        dispatch(fetchProjects({ page, per_page: 20 }))
-        setTimeout(() => { setShowAddModal(false); setSuccess(''); setAddForm(defaultForm) }, 900)
+      // 1. Upload Unit Plans first
+      const unitPlanDetails = []
+      for (const file of uploadFiles.unit_plans) {
+        const formData = new FormData()
+        formData.append('unit_plan', file)
+        const res = await api.post('/projects/upload-unit-plan', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        if (res.data.success) {
+          unitPlanDetails.push(res.data.data)
+        }
       }
-    } catch (err) {
-      // fall back to Redux thunk for non-file errors to surface actionError
-      dispatch(clearProjectError())
-      const result = await dispatch(createProject(addForm))
+
+      // 2. Upload Creatives
+      const creativeDetails = []
+      for (const file of uploadFiles.creatives) {
+        const formData = new FormData()
+        formData.append('creative', file)
+        const res = await api.post('/projects/upload-creative', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        if (res.data.success) {
+          creativeDetails.push(res.data.data)
+        }
+      }
+
+      // 3. Prepare project data with file details
+      const projectData = {
+        ...addForm,
+        unit_plans: unitPlanDetails,
+        creatives: creativeDetails,
+        total_units: addForm.total_units ? parseInt(addForm.total_units) : 0
+      }
+
+      // 4. Create Project
+      const result = await dispatch(createProject(projectData))
       if (createProject.fulfilled.match(result)) {
         setSuccess('Project created!')
+        setUploadFiles({ unit_plans: [], creatives: [] })
         dispatch(fetchProjects({ page, per_page: 20 }))
-        setTimeout(() => { setShowAddModal(false); setSuccess(''); setAddForm(defaultForm) }, 800)
+        setTimeout(() => { 
+          setShowAddModal(false)
+          setSuccess('')
+          setAddForm(defaultForm) 
+        }, 800)
       }
+    } catch (err) {
+      console.error('Project creation failed:', err)
+      // error is handled by projectSlice actionError
     }
   }
 
@@ -268,12 +337,8 @@ export default function Projects() {
       city:           project.city || '',
       locality:       project.locality || '',
       type:           project.type || 'Residential',
-      configurations: Array.isArray(project.configurations)
-        ? project.configurations.join(', ')
-        : project.configurations || project.config || '',
-      price_min:      project.price_min || '',
-      price_max:      project.price_max || '',
-      total_units:    project.total_units || project.totalUnits || '',
+      price_range:    project.price_range || '',
+      total_units:    project.total_units || '',
       description:    project.description || '',
       status:         project.status || 'active',
       rera_number:    project.rera_number || '',
@@ -284,21 +349,12 @@ export default function Projects() {
   // Format price range for display
   const formatPrice = (project) => {
     if (project.price_range) return project.price_range
-    if (project.price_min && project.price_max) {
-      const fmt = (v) => {
-        const n = Number(v)
-        if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`
-        if (n >= 100000) return `₹${(n / 100000).toFixed(0)}L`
-        return `₹${n.toLocaleString()}`
-      }
-      return `${fmt(project.price_min)} – ${fmt(project.price_max)}`
-    }
-    return project.priceRange || '—'
+    return '—'
   }
 
   const formatConfig = (project) => {
     if (Array.isArray(project.configurations)) return project.configurations.join(', ')
-    return project.configurations || project.config || '—'
+    return project.configurations || project.config || project.type || '—'
   }
 
   const statusBadgeColor = {
@@ -534,58 +590,8 @@ export default function Projects() {
       {/* Add Modal */}
       <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setSuccess('') }} title="Add New Project" size="lg">
         <form onSubmit={handleAdd} className="space-y-4">
-          <ProjectForm formData={addForm} setFormData={setAddForm} />
-
-          {/* Optional document upload during creation */}
-          <div className="border-t border-gray-100 dark:border-gray-800 pt-4 space-y-3">
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-              <Paperclip size={12}/> Attach Documents <span className="font-normal text-gray-400">(optional — unit plans & creatives)</span>
-            </p>
-
-            {/* Unit Plans */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Unit Plans</label>
-                {uploadFiles.unit_plans.length > 0 && (
-                  <span className="text-[10px] text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full font-semibold">
-                    {uploadFiles.unit_plans.length} file{uploadFiles.unit_plans.length > 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-              <label className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 cursor-pointer hover:border-brand hover:bg-brand/5 transition-all">
-                <Upload size={14} className="text-gray-400 flex-shrink-0"/>
-                <span className="text-xs text-gray-500 truncate">
-                  {uploadFiles.unit_plans.length > 0
-                    ? uploadFiles.unit_plans.map(f => f.name).join(', ')
-                    : 'PDF, JPEG, PNG, Word — max 20MB each'}
-                </span>
-                <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="hidden"
-                  onChange={e => setUploadFiles(p => ({ ...p, unit_plans: [...p.unit_plans, ...Array.from(e.target.files)] }))}/>
-              </label>
-            </div>
-
-            {/* Creatives */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Creatives</label>
-                {uploadFiles.creatives.length > 0 && (
-                  <span className="text-[10px] text-purple-600 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded-full font-semibold">
-                    {uploadFiles.creatives.length} file{uploadFiles.creatives.length > 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-              <label className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 dark:hover:bg-purple-900/10 transition-all">
-                <Upload size={14} className="text-gray-400 flex-shrink-0"/>
-                <span className="text-xs text-gray-500 truncate">
-                  {uploadFiles.creatives.length > 0
-                    ? uploadFiles.creatives.map(f => f.name).join(', ')
-                    : 'PDF, JPEG, PNG, Word — max 20MB each'}
-                </span>
-                <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="hidden"
-                  onChange={e => setUploadFiles(p => ({ ...p, creatives: [...p.creatives, ...Array.from(e.target.files)] }))}/>
-              </label>
-            </div>
-          </div>
+          <ProjectForm formData={addForm} setFormData={setAddForm} uploadFiles={uploadFiles} setUploadFiles={setUploadFiles} />
+          
           {success && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -598,7 +604,7 @@ export default function Projects() {
       {/* Edit Modal */}
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSuccess('') }} title="Edit Project" size="lg">
         <form onSubmit={handleEdit} className="space-y-4">
-          <ProjectForm formData={editForm} setFormData={setEditForm} />
+          <ProjectForm formData={editForm} setFormData={setEditForm} uploadFiles={{ unit_plans: [], creatives: [] }} setUploadFiles={() => {}} />
           {success && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
