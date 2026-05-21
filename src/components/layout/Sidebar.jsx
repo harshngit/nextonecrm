@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import {
   LayoutDashboard, Users, CalendarCheck, PhoneCall,
   Building2, UserCog, Bell, LogOut, ChevronLeft, ChevronRight,
-  X, Settings, Clock, Phone, IndianRupee,
+  X, Settings, Clock, Phone, IndianRupee, RotateCcw, BadgeCheck,
 } from 'lucide-react'
 import { logout } from '../../store/authSlice'
 import Avatar from '../ui/Avatar'
@@ -15,6 +15,8 @@ const navItems = [
   { path: '/leads',        label: 'Leads',        icon: Users,           roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
   { path: '/follow-ups',   label: 'Follow-Ups',   icon: PhoneCall,       roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
   { path: '/site-visits',  label: 'Site Visits',  icon: CalendarCheck,   roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
+  { path: '/revisits',    label: 'Re-visits',    icon: RotateCcw,       roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
+  { path: '/closures',    label: 'Closures',     icon: BadgeCheck,      roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
   { path: '/attendance',   label: 'Attendance',   icon: Clock,           roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
   { path: '/salary',       label: 'Salary',       icon: IndianRupee,     roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
   { path: '/team',         label: 'Team',         icon: UserCog,         roles: ['super_admin', 'admin', 'sales_manager'] },

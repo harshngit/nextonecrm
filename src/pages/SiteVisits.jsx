@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut } from 'lucide-react'
+import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw } from 'lucide-react'
 import {
   fetchSiteVisits, createSiteVisit, updateSiteVisit,
   updateSiteVisitStatus, cancelSiteVisit, clearSiteVisitError,
@@ -404,6 +404,97 @@ function FeedbackForm({ formData, setFormData }) {
   )
 }
 
+function RevisitModal({ visit, salesExecs, onClose, onSuccess }) {
+  const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
+  const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+
+  const [form, setForm] = useState({
+    original_visit_id: visit.id,
+    visit_date: '',
+    visit_time: '',
+    assigned_to: typeof visit.assigned_to === 'object' ? visit.assigned_to.id : visit.assigned_to,
+    reason: '',
+    notes: '',
+    transport_arranged: false,
+  })
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
+
+  const execOptions = salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
+
+  const handleSubmit = async e => {
+    e.preventDefault()
+    if (!form.visit_date || !form.visit_time) {
+      setError('Date and time are required'); return
+    }
+    setLoading(true); setError('')
+    try {
+      await api.post('/site-revisits', form)
+      onSuccess()
+      onClose()
+    } catch (e) { setError(e.response?.data?.message || 'Failed to schedule re-visit') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title="Schedule Re-visit" size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl">
+          <Avatar name={visit.lead_name || '?'} size="sm" />
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">{visit.lead_name}</p>
+            <p className="text-xs text-gray-400">{visit.project_name} · Original Visit: {visit.visit_date?.split('T')[0]}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={lc}>Visit Date *</label>
+            <input type="date" required value={form.visit_date}
+              onChange={e => setForm(p => ({ ...p, visit_date: e.target.value }))} className={ic} />
+          </div>
+          <ClockPicker
+            label="Visit Time"
+            required
+            value={form.visit_time}
+            onChange={val => setForm(p => ({ ...p, visit_time: val }))}
+            icon={Clock}
+          />
+        </div>
+
+        <CustomSelect label="Assign To" value={form.assigned_to}
+          onChange={v => setForm(p => ({ ...p, assigned_to: v }))}
+          options={execOptions} placeholder="Select team member" />
+
+        <div>
+          <label className={lc}>Reason for Re-visit</label>
+          <input value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))}
+            placeholder="Client wanted to see 3BHK units again..." className={ic} />
+        </div>
+
+        <div>
+          <label className={lc}>Notes</label>
+          <textarea rows={2} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+            placeholder="Bring updated price list..." className={ic} />
+        </div>
+
+        <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer">
+          <input type="checkbox" checked={form.transport_arranged}
+            onChange={e => setForm(p => ({ ...p, transport_arranged: e.target.checked }))}
+            className="w-4 h-4 accent-brand" />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Transport arranged for client</span>
+        </label>
+
+        {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-xl">{error}</p>}
+        <div className="flex gap-3 pt-1">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button type="submit" className="flex-1" loading={loading}>Schedule Re-visit</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function SiteVisits() {
@@ -421,6 +512,7 @@ export default function SiteVisits() {
   const [page,          setPage]          = useState(1)
 
   const [showAddModal,      setShowAddModal]      = useState(false)
+  const [showRevisitModal,  setShowRevisitModal]  = useState(false)
   const [showEditModal,     setShowEditModal]      = useState(false)
   const [showFeedbackModal, setShowFeedbackModal]  = useState(false)
   const [showCancelModal,   setShowCancelModal]    = useState(false)
@@ -478,15 +570,22 @@ export default function SiteVisits() {
   const handleFeedback = async (e) => {
     e.preventDefault()
     dispatch(clearSiteVisitError())
+    const status = feedbackForm.status
     const result = await dispatch(updateSiteVisitStatus({
       id: selectedVisit.id,
-      status: feedbackForm.status,
+      status: status,
       feedback: feedbackForm.feedback,
     }))
     if (updateSiteVisitStatus.fulfilled.match(result)) {
       setSuccess('Feedback saved!')
       dispatch(fetchSiteVisits({ page, per_page: 20 }))
-      setTimeout(() => { setShowFeedbackModal(false); setSuccess('') }, 800)
+      setTimeout(() => { 
+        setShowFeedbackModal(false)
+        setSuccess('')
+        if (status === 'rescheduled') {
+          setShowRevisitModal(true)
+        }
+      }, 800)
     }
   }
 
@@ -524,6 +623,11 @@ export default function SiteVisits() {
     setSelectedVisit(visit)
     setFeedbackForm({ status: visit.status === 'scheduled' ? 'done' : visit.status, feedback: visit.feedback || '' })
     setShowFeedbackModal(true)
+  }
+
+  const handleRevisit = (visit) => {
+    setSelectedVisit(visit)
+    setShowRevisitModal(true)
   }
 
   // ── Calendar week ──────────────────────────────────────────────────────────
@@ -666,14 +770,14 @@ export default function SiteVisits() {
               ) : (
                 list.filter(v => (v.visit_date || '').startsWith(selectedDate)).map(visit => (
                   <div key={visit.id} className="group flex items-center gap-4 p-4 rounded-xl border border-gray-100 dark:border-gray-800 hover:border-brand/30 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all">
-                    <Avatar name={visit.lead_name || '?'} size="md" />
+                    <Avatar name={visit.lead_name || visit['lead name'] || '?'} size="md" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span 
                           className="font-bold text-gray-900 dark:text-white truncate cursor-pointer hover:text-brand transition-colors"
                           onClick={() => visit.lead_id ? navigate(`/leads/${visit.lead_id}`) : navigate(`/site-visits/${visit.id}`)}
                         >
-                          {visit.lead_name}
+                          {visit.lead_name || visit['lead name']}
                         </span>
                         <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${statusColor[visit.status] || ''}`}>
                           {statusLabel[visit.status]}
@@ -684,7 +788,7 @@ export default function SiteVisits() {
                         <span className="flex items-center gap-1"><Building2 size={12} /> {visit.project_name}</span>
                         <span className="flex items-center gap-1">
                           <User size={12} /> 
-                          {typeof visit.assigned_to === 'object' ? visit.assigned_to.full_name : visit.assigned_to}
+                          {visit.assigned_to_name || '—'}
                         </span>
                       </div>
                     </div>
@@ -693,6 +797,12 @@ export default function SiteVisits() {
                         className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-brand hover:bg-brand/10 transition-all">
                         <Eye size={16} />
                       </button>
+                      {['done', 'rescheduled'].includes(visit.status) && (
+                        <button onClick={() => handleRevisit(visit)} title="Schedule Revisit"
+                          className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-purple-500 hover:bg-purple-50 transition-all">
+                          <RotateCcw size={16} />
+                        </button>
+                      )}
                       <button onClick={() => openEdit(visit)}
                         className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-blue-500 hover:bg-blue-50 transition-all">
                         <Edit2 size={16} />
@@ -728,13 +838,13 @@ export default function SiteVisits() {
                     <tr key={visit.id} className="hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
-                          <Avatar name={visit.lead_name || '?'} size="sm" />
+                          <Avatar name={visit.lead_name || visit['lead name'] || '?'} size="sm" />
                           <div>
                             <div 
                               className="font-medium text-gray-900 dark:text-gray-100 cursor-pointer hover:text-brand transition-colors"
                               onClick={() => visit.lead_id ? navigate(`/leads/${visit.lead_id}`) : navigate(`/site-visits/${visit.id}`)}
                             >
-                              {visit.lead_name || '—'}
+                              {visit.lead_name || visit['lead name'] || '—'}
                             </div>
                             <div className="text-xs text-gray-400">{visit.lead_phone || ''}</div>
                           </div>
@@ -752,11 +862,11 @@ export default function SiteVisits() {
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
                           <Avatar 
-                            name={typeof visit.assigned_to === 'object' ? visit.assigned_to.full_name : visit.assigned_to || '?'} 
+                            name={visit.assigned_to_name || '?'} 
                             size="xs" 
                           />
                           <span className="text-xs text-gray-600 dark:text-gray-400">
-                            {typeof visit.assigned_to === 'object' ? visit.assigned_to.full_name : visit.assigned_to || '—'}
+                            {visit.assigned_to_name || '—'}
                           </span>
                         </div>
                       </td>
@@ -781,6 +891,12 @@ export default function SiteVisits() {
                               className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all hover:scale-110 active:scale-95">
                               <Eye size={16} />
                             </button>
+                          {['done', 'rescheduled'].includes(visit.status) && (
+                            <button onClick={() => handleRevisit(visit)} title="Schedule Revisit"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">
+                              <RotateCcw size={13} />
+                            </button>
+                          )}
                           {canManage && visit.status === 'scheduled' && (
                             <>
                               <button onClick={() => openEdit(visit)} title="Edit"
@@ -837,6 +953,20 @@ export default function SiteVisits() {
           </div>
         </form>
       </Modal>
+
+      {/* Re-visit Modal */}
+      {showRevisitModal && selectedVisit && (
+        <RevisitModal 
+          visit={selectedVisit} 
+          salesExecs={salesExecs} 
+          onClose={() => setShowRevisitModal(false)}
+          onSuccess={() => {
+            setSuccess('Re-visit scheduled!')
+            dispatch(fetchSiteVisits({ page, per_page: 20 }))
+            setTimeout(() => setSuccess(''), 3000)
+          }}
+        />
+      )}
 
       {/* Edit Modal */}
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSuccess('') }} title="Edit Site Visit">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Plus, MapPin, Building2, IndianRupee, Users, Edit2, Trash2, RefreshCw, Search, ChevronDown, Download, Upload, FileImage, FileText, X, CheckCircle2, Loader2, Eye, Paperclip } from 'lucide-react'
+import { Plus, MapPin, Building2, IndianRupee, Users, Edit2, Trash2, RefreshCw, Search, ChevronDown, Download, Upload, FileImage, FileText, X, CheckCircle2, Loader2, Eye, Paperclip, Share2, Mail, SendHorizonal, AlertCircle } from 'lucide-react'
 import { fetchProjects, createProject, updateProject, deleteProject, clearProjectError } from '../store/projectSlice'
 import CardSkeleton from '../components/loaders/CardSkeleton'
 import Badge from '../components/ui/Badge'
@@ -36,6 +36,178 @@ const defaultForm = {
   description: '',
   status: 'active',
   rera_number: '',
+}
+
+// ── ShareProjectModal ─────────────────────────────────────────────────────────
+function ShareProjectModal({ projectId, projectName, onClose }) {
+  const ic  = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all"
+  const [emailInput, setEmailInput] = useState('')
+  const [emails,     setEmails]     = useState([])
+  const [message,    setMessage]    = useState('')
+  const [sending,    setSending]    = useState(false)
+  const [success,    setSuccess]    = useState('')
+  const [error,      setError]      = useState('')
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  const addEmail = () => {
+    const val = emailInput.trim()
+    if (!val) return
+    if (!emailRegex.test(val)) { setError(`"${val}" is not a valid email`); return }
+    if (emails.includes(val))  { setError('This email is already added'); return }
+    setEmails(prev => [...prev, val])
+    setEmailInput('')
+    setError('')
+  }
+
+  const handleKeyDown = e => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addEmail() }
+  }
+
+  const removeEmail = email => setEmails(prev => prev.filter(e => e !== email))
+
+  const handleSend = async () => {
+    // Also add whatever is still in the input field
+    let finalEmails = [...emails]
+    const typed = emailInput.trim()
+    if (typed) {
+      if (!emailRegex.test(typed)) { setError(`"${typed}" is not a valid email`); return }
+      if (!finalEmails.includes(typed)) finalEmails.push(typed)
+    }
+    if (finalEmails.length === 0) { setError('Add at least one email address'); return }
+
+    setSending(true); setError(''); setSuccess('')
+    try {
+      const res = await api.post(`/projects/${projectId}/share`, {
+        emails:  finalEmails,
+        message: message.trim() || undefined,
+      })
+      setSuccess(`Project shared with ${res.data.data?.total_sent || finalEmails.length} recipient${finalEmails.length > 1 ? 's' : ''}!`)
+      setTimeout(() => onClose(), 2000)
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to send. Please try again.')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center">
+              <Share2 size={15} className="text-brand" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white">Share Project</h3>
+              <p className="text-[11px] text-gray-400 truncate max-w-[220px]">{projectName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <X size={15} />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+
+          {/* Email input + tags */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+              Send to <span className="text-gray-400 font-normal">(press Enter or comma to add multiple)</span>
+            </label>
+
+            {/* Email tag pills */}
+            {emails.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {emails.map(email => (
+                  <span key={email} className="flex items-center gap-1 pl-2.5 pr-1.5 py-1 bg-brand/10 text-brand text-xs font-medium rounded-full">
+                    <Mail size={10} />
+                    {email}
+                    <button onClick={() => removeEmail(email)} className="ml-0.5 hover:text-red-500 transition-colors">
+                      <X size={11} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                value={emailInput}
+                onChange={e => { setEmailInput(e.target.value); setError('') }}
+                onKeyDown={handleKeyDown}
+                onBlur={addEmail}
+                placeholder="client@example.com"
+                type="email"
+                className={ic + ' flex-1'}
+              />
+              <button
+                onClick={addEmail}
+                className="px-3 py-2 text-xs font-semibold text-brand border border-brand/30 hover:bg-brand/10 rounded-xl transition-colors"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+
+          {/* Optional message */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+              Personal message <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <textarea
+              rows={3}
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              placeholder="Hi, please find the project details as discussed..."
+              className={ic}
+            />
+          </div>
+
+          {/* What will be sent info */}
+          <div className="bg-gray-50 dark:bg-[#141414] rounded-xl px-4 py-3 text-xs text-gray-500 dark:text-gray-400 space-y-1 border border-gray-100 dark:border-gray-800">
+            <p className="font-semibold text-gray-600 dark:text-gray-300 mb-1">Email will include:</p>
+            <p>✓ Full project details (location, price, RERA, configurations)</p>
+            <p>✓ All unit plans + creatives attached as a ZIP file</p>
+            <p>✓ Your personal message (if provided)</p>
+          </div>
+
+          {error   && (
+            <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">
+              <AlertCircle size={13} className="text-red-500 flex-shrink-0" />
+              <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
+          {success && (
+            <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5">
+              <CheckCircle2 size={13} className="text-green-500 flex-shrink-0" />
+              <p className="text-xs text-green-600 dark:text-green-400">{success}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer buttons */}
+        <div className="px-6 pb-5 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={sending || (emails.length === 0 && !emailInput.trim())}
+            className="flex-1 py-2.5 rounded-xl bg-brand hover:bg-brand/90 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60 transition-colors"
+          >
+            {sending
+              ? <><Loader2 size={14} className="animate-spin" /> Sending…</>
+              : <><SendHorizonal size={14} /> Share Project</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── Form defined OUTSIDE to prevent typing/focus loss bug ────────────────────
@@ -228,6 +400,7 @@ export default function Projects() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [projectToDelete, setProjectToDelete] = useState(null)
   const [selectedProject, setSelectedProject] = useState(null)
+  const [shareProject,    setShareProject]    = useState(null)  // project to share
 
   const [addForm,  setAddForm]  = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
@@ -503,11 +676,15 @@ export default function Projects() {
                   {canManage && (
                     <div className="absolute top-3 left-3 flex gap-1">
                       <button onClick={() => openEdit(project)}
-                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-blue-600 transition-colors">
+                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-blue-600 transition-colors" title="Edit">
                         <Edit2 size={11} />
                       </button>
+                      <button onClick={() => setShareProject(project)}
+                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-brand transition-colors" title="Share via email">
+                        <Share2 size={11} />
+                      </button>
                       <button onClick={() => handleDelete(project)}
-                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-red-500 transition-colors">
+                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-red-500 transition-colors" title="Delete">
                         <Trash2 size={11} />
                       </button>
                     </div>
@@ -633,6 +810,15 @@ export default function Projects() {
         confirmText="Delete Project"
         loading={actionLoading}
       />
+
+      {/* Share Modal */}
+      {shareProject && (
+        <ShareProjectModal
+          projectId={shareProject.id}
+          projectName={shareProject.name}
+          onClose={() => setShareProject(null)}
+        />
+      )}
     </div>
   )
 }

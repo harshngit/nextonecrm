@@ -111,7 +111,7 @@ export default function SiteVisitDetail() {
                   <div className="flex-1 space-y-2 mb-2">
                     <div className="flex flex-wrap items-center gap-3">
                       <h1 className="font-display text-3xl font-bold text-gray-900 dark:text-white">Visit to {visit.project_name || 'Project'}</h1>
-                      <Badge label={statusLabel[visit.status] || visit.status} className={`px-3 py-1 text-xs ${statusColor[visit.status] || ''}`} />
+                      <Badge label={statusLabel[visit.status] || visit.status} className={`px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-xl ${statusColor[visit.status] || ''}`} />
                     </div>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
                       <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-brand" /> ID: {visit.id?.slice?.(0, 8) || visit.id}</span>
@@ -127,9 +127,9 @@ export default function SiteVisitDetail() {
                     { icon: Building2, label: 'Project', value: visit.project_name || '—', color: 'text-purple-600 bg-purple-50' },
                     { icon: RefreshCw, label: 'Transport', value: visit.transport_arranged ? 'Arranged' : 'Self Arrangement', color: 'text-teal-600 bg-teal-50' },
                   ].map(({ icon: Icon, label, value, color }) => (
-                    <div key={label} className="p-4 rounded-2xl border border-gray-50 dark:border-gray-800/50 bg-gray-50/50 dark:bg-[#0f0f0f]/50">
+                    <div key={label} className="p-4 rounded-2xl border border-gray-50 dark:border-gray-800/50 bg-gray-50/50 dark:bg-[#0f0f0f]/50 shadow-sm">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color} dark:bg-opacity-10`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color} dark:bg-opacity-10 shadow-sm`}>
                           <Icon size={14} />
                         </div>
                         <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</span>
@@ -144,7 +144,7 @@ export default function SiteVisitDetail() {
             {/* 2. Visit Feedback */}
             <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-8 shadow-sm">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shadow-sm">
                   <MessageSquare size={18} className="text-brand" />
                 </div>
                 <div>
@@ -152,7 +152,7 @@ export default function SiteVisitDetail() {
                   <p className="text-xs text-gray-400">Notes and client feedback from the visit</p>
                 </div>
               </div>
-              <div className="bg-gray-50 dark:bg-[#0f0f0f] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 min-h-[120px]">
+              <div className="bg-gray-50 dark:bg-[#0f0f0f] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 min-h-[120px] shadow-inner">
                 {visit.feedback ? (
                   <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{visit.feedback}</p>
                 ) : (
@@ -165,7 +165,7 @@ export default function SiteVisitDetail() {
             {visit.notes && (
               <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-8 shadow-sm">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center shadow-sm">
                     <Info size={18} className="text-purple-600" />
                   </div>
                   <div>
@@ -173,7 +173,7 @@ export default function SiteVisitDetail() {
                     <p className="text-xs text-gray-400">Instructions and requirements provided before the visit</p>
                   </div>
                 </div>
-                <div className="bg-gray-50 dark:bg-[#0f0f0f] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 min-h-[100px]">
+                <div className="bg-gray-50 dark:bg-[#0f0f0f] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 min-h-[100px] shadow-inner">
                   <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{visit.notes}</p>
                 </div>
               </div>
@@ -189,18 +189,18 @@ export default function SiteVisitDetail() {
                 <CheckCircle size={18} className="text-green-500" /> Mark Outcome
               </h3>
               
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2 px-1">Visit Status</label>
-                  <div className="relative">
+                  <div className="relative group">
                     <select
                       value={newStatus}
                       onChange={e => setNewStatus(e.target.value)}
-                      className="w-full appearance-none pl-4 pr-10 py-3 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-gray-900 dark:text-gray-100 font-semibold"
+                      className="w-full appearance-none pl-4 pr-10 py-3.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-gray-900 dark:text-gray-100 font-bold shadow-sm group-hover:border-gray-300 dark:group-hover:border-gray-700"
                     >
                       {visitStatuses.map(s => <option key={s} value={s}>{statusLabel[s]}</option>)}
                     </select>
-                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-hover:text-gray-600 transition-colors" />
                   </div>
                 </div>
 
@@ -210,13 +210,13 @@ export default function SiteVisitDetail() {
                     value={feedback}
                     onChange={e => setFeedback(e.target.value)}
                     placeholder="Enter visit feedback..."
-                    rows={3}
-                    className="w-full px-4 py-3 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand transition-all resize-none text-gray-900 dark:text-gray-100"
+                    rows={4}
+                    className="w-full px-4 py-3.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand transition-all resize-none text-gray-900 dark:text-gray-100 shadow-sm hover:border-gray-300 dark:hover:border-gray-700"
                   />
                 </div>
                 
                 <Button 
-                  className="w-full rounded-2xl py-3 font-bold shadow-lg shadow-blue-500/20" 
+                  className="w-full rounded-2xl py-4 font-bold shadow-xl shadow-blue-500/25 active:scale-[0.98] transition-all" 
                   onClick={handleStatusUpdate} 
                   loading={actionLoading} 
                   disabled={newStatus === visit.status && feedback === visit.feedback}
@@ -232,14 +232,14 @@ export default function SiteVisitDetail() {
                 <User size={18} className="text-blue-500" /> Lead Information
               </h3>
               
-              <div className="p-4 rounded-[20px] bg-gray-50/50 dark:bg-[#0f0f0f]/50 border border-gray-50 dark:border-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-all"
+              <div className="p-4 rounded-[20px] bg-gray-50/50 dark:bg-[#0f0f0f]/50 border border-gray-50 dark:border-gray-800 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-800/50 transition-all shadow-sm group"
                 onClick={() => navigate(`/leads/${visit.lead_id}`)}>
                 <div className="flex items-center gap-4">
-                  <Avatar name={visit.lead_name} size="lg" className="rounded-2xl" />
-                  <div>
-                    <div className="text-sm font-bold text-gray-900 dark:text-white">{visit.lead_name || 'Lead Name'}</div>
-                    <div className="text-[10px] font-bold text-brand uppercase tracking-wider mt-0.5">Prospect</div>
-                    <div className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
+                  <Avatar name={visit.lead_name || visit['lead name']} size="lg" className="rounded-2xl shadow-md" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-gray-900 dark:text-white truncate group-hover:text-brand transition-colors">{visit.lead_name || visit['lead name'] || 'Lead Name'}</div>
+                    <div className="text-[10px] font-bold text-brand uppercase tracking-wider mt-0.5 bg-brand/5 px-2 py-0.5 rounded-full inline-block">Prospect</div>
+                    <div className="text-[11px] text-gray-400 mt-1.5 flex items-center gap-1 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">
                       <ExternalLink size={10} /> View Profile
                     </div>
                   </div>
@@ -253,16 +253,16 @@ export default function SiteVisitDetail() {
                 <UserCheck size={18} className="text-teal-500" /> Coordinator
               </h3>
               
-              <div className="p-4 rounded-[20px] bg-gray-50/50 dark:bg-[#0f0f0f]/50 border border-gray-50 dark:border-gray-800">
+              <div className="p-4 rounded-[20px] bg-gray-50/50 dark:bg-[#0f0f0f]/50 border border-gray-50 dark:border-gray-800 shadow-sm">
                 <div className="flex items-center gap-4">
                   <Avatar 
-                    name={typeof visit.assigned_to === 'object' ? visit.assigned_to.full_name : visit.assigned_to || 'Admin'} 
+                    name={visit.assigned_to_name || (typeof visit.assigned_to === 'object' ? visit.assigned_to.full_name : visit.assigned_to) || 'Admin'} 
                     size="lg" 
-                    className="rounded-2xl" 
+                    className="rounded-2xl shadow-md" 
                   />
                   <div>
                     <div className="text-sm font-bold text-gray-900 dark:text-white">
-                      {typeof visit.assigned_to === 'object' ? visit.assigned_to.full_name : visit.assigned_to || 'Team Member'}
+                      {visit.assigned_to_name || (typeof visit.assigned_to === 'object' ? visit.assigned_to.full_name : visit.assigned_to) || 'Team Member'}
                     </div>
                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Sales Executive</div>
                   </div>

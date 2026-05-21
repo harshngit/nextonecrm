@@ -23,6 +23,10 @@ import Attendance from './pages/Attendance'
 import PhoneRequests from './pages/PhoneRequests'
 import Salary from './pages/Salary'
 import SalaryDetail from './pages/SalaryDetail'
+import Revisits from './pages/Revisits'
+import RevisitDetail from './pages/RevisitDetail'
+import Closures from './pages/Closures'
+import ClosureDetail from './pages/ClosureDetail'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useSelector((state) => state.auth)
@@ -82,6 +86,10 @@ function AppRoutes() {
         <Route path="/leads/:id"    element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><LeadDetail /></Layout></RoleProtectedRoute>} />
         <Route path="/site-visits"  element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><SiteVisits /></Layout></RoleProtectedRoute>} />
         <Route path="/site-visits/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><SiteVisitDetail /></Layout></RoleProtectedRoute>} />
+        <Route path="/revisits"     element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Revisits /></Layout></RoleProtectedRoute>} />
+        <Route path="/revisits/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><RevisitDetail /></Layout></RoleProtectedRoute>} />
+        <Route path="/closures"     element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Closures /></Layout></RoleProtectedRoute>} />
+        <Route path="/closures/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><ClosureDetail /></Layout></RoleProtectedRoute>} />
         <Route path="/follow-ups"   element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><FollowUps /></Layout></RoleProtectedRoute>} />
         <Route path="/follow-ups/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><FollowUpDetail /></Layout></RoleProtectedRoute>} />
         <Route path="/attendance"   element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Attendance /></Layout></RoleProtectedRoute>} />
