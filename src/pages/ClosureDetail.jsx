@@ -59,6 +59,16 @@ export default function ClosureDetail() {
   }
 
   const fmtCurrency = n => n ? `₹${Number(n).toLocaleString('en-IN')}` : '—'
+  const fmtDate = value => value ? new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+
+  const unit = closure?.unit || {}
+  const financials = closure?.financials || {}
+  const commission = closure?.commission || {}
+  const lead = closure?.lead || {}
+  const project = closure?.project || {}
+  const closedBy = closure?.closed_by || {}
+  const closedByManager = closure?.closed_by_manager || {}
+  const leadId = lead.id
 
   if (loading && !closure) return (
     <div className="flex flex-col items-center justify-center h-[60vh]">
@@ -92,7 +102,13 @@ export default function ClosureDetail() {
         </button>
         
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="rounded-xl" onClick={() => navigate(`/leads/${closure.lead_id}`)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl"
+            onClick={() => leadId && navigate(`/leads/${leadId}`)}
+            disabled={!leadId}
+          >
             View Lead
           </Button>
         </div>
@@ -115,22 +131,23 @@ export default function ClosureDetail() {
                 </div>
                 <div className="flex-1 space-y-2 mb-2">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="font-display text-3xl font-bold text-gray-900 dark:text-white">Closure: {closure.project_name || 'Project'}</h1>
+                    <h1 className="font-display text-3xl font-bold text-gray-900 dark:text-white">Closure: {project.name || 'Project'}</h1>
                     <Badge label={statusLabel[closure.status] || closure.status} className={`px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-xl ${statusColor[closure.status] || ''}`} />
                   </div>
                   <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
                     <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-brand" /> ID: {closure.id?.slice?.(0, 8) || closure.id}</span>
-                    <span className="flex items-center gap-1.5"><Calendar size={14} /> Booking Date: {new Date(closure.booking_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    <span className="flex items-center gap-1.5"><Calendar size={14} /> Booking Date: {fmtDate(closure.booking_date)}</span>
+                    <span className="flex items-center gap-1.5"><Building2 size={14} /> {project.city || 'City Unavailable'}</span>
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-10">
                 {[
-                  { icon: Home, label: 'Unit', value: [closure.unit_type, closure.unit_number].filter(Boolean).join(' - ') || '—', color: 'text-blue-600 bg-blue-50' },
-                  { icon: Building2, label: 'Tower', value: closure.tower_block || '—', color: 'text-indigo-600 bg-indigo-50' },
-                  { icon: MapPin, label: 'Floor', value: closure.floor_number || '—', color: 'text-purple-600 bg-purple-50' },
-                  { icon: IndianRupee, label: 'Deal Value', value: fmtCurrency(closure.agreed_price), color: 'text-emerald-600 bg-emerald-50' },
+                  { icon: Home, label: 'Unit', value: [unit.unit_type, unit.unit_number].filter(Boolean).join(' - ') || '—', color: 'text-blue-600 bg-blue-50' },
+                  { icon: Building2, label: 'Tower', value: unit.tower_block ? String(unit.tower_block).toUpperCase() : '—', color: 'text-indigo-600 bg-indigo-50' },
+                  { icon: MapPin, label: 'Floor', value: unit.floor_number || '—', color: 'text-purple-600 bg-purple-50' },
+                  { icon: IndianRupee, label: 'Deal Value', value: fmtCurrency(financials.agreed_price), color: 'text-emerald-600 bg-emerald-50' },
                 ].map(({ icon: Icon, label, value, color }) => (
                   <div key={label} className="p-4 rounded-2xl border border-gray-50 dark:border-gray-800/50 bg-gray-50/50 dark:bg-[#0f0f0f]/50 shadow-sm">
                     <div className="flex items-center gap-3 mb-2">
@@ -158,15 +175,15 @@ export default function ClosureDetail() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
                   <span className="text-xs font-bold text-gray-400 uppercase">Booking Amount</span>
-                  <span className="text-sm font-bold text-blue-600">{fmtCurrency(closure.booking_amount)}</span>
+                  <span className="text-sm font-bold text-blue-600">{fmtCurrency(financials.booking_amount)}</span>
                 </div>
                 <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
                   <span className="text-xs font-bold text-gray-400 uppercase">Payment Plan</span>
-                  <span className="text-sm font-bold text-gray-900 dark:text-white">{closure.payment_plan || '—'}</span>
+                  <span className="text-sm font-bold text-gray-900 dark:text-white">{financials.payment_plan || '—'}</span>
                 </div>
                 <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
                   <span className="text-xs font-bold text-gray-400 uppercase">Home Loan</span>
-                  <span className="text-sm font-bold text-gray-900 dark:text-white">{closure.loan_required ? `Yes (${closure.loan_bank || 'TBD'})` : 'No'}</span>
+                  <span className="text-sm font-bold text-gray-900 dark:text-white">{financials.loan_required ? `Yes (${financials.loan_bank || 'TBD'})` : 'No'}</span>
                 </div>
               </div>
             </div>
@@ -181,19 +198,19 @@ export default function ClosureDetail() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
                   <span className="text-xs font-bold text-gray-400 uppercase">Amount</span>
-                  <span className="text-sm font-bold text-emerald-600">{fmtCurrency(closure.commission_amount)} ({closure.commission_percent || 0}%)</span>
+                  <span className="text-sm font-bold text-emerald-600">{fmtCurrency(commission.amount)} ({commission.percent || 0}%)</span>
                 </div>
                 <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
                   <span className="text-xs font-bold text-gray-400 uppercase">Payment Status</span>
                   <Badge 
-                    label={closure.commission_paid ? 'Paid' : 'Pending'} 
-                    className={`px-3 py-1 text-[10px] font-bold uppercase ${closure.commission_paid ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`} 
+                    label={commission.paid ? 'Paid' : 'Pending'} 
+                    className={`px-3 py-1 text-[10px] font-bold uppercase ${commission.paid ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`} 
                   />
                 </div>
-                {closure.commission_paid && (
+                {commission.paid && (
                   <div className="flex justify-between items-center p-4 rounded-2xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
                     <span className="text-xs font-bold text-gray-400 uppercase">Paid Date</span>
-                    <span className="text-sm font-bold text-gray-900 dark:text-white">{new Date(closure.commission_paid_date).toLocaleDateString('en-IN')}</span>
+                    <span className="text-sm font-bold text-gray-900 dark:text-white">{fmtDate(commission.paid_date)}</span>
                   </div>
                 )}
               </div>
@@ -271,21 +288,56 @@ export default function ClosureDetail() {
             </h3>
             
             <div className="p-4 rounded-[20px] bg-gray-50/50 dark:bg-[#0f0f0f]/50 border border-gray-50 dark:border-gray-800 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-800/50 transition-all shadow-sm group"
-              onClick={() => navigate(`/leads/${closure.lead_id}`)}>
+              onClick={() => leadId && navigate(`/leads/${leadId}`)}>
               <div className="flex items-center gap-4">
-                <Avatar name={closure.lead_name} size="lg" className="rounded-2xl shadow-md" />
+                <Avatar name={lead.name} size="lg" className="rounded-2xl shadow-md" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-gray-900 dark:text-white truncate group-hover:text-brand transition-colors">{closure.lead_name || 'Lead Name'}</div>
-                  <div className="text-[10px] font-bold text-brand uppercase tracking-wider mt-0.5 bg-brand/5 px-2 py-0.5 rounded-full inline-block">Prospect</div>
+                  <div className="text-sm font-bold text-gray-900 dark:text-white truncate group-hover:text-brand transition-colors">{lead.name || 'Lead Name'}</div>
+                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                    <div className="text-[10px] font-bold text-brand uppercase tracking-wider bg-brand/5 px-2 py-0.5 rounded-full inline-block">{lead.source || 'Prospect'}</div>
+                    {lead.budget && (
+                      <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider bg-emerald-50 px-2 py-0.5 rounded-full inline-block">{lead.budget}</div>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-gray-500 mt-2 truncate">{lead.phone || 'No phone available'}</div>
+                  <div className="text-[11px] text-gray-400 truncate">{lead.email || 'No email available'}</div>
                   <div className="text-[11px] text-gray-400 mt-1.5 flex items-center gap-1 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">
-                    <ExternalLink size={10} /> View Profile
+                    <ExternalLink size={10} /> {leadId ? 'View Profile' : 'Lead unavailable'}
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 6. Coordinator */}
+          {/* 6. Project */}
+          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-6 shadow-sm">
+            <h3 className="font-display text-base font-bold text-gray-900 dark:text-white mb-5 flex items-center gap-2">
+              <Building2 size={18} className="text-indigo-500" /> Project Details
+            </h3>
+
+            <div className="space-y-3">
+              <div className="p-4 rounded-2xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Project</div>
+                <div className="text-sm font-bold text-gray-900 dark:text-white">{project.name || '—'}</div>
+              </div>
+              <div className="p-4 rounded-2xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Developer</div>
+                <div className="text-sm font-bold text-gray-900 dark:text-white">{project.developer || '—'}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">City</div>
+                  <div className="text-sm font-bold text-gray-900 dark:text-white">{project.city || '—'}</div>
+                </div>
+                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Range</div>
+                  <div className="text-sm font-bold text-gray-900 dark:text-white">{project.price_range || '—'}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 7. Coordinator */}
           <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-6 shadow-sm">
             <h3 className="font-display text-base font-bold text-gray-900 dark:text-white mb-5 flex items-center gap-2">
               <UserCheck size={18} className="text-teal-500" /> Closed By
@@ -294,15 +346,18 @@ export default function ClosureDetail() {
             <div className="p-4 rounded-[20px] bg-gray-50/50 dark:bg-[#0f0f0f]/50 border border-gray-50 dark:border-gray-800 shadow-sm">
               <div className="flex items-center gap-4">
                 <Avatar 
-                  name={closure.closed_by_name || 'Admin'} 
+                  name={closedBy.name || 'Admin'} 
                   size="lg" 
                   className="rounded-2xl shadow-md" 
                 />
                 <div>
                   <div className="text-sm font-bold text-gray-900 dark:text-white">
-                    {closure.closed_by_name || 'Team Member'}
+                    {closedBy.name || 'Team Member'}
                   </div>
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Sales Executive</div>
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">{closedBy.email || 'Sales Executive'}</div>
+                  {closedByManager.name?.trim() && (
+                    <div className="text-[11px] text-gray-500 mt-2">Manager: {closedByManager.name.trim()}</div>
+                  )}
                 </div>
               </div>
             </div>
