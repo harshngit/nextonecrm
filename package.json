@@ -12,6 +12,7 @@
     "@reduxjs/toolkit": "^2.11.2",
     "@rollup/rollup-win32-x64-msvc": "^4.60.2",
     "axios": "^1.15.2",
+    "firebase": "^12.13.0",
     "lucide-react": "^0.383.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
