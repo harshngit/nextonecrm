@@ -11,7 +11,7 @@ export default function Layout({ children }) {
   const { connected } = useSocket()
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0f0f0f]">
+    <div className="min-h-screen bg-[#f5f6fa]">
       <Sidebar
         collapsed={collapsed}
         setCollapsed={setCollapsed}

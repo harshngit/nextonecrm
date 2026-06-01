@@ -4,9 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle, Clock, AlertCircle, Phone, Plus,
   Edit2, Trash2, Download, RefreshCw, ChevronDown, Filter, Eye, X,
-  ArrowRightCircle,
-  CheckCircle2,
-  CalendarPlus
+  ArrowRightCircle, CheckCircle2, CalendarPlus, Loader2,
 } from 'lucide-react'
 import {
   fetchFollowUps, createFollowUp, updateFollowUp,

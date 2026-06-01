@@ -146,7 +146,10 @@ const projectSlice = createSlice({
       .addCase(fetchProjectLeads.pending, (state) => { state.detailLoading = true })
       .addCase(fetchProjectLeads.fulfilled, (state, action) => {
         state.detailLoading = false
-        state.currentProject = action.payload.data?.project
+        // Only fall back to the leads-embedded project if fetchProjectById hasn't populated it yet
+        if (!state.currentProject) {
+          state.currentProject = action.payload.data?.project
+        }
         state.projectLeads = action.payload.data?.leads || []
         state.pagination = action.payload.pagination || state.pagination
       })
