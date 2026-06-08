@@ -7,7 +7,7 @@
 import { io } from 'socket.io-client'
 
 // Always use the root server URL (no /api/v1)
-const SOCKET_URL = 'https://nextoneapi.asynk.in'
+const SOCKET_URL = 'https://api.nextonerealty.in'
 
 let socket = null
 
