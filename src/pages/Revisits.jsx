@@ -568,11 +568,26 @@ export default function Revisits() {
 
                     {/* Feedback */}
                     <td className="py-3 px-4">
-                      {rv.client_reaction ? (
+                      {rv.client_reaction || rv.rating ? (
                         <div>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400">
-                            {REACTION_LABEL[rv.client_reaction]}
-                          </span>
+                          {rv.rating && (
+                            <div className="flex items-center gap-0.5 mb-1">
+                              {[1,2,3,4,5].map(n => (
+                                <Star 
+                                  key={n} 
+                                  size={10} 
+                                  fill={rv.rating >= n ? 'currentColor' : 'none'} 
+                                  className={rv.rating >= n ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600'} 
+                                />
+                              ))}
+                              <span className="ml-1 text-[10px]">{rv.rating}</span>
+                            </div>
+                          )}
+                          {rv.client_reaction && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400">
+                              {REACTION_LABEL[rv.client_reaction]}
+                            </span>
+                          )}
                           {rv.next_step && (
                             <p className="text-[10px] text-gray-400 mt-0.5">{NEXT_STEP_LABEL[rv.next_step]}</p>
                           )}

@@ -73,6 +73,18 @@ export const fetchSiteVisitById = createAsyncThunk(
   }
 )
 
+export const submitSiteVisitFeedback = createAsyncThunk(
+  'siteVisits/submitFeedback',
+  async ({ id, data }, { rejectWithValue }) => {
+    try {
+      const response = await api.post(`/site-visits/${id}/feedback`, data)
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to submit feedback')
+    }
+  }
+)
+
 const siteVisitSlice = createSlice({
   name: 'siteVisits',
   initialState: {
@@ -109,7 +121,7 @@ const siteVisitSlice = createSlice({
       .addCase(fetchSiteVisitById.rejected, (state, action) => { state.detailLoading = false; state.error = action.payload })
 
       .addMatcher(
-        (action) => ['siteVisits/create', 'siteVisits/update', 'siteVisits/updateStatus', 'siteVisits/cancel']
+        (action) => ['siteVisits/create', 'siteVisits/update', 'siteVisits/updateStatus', 'siteVisits/cancel', 'siteVisits/submitFeedback']
           .some(t => action.type.startsWith(t)),
         (state, action) => {
           if (action.type.endsWith('/pending')) { state.actionLoading = true; state.actionError = null }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw } from 'lucide-react'
+import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw, StarIcon } from 'lucide-react'
 import {
   fetchSiteVisits, createSiteVisit, updateSiteVisit,
   updateSiteVisitStatus, cancelSiteVisit, clearSiteVisitError,
@@ -784,12 +784,18 @@ export default function SiteVisits() {
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span className="flex items-center gap-1"><Clock size={12} /> {visit.visit_time}</span>
-                        <span className="flex items-center gap-1"><Building2 size={12} /> {visit.project_name}</span>
-                        <span className="flex items-center gap-1">
-                          <User size={12} /> 
-                          {visit.assigned_to_name || '—'}
-                        </span>
+                        {visit.rating && (
+                          <div className="flex items-center gap-0.5">
+                            {[1,2,3,4,5].map(n => (
+                              <StarIcon 
+                                key={n} 
+                                size={10} 
+                                fill={visit.rating >= n ? 'currentColor' : 'none'} 
+                                className={visit.rating >= n ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600'} 
+                              />
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -882,7 +888,19 @@ export default function SiteVisits() {
                       </td>
                       <td className="py-3 px-4">
                         <span className="text-xs text-gray-500 dark:text-[#888] line-clamp-2 max-w-[160px]">
-                          {visit.feedback || '—'}
+                          {visit.rating ? (
+                            <div className="flex items-center gap-0.5">
+                              {[1,2,3,4,5].map(n => (
+                                <StarIcon 
+                                  key={n} 
+                                  size={12} 
+                                  fill={visit.rating >= n ? 'currentColor' : 'none'} 
+                                  className={visit.rating >= n ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600'} 
+                                />
+                              ))}
+                              <span className="ml-1">{visit.rating}</span>
+                            </div>
+                          ) : '—'}
                         </span>
                       </td>
                       <td className="py-3 px-4">
