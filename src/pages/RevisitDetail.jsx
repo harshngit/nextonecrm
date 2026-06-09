@@ -192,109 +192,40 @@ export default function RevisitDetail() {
               </div>
             </div>
 
-            {/* Notes, Feedback Form & Submitted Feedback */}
+            {/* Images, Notes & Feedback (either form or display) */}
             <div className="space-y-4">
-              {/* Submit Feedback Card - Now on Left */}
-              {revisit.status === 'done' && !revisit.client_reaction && (
-                <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
-                  <h3 className="font-display text-base font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <Star size={16} className="text-amber-500" /> Submit Feedback
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-4">
-                      {/* Rating */}
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Rating</label>
-                        <div className="flex gap-1.5">
-                          {[1, 2, 3, 4, 5].map(num => (
-                            <button
-                              key={num}
-                              onClick={() => setFeedbackForm(f => ({ ...f, rating: num }))}
-                              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
-                                feedbackForm.rating >= num ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                              }`}
-                            >
-                              <Star size={16} fill={feedbackForm.rating >= num ? 'currentColor' : 'none'} />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+              {/* Images */}
+              {(() => {
+                let firstImage = null;
+                if (Array.isArray(revisit.images) && revisit.images.length > 0) {
+                  firstImage = revisit.images[0];
+                } else if (Array.isArray(revisit.photos) && revisit.photos.length > 0) {
+                  firstImage = revisit.photos[0];
+                } else if (revisit.image) {
+                  firstImage = revisit.image;
+                } else if (revisit.photo) {
+                  firstImage = revisit.photo;
+                }
 
-                      {/* Client Reaction */}
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Client Reaction</label>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          {reactionOptions.map(reaction => (
-                            <button
-                              key={reaction}
-                              onClick={() => setFeedbackForm(f => ({ ...f, client_reaction: reaction }))}
-                              className={`px-2 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
-                                feedbackForm.client_reaction === reaction ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20' : 'bg-gray-50 text-gray-600 border border-gray-100 hover:border-gray-200'
-                              }`}
-                            >
-                              {reactionLabel[reaction]}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Next Step */}
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Next Step</label>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          {nextStepOptions.map(step => (
-                            <button
-                              key={step}
-                              onClick={() => setFeedbackForm(f => ({ ...f, next_step: step }))}
-                              className={`px-2 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
-                                feedbackForm.next_step === step ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20' : 'bg-gray-50 text-gray-600 border border-gray-100 hover:border-gray-200'
-                              }`}
-                            >
-                              {nextStepLabel[step]}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      {/* Interested In */}
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Interested In</label>
-                        <textarea
-                          value={feedbackForm.interested_in}
-                          onChange={e => setFeedbackForm(f => ({ ...f, interested_in: e.target.value }))}
-                          placeholder="What are they interested in..."
-                          rows={2}
-                          className="w-full px-3.5 py-2.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-purple-500 transition-all resize-none text-gray-900 dark:text-gray-100"
+                if (firstImage) {
+                  const imageUrl = typeof firstImage === 'string' ? firstImage : firstImage.url || firstImage.src;
+                  if (imageUrl) {
+                    return (
+                      <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
+                        <h3 className="font-display text-base font-bold text-gray-900 dark:text-white mb-3">Photo</h3>
+                        <img 
+                          src={imageUrl} 
+                          alt="Revisit photo" 
+                          className="w-full rounded-xl object-cover max-h-64"
                         />
                       </div>
+                    );
+                  }
+                }
+                return null;
+              })()}
 
-                      {/* Remarks */}
-                      <div>
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Remarks</label>
-                        <textarea
-                          value={feedbackForm.remarks}
-                          onChange={e => setFeedbackForm(f => ({ ...f, remarks: e.target.value }))}
-                          placeholder="Additional remarks..."
-                          rows={3}
-                          className="w-full px-3.5 py-2.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-purple-500 transition-all resize-none text-gray-900 dark:text-gray-100"
-                        />
-                      </div>
-
-                      <Button
-                        className="w-full rounded-xl py-3 font-bold shadow-xl shadow-purple-500/25 active:scale-[0.98] transition-all"
-                        onClick={handleSubmitFeedback}
-                        loading={actionLoading}
-                      >
-                        Submit Feedback
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Notes & Submitted Feedback - Side by Side */}
+              {/* Notes & Feedback (either form or display) - Side by Side */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Visit Notes */}
                 {revisit.notes && (
@@ -311,59 +242,175 @@ export default function RevisitDetail() {
                   </div>
                 )}
 
-                {/* Submitted Feedback */}
-                {revisit.client_reaction && (
-                  <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
-                          <Star size={16} className="text-amber-500" />
-                        </div>
-                        <h3 className="font-display text-base font-bold text-gray-900 dark:text-white">Client Feedback</h3>
-                      </div>
-                      {revisit.rating && (
-                        <div className="flex items-center gap-1 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1 rounded-lg border border-amber-100 dark:border-amber-900/30">
-                          <Star size={12} className="text-amber-500" fill="currentColor" />
-                          <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{revisit.rating}/5</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-2.5">
-                      <div className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
-                        <TrendingUp size={14} className="text-blue-500" />
-                        <div>
-                          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Reaction</p>
-                          <p className="text-sm font-bold text-gray-900 dark:text-white">{reactionLabel[revisit.client_reaction] || revisit.client_reaction}</p>
-                        </div>
-                      </div>
-                      {revisit.next_step && (
-                        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
-                          <Target size={14} className="text-purple-500" />
+                {/* Determine if we should show feedback form or feedback display */}
+                {(() => {
+                  // Check if feedback exists
+                  let feedbackData = null;
+                  if (revisit.client_reaction) {
+                    feedbackData = revisit;
+                  } else if (revisit.feedback && typeof revisit.feedback === 'object') {
+                    feedbackData = revisit.feedback;
+                  }
+
+                  // Check if we should show the submit form
+                  const shouldShowForm = revisit.status === 'done' && !feedbackData;
+
+                  if (shouldShowForm) {
+                    // Show submit feedback form
+                    return (
+                      <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
+                        <h3 className="font-display text-base font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                          <Star size={16} className="text-amber-500" /> Submit Feedback
+                        </h3>
+                        <div className="space-y-4">
+                          {/* Rating */}
                           <div>
-                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Next Step</p>
-                            <p className="text-sm font-bold text-gray-900 dark:text-white">{nextStepLabel[revisit.next_step] || revisit.next_step}</p>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Rating</label>
+                            <div className="flex gap-1.5">
+                              {[1, 2, 3, 4, 5].map(num => (
+                                <button
+                                  key={num}
+                                  onClick={() => setFeedbackForm(f => ({ ...f, rating: num }))}
+                                  className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                                    feedbackForm.rating >= num ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  <Star size={16} fill={feedbackForm.rating >= num ? 'currentColor' : 'none'} />
+                                </button>
+                              ))}
+                            </div>
                           </div>
+
+                          {/* Client Reaction */}
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Client Reaction</label>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {reactionOptions.map(reaction => (
+                                <button
+                                  key={reaction}
+                                  onClick={() => setFeedbackForm(f => ({ ...f, client_reaction: reaction }))}
+                                  className={`px-2 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                                    feedbackForm.client_reaction === reaction ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20' : 'bg-gray-50 text-gray-600 border border-gray-100 hover:border-gray-200'
+                                  }`}
+                                >
+                                  {reactionLabel[reaction]}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Next Step */}
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Next Step</label>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {nextStepOptions.map(step => (
+                                <button
+                                  key={step}
+                                  onClick={() => setFeedbackForm(f => ({ ...f, next_step: step }))}
+                                  className={`px-2 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                                    feedbackForm.next_step === step ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20' : 'bg-gray-50 text-gray-600 border border-gray-100 hover:border-gray-200'
+                                  }`}
+                                >
+                                  {nextStepLabel[step]}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Interested In */}
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Interested In</label>
+                            <textarea
+                              value={feedbackForm.interested_in}
+                              onChange={e => setFeedbackForm(f => ({ ...f, interested_in: e.target.value }))}
+                              placeholder="What are they interested in..."
+                              rows={2}
+                              className="w-full px-3.5 py-2.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-purple-500 transition-all resize-none text-gray-900 dark:text-gray-100"
+                            />
+                          </div>
+
+                          {/* Remarks */}
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Remarks</label>
+                            <textarea
+                              value={feedbackForm.remarks}
+                              onChange={e => setFeedbackForm(f => ({ ...f, remarks: e.target.value }))}
+                              placeholder="Additional remarks..."
+                              rows={3}
+                              className="w-full px-3.5 py-2.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-purple-500 transition-all resize-none text-gray-900 dark:text-gray-100"
+                            />
+                          </div>
+
+                          <Button
+                            className="w-full rounded-xl py-3 font-bold shadow-xl shadow-purple-500/25 active:scale-[0.98] transition-all"
+                            onClick={handleSubmitFeedback}
+                            loading={actionLoading}
+                          >
+                            Submit Feedback
+                          </Button>
                         </div>
-                      )}
-                      {revisit.interested_in && (
-                        <div className="p-2.5 rounded-lg bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
-                          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Interested In</p>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">{revisit.interested_in}</p>
+                      </div>
+                    );
+                  } else if (feedbackData) {
+                    // Show client feedback display
+                    return (
+                      <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+                              <Star size={16} className="text-amber-500" />
+                            </div>
+                            <h3 className="font-display text-base font-bold text-gray-900 dark:text-white">Client Feedback</h3>
+                          </div>
+                          {feedbackData.rating && (
+                            <div className="flex items-center gap-1 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                              <Star size={12} className="text-amber-500" fill="currentColor" />
+                              <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{feedbackData.rating}/5</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {revisit.remarks && (
-                        <div className="bg-blue-50/50 dark:bg-blue-900/5 rounded-lg p-3 border border-blue-100/50 dark:border-blue-900/20">
-                          <p className="text-[9px] font-bold text-blue-600/70 dark:text-blue-400/70 uppercase tracking-widest mb-1">Remarks</p>
-                          <p className="text-sm text-gray-700 dark:text-gray-300">{revisit.remarks}</p>
+                        <div className="space-y-2.5">
+                          {feedbackData.client_reaction && (
+                            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
+                              <TrendingUp size={14} className="text-blue-500" />
+                              <div>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Reaction</p>
+                                <p className="text-sm font-bold text-gray-900 dark:text-white">{reactionLabel[feedbackData.client_reaction] || feedbackData.client_reaction}</p>
+                              </div>
+                            </div>
+                          )}
+                          {feedbackData.next_step && (
+                            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
+                              <Target size={14} className="text-purple-500" />
+                              <div>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Next Step</p>
+                                <p className="text-sm font-bold text-gray-900 dark:text-white">{nextStepLabel[feedbackData.next_step] || feedbackData.next_step}</p>
+                              </div>
+                            </div>
+                          )}
+                          {feedbackData.interested_in && (
+                            <div className="p-2.5 rounded-lg bg-gray-50 dark:bg-[#0f0f0f] border border-gray-100 dark:border-gray-800">
+                              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">Interested In</p>
+                              <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">{feedbackData.interested_in}</p>
+                            </div>
+                          )}
+                          {feedbackData.remarks && (
+                            <div className="bg-blue-50/50 dark:bg-blue-900/5 rounded-lg p-3 border border-blue-100/50 dark:border-blue-900/20">
+                              <p className="text-[9px] font-bold text-blue-600/70 dark:text-blue-400/70 uppercase tracking-widest mb-1">Remarks</p>
+                              <p className="text-sm text-gray-700 dark:text-gray-300">{feedbackData.remarks}</p>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })()}
               </div>
 
-              {/* Old style feedback section */}
-              {(revisit.feedback && !revisit.client_reaction) && (
+              {/* Old style feedback section - only if feedback is a string */}
+              {(revisit.feedback && typeof revisit.feedback === 'string' && !(revisit.client_reaction || (revisit.feedback && typeof revisit.feedback === 'object'))) && (
                 <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">

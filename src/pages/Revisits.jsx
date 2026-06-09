@@ -604,16 +604,18 @@ export default function Revisits() {
                           className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">
                           <Eye size={13} />
                         </button>
-                        {canManage && rv.status === 'scheduled' && (
+                        {canManage && (
                           <>
                             <button onClick={() => { setSelected(rv); setShowEdit(true) }} title="Edit"
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
                               <Edit2 size={13} />
                             </button>
-                            <button onClick={() => { setSelected(rv); setShowStatus(true) }} title="Update status"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
-                              <CheckCircle2 size={13} />
-                            </button>
+                            {rv.status !== 'done' && (
+                              <button onClick={() => { setSelected(rv); setShowStatus(true) }} title="Update status"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
+                                <CheckCircle2 size={13} />
+                              </button>
+                            )}
                           </>
                         )}
                         {rv.status === 'done' && !rv.client_reaction && (
@@ -622,18 +624,18 @@ export default function Revisits() {
                             <MessageSquare size={13} />
                           </button>
                         )}
-                        {canManage && rv.status !== 'done' && (
+                        {canManage && (
                           <button onClick={() => { setSelected(rv); setShowDelete(true) }} title="Delete"
                             className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                             <Trash2 size={13} />
                           </button>
                         )}
-                        {rv.original_visit_id && (
+                        {/* {rv.original_visit_id && (
                           <button onClick={() => navigate(`/site-visits/${rv.original_visit_id}`)} title="View original visit"
                             className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">
                             <Eye size={13} />
                           </button>
-                        )}
+                        )} */}
                       </div>
                     </td>
                   </tr>
