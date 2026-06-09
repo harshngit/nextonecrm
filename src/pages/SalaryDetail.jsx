@@ -80,6 +80,8 @@ function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
 export default function SalaryDetail() {
   const { user_id } = useParams()
   const navigate    = useNavigate()
+  const { user } = useSelector(s => s.auth)
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const [month, setMonth] = useState(thisMonth)
   const [year,  setYear]  = useState(thisYear)
@@ -379,7 +381,7 @@ export default function SalaryDetail() {
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{fmtDate(d)}</p>
                       <p className="text-[11px] text-gray-400">
                         {new Date(d).toLocaleDateString('en-IN', { weekday: 'short' })}
-                        {rec.working_hours ? ` · ${rec.working_hours}h` : ''}
+                        {isSuperAdmin && rec.working_hours ? ` · ${rec.working_hours}h` : ''}
                       </p>
                     </div>
 

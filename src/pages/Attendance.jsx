@@ -141,7 +141,7 @@ function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
 
 // ─── Check-In / Out Card ──────────────────────────────────────────────────────
 
-function CheckInCard({ todayData, loading, dispatch, user }) {
+function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin }) {
   const [showCam,       setShowCam]       = useState(false)
   const [photoType,     setPhotoType]     = useState('checkin')
   const [capturedPhoto, setCapturedPhoto] = useState(null)
@@ -274,7 +274,7 @@ function CheckInCard({ todayData, loading, dispatch, user }) {
             </div>
           </div>
 
-          {todayData?.working_hours && (
+          {isSuperAdmin && todayData?.working_hours && (
             <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl px-3 py-2.5 mb-4">
               <Timer size={14} className="text-[#0082f3]" />
               <span className="text-sm text-[#0082f3] font-semibold">{todayData.working_hours}h worked today</span>
@@ -383,7 +383,7 @@ function CheckInCard({ todayData, loading, dispatch, user }) {
 
 // ─── Calendar View ────────────────────────────────────────────────────────────
 
-function CalendarView({ dispatch }) {
+function CalendarView({ dispatch, isSuperAdmin }) {
   const { calendar, loading } = useSelector(s => s.attendance)
   const now = new Date()
   const [month,    setMonth]    = useState(now.getMonth() + 1)
@@ -424,7 +424,7 @@ function CalendarView({ dispatch }) {
           ].map(x => (
             <span key={x.k} className={`px-3 py-1 rounded-full text-xs font-semibold ${x.c}`}>{sum[x.k]} {x.l}</span>
           ))}
-          {sum.total_working_hours > 0 && (
+          {isSuperAdmin && sum.total_working_hours > 0 && (
             <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-[#0082f3] dark:bg-blue-900/30 dark:text-blue-400">{sum.total_working_hours}h worked</span>
           )}
         </div>
@@ -469,11 +469,11 @@ function CalendarView({ dispatch }) {
             <StatusBadge status={selected.status} />
           </div>
           <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <div className="flex items-center gap-1.5"><LogIn size={11} className="text-emerald-500" /> {fmtTime(selected.check_in_time)}</div>
-            <div className="flex items-center gap-1.5"><LogOut size={11} className="text-rose-500" /> {fmtTime(selected.check_out_time)}</div>
-            {selected.working_hours && <div className="flex items-center gap-1.5 col-span-2"><Timer size={11} className="text-[#0082f3]" /> {selected.working_hours}h working hours</div>}
-            {selected.checkin_address && <div className="flex items-center gap-1.5 col-span-2"><MapPin size={11} className="text-[#0082f3]" /> {selected.checkin_address}</div>}
-          </div>
+              <div className="flex items-center gap-1.5"><LogIn size={11} className="text-emerald-500" /> {fmtTime(selected.check_in_time)}</div>
+              <div className="flex items-center gap-1.5"><LogOut size={11} className="text-rose-500" /> {fmtTime(selected.check_out_time)}</div>
+              {isSuperAdmin && selected.working_hours && <div className="flex items-center gap-1.5 col-span-2"><Timer size={11} className="text-[#0082f3]" /> {selected.working_hours}h working hours</div>}
+              {selected.checkin_address && <div className="flex items-center gap-1.5 col-span-2"><MapPin size={11} className="text-[#0082f3]" /> {selected.checkin_address}</div>}
+            </div>
           {selected.checkin_photo && <img src={selected.checkin_photo} alt="selfie" className="w-12 h-12 rounded-xl object-cover mt-2 border-2 border-white dark:border-gray-700 shadow-sm" />}
         </div>
       )}
@@ -483,7 +483,7 @@ function CalendarView({ dispatch }) {
 
 // ─── My History ───────────────────────────────────────────────────────────────
 
-function MyHistory({ dispatch }) {
+function MyHistory({ dispatch, isSuperAdmin }) {
   const { myHistory, loading } = useSelector(s => s.attendance)
   const [page, setPage] = useState(1)
 
@@ -532,10 +532,10 @@ function MyHistory({ dispatch }) {
                     <StatusBadge status={rec.status} />
                   </div>
                   <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400 flex-wrap">
-                    <span className="flex items-center gap-1"><LogIn size={10} className="text-emerald-500" />{fmtTime(rec.check_in_time)}</span>
-                    <span className="flex items-center gap-1"><LogOut size={10} className="text-rose-500" />{fmtTime(rec.check_out_time)}</span>
-                    {rec.working_hours && <span className="flex items-center gap-1"><Timer size={10} className="text-[#0082f3]" />{rec.working_hours}h</span>}
-                  </div>
+                <span className="flex items-center gap-1"><LogIn size={10} className="text-emerald-500" />{fmtTime(rec.check_in_time)}</span>
+                <span className="flex items-center gap-1"><LogOut size={10} className="text-rose-500" />{fmtTime(rec.check_out_time)}</span>
+                {isSuperAdmin && rec.working_hours && <span className="flex items-center gap-1"><Timer size={10} className="text-[#0082f3]" />{rec.working_hours}h</span>}
+              </div>
                 </div>
                 {rec.checkin_photo && <img src={rec.checkin_photo} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200 dark:border-gray-700 flex-shrink-0" />}
               </div>
@@ -680,7 +680,7 @@ function AdminMonthGrid({ dispatch, title = 'Monthly Attendance Grid', subtitle 
 
 // ─── Admin: Daily View ────────────────────────────────────────────────────────
 
-function DailyView({ dispatch, title = 'Daily Attendance View' }) {
+function DailyView({ dispatch, title = 'Daily Attendance View', isSuperAdmin }) {
   const { byDate, loading } = useSelector(s => s.attendance)
   const [date, setDate] = useState(todayStr())
 
@@ -740,11 +740,11 @@ function DailyView({ dispatch, title = 'Daily Attendance View' }) {
                   <StatusBadge status={r.status} />
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5 flex-wrap">
-                  <span className="capitalize text-[10px] bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{r.role?.replace(/_/g, ' ')}</span>
-                  {r.check_in_time  && <span className="flex items-center gap-1"><LogIn  size={10} className="text-emerald-500" />{fmtTime(r.check_in_time)}</span>}
-                  {r.check_out_time && <span className="flex items-center gap-1"><LogOut size={10} className="text-rose-500" />{fmtTime(r.check_out_time)}</span>}
-                  {r.working_hours  && <span className="flex items-center gap-1"><Timer  size={10} className="text-[#0082f3]" />{r.working_hours}h</span>}
-                </div>
+                <span className="capitalize text-[10px] bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{r.role?.replace(/_/g, ' ')}</span>
+                {r.check_in_time  && <span className="flex items-center gap-1"><LogIn  size={10} className="text-emerald-500" />{fmtTime(r.check_in_time)}</span>}
+                {r.check_out_time && <span className="flex items-center gap-1"><LogOut size={10} className="text-rose-500" />{fmtTime(r.check_out_time)}</span>}
+                {isSuperAdmin && r.working_hours  && <span className="flex items-center gap-1"><Timer  size={10} className="text-[#0082f3]" />{r.working_hours}h</span>}
+              </div>
               </div>
               {r.checkin_photo && <img src={r.checkin_photo} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200 dark:border-gray-700 flex-shrink-0" />}
             </div>
@@ -757,7 +757,7 @@ function DailyView({ dispatch, title = 'Daily Attendance View' }) {
 
 // ─── Sales Manager: Team Daily View (via /attendance/team) ───────────────────
 
-function TeamDailyView({ dispatch }) {
+function TeamDailyView({ dispatch, isSuperAdmin }) {
   const { teamHistory, loading } = useSelector(s => s.attendance)
   const [date, setDate] = useState(todayStr())
 
@@ -1006,7 +1006,7 @@ function TeamMonthGrid({ dispatch }) {
 
 // ─── Sales Manager: Team Summary (via /attendance/team) ───────────────────────
 
-function TeamSummaryTable({ dispatch }) {
+function TeamSummaryTable({ dispatch, isSuperAdmin }) {
   const { teamHistory, loading } = useSelector(s => s.attendance)
   const now = new Date()
   const [from, setFrom] = useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`)
@@ -1081,7 +1081,7 @@ function TeamSummaryTable({ dispatch }) {
           <table className="min-w-full text-sm">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/60">
-                {['Employee','Role','Present','Late','Absent','On Leave','Working Hrs'].map(h=>(
+                {['Employee','Role','Present','Late','Absent','On Leave', ...(isSuperAdmin ? ['Working Hrs'] : [])].map(h=>(
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -1098,7 +1098,7 @@ function TeamSummaryTable({ dispatch }) {
                   <td className="px-4 py-3 font-bold text-amber-600 dark:text-amber-400">{r.late}</td>
                   <td className="px-4 py-3 font-bold text-red-500 dark:text-red-400">{r.absent}</td>
                   <td className="px-4 py-3 font-bold text-indigo-600 dark:text-indigo-400">{r.on_leave}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300 font-medium">{r.total_working_hours.toFixed(1)}h</td>
+                  {isSuperAdmin && <td className="px-4 py-3 text-gray-600 dark:text-gray-300 font-medium">{r.total_working_hours.toFixed(1)}h</td>}
                 </tr>
               ))}
             </tbody>
@@ -1111,7 +1111,7 @@ function TeamSummaryTable({ dispatch }) {
 
 // ─── Admin: Summary Table ─────────────────────────────────────────────────────
 
-function SummaryTable({ dispatch, isSalesMgr = false, managerId = null }) {
+function SummaryTable({ dispatch, isSalesMgr = false, managerId = null, isSuperAdmin }) {
   const { summary, loading } = useSelector(s => s.attendance)
   const now  = new Date()
   const [from, setFrom] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`)
@@ -1145,7 +1145,7 @@ function SummaryTable({ dispatch, isSalesMgr = false, managerId = null }) {
           <table className="min-w-full text-sm">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/60">
-                {['Employee', 'Role', 'Present', 'Late', 'Absent', 'Leave', 'Working Hrs', 'Attend %'].map(h => (
+                {['Employee', 'Role', 'Present', 'Late', 'Absent', 'Leave', ...(isSuperAdmin ? ['Working Hrs'] : []), 'Attend %'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -1164,7 +1164,7 @@ function SummaryTable({ dispatch, isSalesMgr = false, managerId = null }) {
                     <td className="px-4 py-3 font-bold text-amber-600 dark:text-amber-400">{r.late}</td>
                     <td className="px-4 py-3 font-bold text-red-500 dark:text-red-400">{r.absent}</td>
                     <td className="px-4 py-3 font-bold text-indigo-600 dark:text-indigo-400">{r.on_leave}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300 font-medium">{parseFloat(r.total_working_hours || 0).toFixed(1)}h</td>
+                    {isSuperAdmin && <td className="px-4 py-3 text-gray-600 dark:text-gray-300 font-medium">{parseFloat(r.total_working_hours || 0).toFixed(1)}h</td>}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 min-w-[40px]">
@@ -1186,7 +1186,7 @@ function SummaryTable({ dispatch, isSalesMgr = false, managerId = null }) {
 
 // ─── Admin: Approvals Panel ───────────────────────────────────────────────────
 
-function ApprovalPanel({ dispatch }) {
+function ApprovalPanel({ dispatch, isSuperAdmin }) {
   const { pending, loading } = useSelector(s => s.attendance)
   const [date,        setDate]        = useState(todayStr())
   const [selectedRec, setSelectedRec] = useState(null)
@@ -1300,7 +1300,7 @@ function ApprovalPanel({ dispatch }) {
                           <LogOut size={10} className="text-rose-500" />
                           {rec.check_out_time ? fmtTime(rec.check_out_time) : 'Not checked out'}
                         </span>
-                        {rec.working_hours && <span className="flex items-center gap-1"><Timer size={10} className="text-[#0082f3]" />{rec.working_hours}h</span>}
+                        {isSuperAdmin && rec.working_hours && <span className="flex items-center gap-1"><Timer size={10} className="text-[#0082f3]" />{rec.working_hours}h</span>}
                         {rec.checkin_address && <span className="flex items-center gap-1 max-w-[180px] truncate"><MapPin size={10} className="text-[#0082f3] flex-shrink-0" />{rec.checkin_address}</span>}
                       </div>
                     </div>
@@ -1928,8 +1928,9 @@ export default function Attendance() {
   const { user }  = useSelector(s => s.auth)
   const { today: todayData, loading, error } = useSelector(s => s.attendance)
 
-  const isAdmin   = ROLES_ADMIN.includes(user?.role)
-  const isManager = ROLES_MANAGER.includes(user?.role)
+  const isAdmin     = ROLES_ADMIN.includes(user?.role)
+  const isManager   = ROLES_MANAGER.includes(user?.role)
+  const isSuperAdmin = user?.role === 'super_admin'
 
   const [showManualEntry, setShowManualEntry] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
@@ -2051,7 +2052,7 @@ export default function Attendance() {
             <div className="lg:col-span-1">
               {!isAdmin ? (
                 /* Regular users: selfie check-in card */
-                <CheckInCard todayData={todayData} loading={loading} dispatch={dispatch} user={user} />
+                <CheckInCard todayData={todayData} loading={loading} dispatch={dispatch} user={user} isSuperAdmin={isSuperAdmin} />
               ) : (
                 /* Admin / Super Admin: manual entry prompt */
                 <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-2xl p-6 flex flex-col items-center justify-center gap-4 h-full min-h-[220px]">
@@ -2088,9 +2089,9 @@ export default function Attendance() {
                     value={STATUS_CONFIG[todayData?.status || 'absent']?.label || 'Absent'}
                     sub={todayData?.status === 'late' ? 'Arrived late' : todayData?.is_checked_in ? 'On time' : 'Not checked in'}
                     color={todayData?.status === 'present' ? 'green' : todayData?.status === 'late' ? 'amber' : 'red'} />
-                  <StatCard icon={Timer} label="Working Hours"
+                  {isSuperAdmin && <StatCard icon={Timer} label="Working Hours"
                     value={todayData?.working_hours ? `${todayData.working_hours}h` : '--'}
-                    sub="Today so far" color="blue" />
+                    sub="Today so far" color="blue" />}
                   <StatCard icon={LogIn} label="Check In"
                     value={todayData?.is_checked_in ? fmtTime(todayData?.check_in_time) : '--:--'}
                     sub={todayData?.checkin_location?.address || 'Not checked in yet'} color="green" />
@@ -2108,26 +2109,26 @@ export default function Attendance() {
         </div>
       )}
 
-      {activeTab === 'calendar'   && <CalendarView dispatch={dispatch} />}
-      {activeTab === 'history'    && <MyHistory dispatch={dispatch} />}
+      {activeTab === 'calendar'   && <CalendarView dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}
+      {activeTab === 'history'    && <MyHistory dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}
 
       {/* sales_manager — uses /attendance/team API, scoped to their team only */}
       {activeTab === 'team-daily' && isSalesMgr && (
-        <TeamDailyView dispatch={dispatch} />
+        <TeamDailyView dispatch={dispatch} isSuperAdmin={isSuperAdmin} />
       )}
       {activeTab === 'team-month' && isSalesMgr && (
         <TeamMonthGrid dispatch={dispatch} />
       )}
       {activeTab === 'summary' && isSalesMgr && (
-        <TeamSummaryTable dispatch={dispatch} />
+        <TeamSummaryTable dispatch={dispatch} isSuperAdmin={isSuperAdmin} />
       )}
 
       {/* admin / super_admin — all users */}
       {activeTab === 'monthly'   && isAdmin && <AdminMonthGrid dispatch={dispatch} />}
-      {activeTab === 'daily'     && isAdmin && <DailyView      dispatch={dispatch} />}
+      {activeTab === 'daily'     && isAdmin && <DailyView      dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}
       {activeTab === 'late-recs' && isAdmin && <LateArrivalsReport dispatch={dispatch} />}
-      {activeTab === 'admin-sum' && isAdmin && <SummaryTable   dispatch={dispatch} />}
-      {activeTab === 'approvals' && isAdmin && <ApprovalPanel  dispatch={dispatch} />}
+      {activeTab === 'admin-sum' && isAdmin && <SummaryTable   dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}
+      {activeTab === 'approvals' && isAdmin && <ApprovalPanel  dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}
 
       {/* Admin Manual Entry Modal */}
       {showManualEntry && (

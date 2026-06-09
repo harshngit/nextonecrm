@@ -6,7 +6,7 @@ import {
   Info, Search, RefreshCw, Download, Trash2,
   FileText, FileImage, Upload, X, CheckCircle2,
   FolderOpen, FileArchive, Plus, ShieldCheck, AlertCircle,
-  Share2, Mail, SendHorizonal, Layers,
+  Share2, Mail, SendHorizonal, Layers, ChevronDown,
 } from 'lucide-react'
 import {
   fetchProjectById, fetchProjectLeads, clearCurrentProject,
@@ -33,16 +33,40 @@ const FileIcon = ({ mime, size = 16, className = '' }) => {
 }
 
 // ─── Share Project Modal ──────────────────────────────────────────────────────
-function ShareProjectModal({ projectId, projectName, onClose }) {
+function ShareProjectModal({ projectId, projectName, onClose, projectDocuments }) {
   const ic = "w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-brand text-gray-900 shadow-sm transition-all"
   const [emailInput, setEmailInput] = useState('')
   const [emails,     setEmails]     = useState([])
-  const [message,    setMessage]    = useState('')
+  const [message,    setMessage]    = useState('Hi, here are the project details!')
+  const [selectedDocuments, setSelectedDocuments] = useState([])
+  const [selectedFields, setSelectedFields] = useState(['name', 'price_range', 'configurations'])
   const [sending,    setSending]    = useState(false)
   const [success,    setSuccess]    = useState('')
   const [error,      setError]      = useState('')
+  const [showDocumentsDropdown, setShowDocumentsDropdown] = useState(false)
+  const [showFieldsDropdown, setShowFieldsDropdown] = useState(false)
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  const availableFields = [
+    { key: 'name', label: 'Project Name' },
+    { key: 'developer', label: 'Developer' },
+    { key: 'city', label: 'City' },
+    { key: 'locality', label: 'Locality' },
+    { key: 'price_range', label: 'Price Range' },
+    { key: 'total_units', label: 'Total Units' },
+    { key: 'rera_number', label: 'RERA Number' },
+    { key: 'configurations', label: 'Configurations' },
+    { key: 'status', label: 'Status' },
+    { key: 'description', label: 'Description' }
+  ]
+
+  const allDocuments = [
+    ...(projectDocuments?.unit_plans || []),
+    ...(projectDocuments?.creatives || []),
+    ...(projectDocuments?.payment_plans || []),
+    ...(projectDocuments?.videos || [])
+  ]
 
   const addEmail = () => {
     const val = emailInput.trim()
@@ -60,6 +84,30 @@ function ShareProjectModal({ projectId, projectName, onClose }) {
 
   const removeEmail = email => setEmails(prev => prev.filter(e => e !== email))
 
+  const toggleDocument = (docId) => {
+    setSelectedDocuments(prev =>
+      prev.includes(docId)
+        ? prev.filter(id => id !== docId)
+        : [...prev, docId]
+    )
+  }
+
+  const toggleField = (fieldKey) => {
+    setSelectedFields(prev =>
+      prev.includes(fieldKey)
+        ? prev.filter(key => key !== fieldKey)
+        : [...prev, fieldKey]
+    )
+  }
+
+  const toggleAllDocuments = () => {
+    if (selectedDocuments.length === allDocuments.length) {
+      setSelectedDocuments([])
+    } else {
+      setSelectedDocuments(allDocuments.map(doc => doc.id))
+    }
+  }
+
   const handleSend = async () => {
     let finalEmails = [...emails]
     const typed = emailInput.trim()
@@ -71,8 +119,10 @@ function ShareProjectModal({ projectId, projectName, onClose }) {
     setSending(true); setError(''); setSuccess('')
     try {
       const res = await api.post(`/projects/${projectId}/share`, {
-        emails:  finalEmails,
+        emails: finalEmails,
         message: message.trim() || undefined,
+        document_ids: selectedDocuments.length > 0 ? selectedDocuments : undefined,
+        fields: selectedFields.length > 0 ? selectedFields : undefined
       })
       setSuccess(`Project shared with ${res.data.data?.total_sent || finalEmails.length} recipient${finalEmails.length > 1 ? 's' : ''}!`)
       setTimeout(() => onClose(), 2000)
@@ -84,9 +134,9 @@ function ShareProjectModal({ projectId, projectName, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose} style={{ margin: '0px' }}>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center">
               <Share2 size={15} className="text-brand" />
@@ -103,7 +153,7 @@ function ShareProjectModal({ projectId, projectName, onClose }) {
 
         <div className="px-6 py-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">
               Send to <span className="text-gray-400 font-normal">(press Enter or comma to add multiple)</span>
             </label>
             {emails.length > 0 && (
@@ -133,27 +183,90 @@ function ShareProjectModal({ projectId, projectName, onClose }) {
             </div>
           </div>
 
+          {/* Personal message */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">
               Personal message <span className="text-gray-400 font-normal">(optional)</span>
             </label>
             <textarea rows={3} value={message} onChange={e => setMessage(e.target.value)}
-              placeholder="Hi, please find the project details as discussed..."
+              placeholder="Hi, here are the project details!"
               className={ic} />
           </div>
 
-          <div className="bg-gray-50 rounded-xl px-4 py-3 text-xs text-gray-500 space-y-1 border border-gray-100">
-            <p className="font-semibold text-gray-600 mb-1">Email will include:</p>
-            <p>✓ Full project details (location, price, RERA, configurations)</p>
-            <p>✓ All unit plans + creatives attached as a ZIP file</p>
-            <p>✓ Your personal message (if provided)</p>
+          {/* Fields to include */}
+          <div className="relative">
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+              Fields to include
+            </label>
+            <button onClick={() => setShowFieldsDropdown(!showFieldsDropdown)}
+              className={ic + " flex items-center justify-between"}>
+              <span className="text-sm">
+                {selectedFields.length === 0 ? 'Select fields' : `${selectedFields.length} field${selectedFields.length > 1 ? 's' : ''} selected`}
+              </span>
+              <ChevronDown size={14} className={`transition-transform ${showFieldsDropdown ? 'rotate-180' : ''}`}/>
+            </button>
+            {showFieldsDropdown && (
+              <div className="absolute w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto">
+                {availableFields.map(field => (
+                  <label key={field.key} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 first:rounded-t-xl last:rounded-b-xl">
+                    <input type="checkbox"
+                      checked={selectedFields.includes(field.key)}
+                      onChange={() => toggleField(field.key)}
+                      className="w-4 h-4 rounded border-gray-300 text-brand focus:ring-brand"
+                    />
+                    <span className="text-sm text-gray-700">{field.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Documents to include */}
+          {allDocuments.length > 0 && (
+            <div className="relative">
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                Documents to include
+              </label>
+              <button onClick={() => setShowDocumentsDropdown(!showDocumentsDropdown)}
+                className={ic + " flex items-center justify-between"}>
+                <span className="text-sm">
+                  {selectedDocuments.length === 0 ? 'Select documents' : `${selectedDocuments.length} document${selectedDocuments.length > 1 ? 's' : ''} selected`}
+                </span>
+                <ChevronDown size={14} className={`transition-transform ${showDocumentsDropdown ? 'rotate-180' : ''}`}/>
+              </button>
+              {showDocumentsDropdown && (
+                <div className="absolute w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto">
+                  <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 border-b border-gray-100">
+                    <input type="checkbox"
+                      checked={selectedDocuments.length === allDocuments.length && allDocuments.length > 0}
+                      onChange={toggleAllDocuments}
+                      className="w-4 h-4 rounded border-gray-300 text-brand focus:ring-brand"
+                    />
+                    <span className="text-sm font-semibold text-gray-700">Select All</span>
+                  </label>
+                  {allDocuments.map(doc => (
+                    <label key={doc.id} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50">
+                      <input type="checkbox"
+                        checked={selectedDocuments.includes(doc.id)}
+                        onChange={() => toggleDocument(doc.id)}
+                        className="w-4 h-4 rounded border-gray-300 text-brand focus:ring-brand"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-700 truncate">{doc.file_name}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {error   && <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5"><AlertCircle size={13} className="text-red-500 flex-shrink-0"/><p className="text-xs text-red-600">{error}</p></div>}
           {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5"><CheckCircle2 size={13} className="text-green-500 flex-shrink-0"/><p className="text-xs text-green-600">{success}</p></div>}
         </div>
 
-        <div className="px-6 pb-5 flex gap-3">
+        {/* Footer buttons */}
+        <div className="px-6 pb-5 flex gap-3 sticky bottom-0 bg-white border-t border-gray-100 pt-4">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition-colors">Cancel</button>
           <button onClick={handleSend} disabled={sending || (emails.length === 0 && !emailInput.trim())}
             className="flex-1 py-2.5 rounded-xl bg-brand hover:bg-brand/90 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
@@ -166,9 +279,11 @@ function ShareProjectModal({ projectId, projectName, onClose }) {
 }
 
 // ─── Document Upload Modal ────────────────────────────────────────────────────
-function UploadDocsModal({ projectId, onClose, onSuccess }) {
+function UploadDocsModal({ projectId, onClose, onSuccess, initialType = null }) {
   const [unitFiles,     setUnitFiles]     = useState([])
   const [creativeFiles, setCreativeFiles] = useState([])
+  const [paymentPlanFiles, setPaymentPlanFiles] = useState([])
+  const [videoFiles,    setVideoFiles]    = useState([])
   const [uploading,     setUploading]     = useState(false)
   const [error,         setError]         = useState('')
   const [success,       setSuccess]       = useState('')
@@ -182,20 +297,22 @@ function UploadDocsModal({ projectId, onClose, onSuccess }) {
   }
 
   const upload = async () => {
-    if (!unitFiles.length && !creativeFiles.length) { setError('Add at least one file'); return }
+    if (!unitFiles.length && !creativeFiles.length && !paymentPlanFiles.length && !videoFiles.length) { setError('Add at least one file'); return }
     setError(''); setUploading(true)
     try {
       const fd = new FormData()
       unitFiles.forEach(f     => fd.append('unit_plans', f))
       creativeFiles.forEach(f => fd.append('creatives', f))
+      paymentPlanFiles.forEach(f => fd.append('payment_plans', f))
+      videoFiles.forEach(f => fd.append('videos', f))
       await api.post(`/projects/${projectId}/documents`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-      setSuccess(`${unitFiles.length + creativeFiles.length} file(s) uploaded!`)
+      setSuccess(`${unitFiles.length + creativeFiles.length + paymentPlanFiles.length + videoFiles.length} file(s) uploaded!`)
       setTimeout(() => { onSuccess(); onClose() }, 800)
     } catch (e) { setError(e.response?.data?.message || 'Upload failed') }
     finally { setUploading(false) }
   }
 
-  const DropZone = ({ label, files, setFiles, color }) => (
+  const DropZone = ({ label, files, setFiles, color, accept = ".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" }) => (
     <div>
       <div className="flex items-center justify-between mb-2">
         <label className="text-xs font-semibold text-gray-600">{label}</label>
@@ -204,13 +321,14 @@ function UploadDocsModal({ projectId, onClose, onSuccess }) {
       <label
         onDragOver={e => e.preventDefault()}
         onDrop={e => { e.preventDefault(); setFiles(p => addFiles(p, e.dataTransfer.files)) }}
-        className={`flex flex-col items-center gap-2 p-5 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${files.length ? 'border-green-300 bg-green-50/40' : 'border-gray-200 hover:border-brand hover:bg-brand/5'}`}>
-        <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="hidden"
+        className={`flex flex-col items-center gap-2 p-5 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${files.length ? 'border-green-300 bg-green-50/40' : 'border-gray-200 hover:border-brand hover:bg-brand/5'}`}
+      >
+        <input type="file" multiple accept={accept} className="hidden"
           onChange={e => setFiles(p => addFiles(p, e.target.files))}/>
         {files.length === 0 ? (
           <>
             <Upload size={20} className="text-gray-400"/>
-            <p className="text-xs text-gray-500">Drag & drop or click · PDF, JPEG, PNG, Word</p>
+            <p className="text-xs text-gray-500">Drag & drop or click</p>
           </>
         ) : (
           <div className="w-full space-y-1.5">
@@ -225,7 +343,7 @@ function UploadDocsModal({ projectId, onClose, onSuccess }) {
             ))}
             <label className="flex items-center gap-1.5 text-[11px] text-brand cursor-pointer hover:underline mt-1">
               <Plus size={11}/> Add more
-              <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="hidden"
+              <input type="file" multiple accept={accept} className="hidden"
                 onChange={e => setFiles(p => addFiles(p, e.target.files))}/>
             </label>
           </div>
@@ -235,25 +353,27 @@ function UploadDocsModal({ projectId, onClose, onSuccess }) {
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-            <Upload size={15} className="text-brand"/> Upload Documents
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose} style={{ margin: '0px' }}>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-2 border-b border-gray-100 sticky top-0 bg-white">
+          <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+            <Upload size={14} className="text-brand"/> Upload Documents
           </h3>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100"><X size={15}/></button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100"><X size={13}/></button>
         </div>
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-3 space-y-2">
           <DropZone label="Unit Plans" files={unitFiles} setFiles={setUnitFiles} color="text-blue-600 bg-blue-50"/>
           <DropZone label="Creatives"  files={creativeFiles} setFiles={setCreativeFiles} color="text-purple-600 bg-purple-50"/>
+          <DropZone label="Payment Plans" files={paymentPlanFiles} setFiles={setPaymentPlanFiles} color="text-green-600 bg-green-50"/>
+          <DropZone label="Videos"  files={videoFiles} setFiles={setVideoFiles} color="text-amber-600 bg-amber-50" accept="video/*,.mp4,.mov,.avi,.mkv"/>
           {error   && <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5"><AlertCircle size={13} className="text-red-500"/><p className="text-xs text-red-600">{error}</p></div>}
           {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5"><CheckCircle2 size={13} className="text-green-500"/><p className="text-xs text-green-600">{success}</p></div>}
         </div>
-        <div className="px-6 pb-5 flex gap-3">
+        <div className="px-6 pb-5 flex gap-3 sticky bottom-0 bg-white border-t border-gray-100 pt-4">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50 transition-colors">Cancel</button>
-          <button onClick={upload} disabled={uploading || (!unitFiles.length && !creativeFiles.length)}
+          <button onClick={upload} disabled={uploading || (!unitFiles.length && !creativeFiles.length && !paymentPlanFiles.length && !videoFiles.length)}
             className="flex-1 py-2.5 rounded-xl bg-brand hover:bg-brand/90 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
-            {uploading ? <><Loader2 size={14} className="animate-spin"/>Uploading…</> : <><Upload size={14}/>Upload {unitFiles.length + creativeFiles.length > 0 ? `${unitFiles.length + creativeFiles.length} File${unitFiles.length + creativeFiles.length > 1 ? 's' : ''}` : 'Files'}</>}
+            {uploading ? <><Loader2 size={14} className="animate-spin"/>Uploading…</> : <><Upload size={14}/>Upload {unitFiles.length + creativeFiles.length + paymentPlanFiles.length + videoFiles.length > 0 ? `${unitFiles.length + creativeFiles.length + paymentPlanFiles.length + videoFiles.length} File${unitFiles.length + creativeFiles.length + paymentPlanFiles.length + videoFiles.length > 1 ? 's' : ''}` : 'Files'}</>}
           </button>
         </div>
       </div>
@@ -316,10 +436,19 @@ export default function ProjectDetail() {
   const [showUpload, setShowUpload] = useState(false)
   const [showShare,  setShowShare]  = useState(false)
   const [dlError,    setDlError]    = useState('')
+  const [activeTab,  setActiveTab]  = useState('unit_plans')
+  const [directUploadInput, setDirectUploadInput] = useState(null)
 
   const canAdmin         = ['super_admin', 'admin'].includes(user?.role)
   const canUpload        = canAdmin
   const isRestrictedUser = ['sales_manager', 'sales_executive', 'external_caller'].includes(user?.role)
+
+  const tabs = [
+    { key: 'unit_plans', label: 'Unit Plans', countKey: 'unit_plans', color: 'blue', accept: ".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" },
+    { key: 'creatives', label: 'Creatives', countKey: 'creatives', color: 'purple', accept: ".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" },
+    { key: 'payment_plans', label: 'Payment Plans', countKey: 'payment_plans', color: 'green', accept: ".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" },
+    { key: 'videos', label: 'Videos', countKey: 'videos', color: 'amber', accept: "video/*,.mp4,.mov,.avi,.mkv" }
+  ]
 
   useEffect(() => {
     dispatch(fetchProjectById(id))
@@ -340,8 +469,19 @@ export default function ProjectDetail() {
   const downloadAll = async (docType) => {
     try {
       setDlError('')
-      const params = docType ? `?document_type=${docType}` : ''
-      const res    = await api.get(`/projects/${id}/documents/download-all${params}`, { responseType: 'blob' })
+      let endpoint = `/projects/${id}/documents/download-all`
+      
+      if (docType === 'unit_plan') {
+        endpoint = `/projects/${id}/documents/unit-plans/download-all`
+      } else if (docType === 'creative') {
+        endpoint = `/projects/${id}/documents/creatives/download-all`
+      } else if (docType === 'payment_plan') {
+        endpoint = `/projects/${id}/documents/payment-plans/download-all`
+      } else if (docType === 'video') {
+        endpoint = `/projects/${id}/documents/videos/download-all`
+      }
+      
+      const res    = await api.get(endpoint, { responseType: 'blob' })
       const cd     = res.headers['content-disposition'] || ''
       const fname  = cd.match(/filename="?([^";\n]+)"?/)?.[1] || `${project?.name || 'project'}_${docType || 'all'}.zip`
       const url    = URL.createObjectURL(res.data)
@@ -350,12 +490,38 @@ export default function ProjectDetail() {
     } catch { setDlError('Failed to download ZIP. Some files may be missing on the server.') }
   }
 
-  const totalDocs    = (projectDocuments?.unit_plans?.length || 0) + (projectDocuments?.creatives?.length || 0)
+  const totalDocs    = (projectDocuments?.unit_plans?.length || 0) + (projectDocuments?.creatives?.length || 0) + (projectDocuments?.payment_plans?.length || 0) + (projectDocuments?.videos?.length || 0)
   const totalLeads   = project?.total_leads ? parseInt(project.total_leads, 10) : (pagination.total || leads.length)
   const filteredLeads = leads.filter(l =>
     l.name?.toLowerCase().includes(search.toLowerCase()) ||
     l.assigned_to?.toLowerCase().includes(search.toLowerCase())
   )
+
+  const handleDirectUpload = async (e, type) => {
+    const files = Array.from(e.target.files)
+    if (files.length === 0) return
+    setDlError('')
+
+    try {
+      const fd = new FormData()
+      files.forEach(f => fd.append(type, f))
+      await api.post(`/projects/${id}/documents`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      dispatch(fetchProjectDocuments(id))
+    } catch (err) {
+      console.error('Upload failed:', err)
+      setDlError('Failed to upload files')
+    }
+  }
+
+  const getTabDocuments = () => {
+    switch(activeTab) {
+      case 'unit_plans': return projectDocuments?.unit_plans || []
+      case 'creatives': return projectDocuments?.creatives || []
+      case 'payment_plans': return projectDocuments?.payment_plans || []
+      case 'videos': return projectDocuments?.videos || []
+      default: return []
+    }
+  }
 
   if (detailLoading && !project) return (
     <div className="flex flex-col items-center justify-center h-[60vh]">
@@ -401,7 +567,7 @@ export default function ProjectDetail() {
 
       {project && (
         <>
-          {/* ── Hero Card ──────────────────────────────────────────────────── */}
+          {/* ─── Hero Card ──────────────────────────────────────────────────── */}
           <div className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm">
             {/* Banner */}
             <div className="h-32 bg-gradient-to-r from-brand to-blue-400 relative overflow-hidden">
@@ -419,9 +585,9 @@ export default function ProjectDetail() {
                 </div>
 
                 {/* Title block */}
-                <div className="flex-1 pb-1 pt-2">
+                <div className="flex-1 pb-1 pt-2 relative z-10">
                   <div className="flex flex-wrap items-center gap-3 mb-1">
-                    <h1 className="font-display text-2xl md:text-3xl font-bold text-gray-900">{project.name}</h1>
+                    <h1 className="font-display text-2xl md:text-3xl font-bold text-gray-900 break-words">{project.name}</h1>
                     <Badge label={project.status || 'Active'}/>
                   </div>
                   {project.developer && (
@@ -453,7 +619,7 @@ export default function ProjectDetail() {
             </div>
           </div>
 
-          {/* ── Body ───────────────────────────────────────────────────────── */}
+          {/* ─── Body ───────────────────────────────────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
             {/* LEFT COL */}
@@ -465,7 +631,7 @@ export default function ProjectDetail() {
                   <h3 className="font-display text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <Info size={16} className="text-blue-500"/> About This Project
                   </h3>
-                  <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{project.description}</p>
+                  <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line overflow-y-auto max-h-[200px]">{project.description}</p>
                 </div>
               )}
 
@@ -507,7 +673,7 @@ export default function ProjectDetail() {
                     <div>
                       <h3 className="font-display text-base font-bold text-gray-900">Project Documents</h3>
                       <p className="text-xs text-gray-400">
-                        {docsLoading ? 'Loading…' : `${totalDocs} document${totalDocs !== 1 ? 's' : ''} · Unit Plans & Creatives`}
+                        {docsLoading ? 'Loading…' : `${totalDocs} document${totalDocs !== 1 ? 's' : ''}`}
                       </p>
                     </div>
                   </div>
@@ -527,6 +693,27 @@ export default function ProjectDetail() {
                   </div>
                 </div>
 
+                {/* Tabs */}
+                <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
+                  {tabs.map(tab => {
+                    const count = projectDocuments?.[tab.countKey]?.length || 0
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
+                          activeTab === tab.key
+                            ? `bg-${tab.color}-500 text-white`
+                            : `bg-gray-100 text-gray-600 hover:bg-gray-200`
+                        }`}
+                      >
+                        {tab.label}
+                        <span className={`${activeTab === tab.key ? 'bg-white/20' : 'bg-white'} rounded-full px-2 py-0.5 text-[10px]`}>{count}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+
                 {dlError && (
                   <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 mb-4">
                     <AlertCircle size={13} className="text-red-500"/><p className="text-xs text-red-600">{dlError}</p>
@@ -536,67 +723,46 @@ export default function ProjectDetail() {
 
                 {docsLoading ? (
                   <div className="py-8 flex justify-center"><Loader2 size={24} className="animate-spin text-brand"/></div>
-                ) : totalDocs === 0 ? (
-                  <div className="text-center py-10 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
-                    <div className="text-3xl mb-2">📁</div>
-                    <p className="text-sm text-gray-500">No documents uploaded yet</p>
-                    {canUpload && (
-                      <button onClick={() => setShowUpload(true)}
-                        className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand/10 hover:bg-brand/20 text-brand text-xs font-semibold mx-auto transition-colors">
-                        <Upload size={13}/> Upload first document
-                      </button>
-                    )}
-                  </div>
                 ) : (
-                  <div className="space-y-6">
-                    {projectDocuments.unit_plans?.length > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Unit Plans</span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
-                              {projectDocuments.unit_plans.length}
-                            </span>
-                          </div>
-                          <button onClick={() => downloadAll('unit_plan')}
-                            className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline">
-                            <Download size={11}/> Download all
-                          </button>
+                  (() => {
+                    const docs = getTabDocuments()
+                    if (docs.length === 0) {
+                      const currentTab = tabs.find(t => t.key === activeTab)
+                      return (
+                        <div className="text-center py-10 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                          <div className="text-3xl mb-2">📁</div>
+                          <p className="text-sm text-gray-500">No {currentTab?.label.toLowerCase()} uploaded yet</p>
+                          {canUpload && (
+                            <>
+                              <input
+                                ref={(el) => { if (el) setDirectUploadInput(el) }}
+                                type="file"
+                                multiple
+                                accept={currentTab?.accept}
+                                className="hidden"
+                                onChange={(e) => handleDirectUpload(e, activeTab)}
+                              />
+                              <button
+                                onClick={() => directUploadInput?.click()}
+                                className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand/10 hover:bg-brand/20 text-brand text-xs font-semibold mx-auto transition-colors"
+                              >
+                                <Upload size={13}/> Upload first file
+                              </button>
+                            </>
+                          )}
                         </div>
-                        <div className="space-y-2">
-                          {projectDocuments.unit_plans.map(doc => (
-                            <DocRow key={doc.id} doc={doc} projectId={id} canDelete={canAdmin}
-                              onDeleted={() => dispatch(fetchProjectDocuments(id))}
-                              onDownload={downloadDoc}/>
-                          ))}
-                        </div>
+                      )
+                    }
+                    return (
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                        {docs.map(doc => (
+                          <DocRow key={doc.id} doc={doc} projectId={id} canDelete={canAdmin}
+                            onDeleted={() => dispatch(fetchProjectDocuments(id))}
+                            onDownload={downloadDoc}/>
+                        ))}
                       </div>
-                    )}
-
-                    {projectDocuments.creatives?.length > 0 && (
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Creatives</span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-600">
-                              {projectDocuments.creatives.length}
-                            </span>
-                          </div>
-                          <button onClick={() => downloadAll('creative')}
-                            className="flex items-center gap-1 text-[11px] text-purple-600 hover:underline">
-                            <Download size={11}/> Download all
-                          </button>
-                        </div>
-                        <div className="space-y-2">
-                          {projectDocuments.creatives.map(doc => (
-                            <DocRow key={doc.id} doc={doc} projectId={id} canDelete={canAdmin}
-                              onDeleted={() => dispatch(fetchProjectDocuments(id))}
-                              onDownload={downloadDoc}/>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    )
+                  })()
                 )}
               </div>
 
@@ -635,9 +801,9 @@ export default function ProjectDetail() {
                     </div>
                   ) : (
                     <>
-                      <div className="overflow-x-auto">
+                      <div className="overflow-x-auto max-h-[350px] overflow-y-auto">
                         <table className="w-full text-sm">
-                          <thead>
+                          <thead className="sticky top-0 bg-white z-10">
                             <tr className="text-left border-b border-gray-100">
                               <th className="py-3 px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Lead Name</th>
                               <th className="py-3 px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
@@ -699,16 +865,16 @@ export default function ProjectDetail() {
                     { l: 'City',       v: project.city        || '—' },
                     { l: 'Locality',   v: project.locality    || '—' },
                     { l: 'Address',    v: location     || '—' },
-                    { l: 'Price Range',v: project.price_range || '—' },
-                    { l: 'Total Units',v: project.total_units || '—' },
+                    { l: 'Price Range', v: project.price_range || '—' },
+                    { l: 'Total Units', v: project.total_units || '—' },
                     { l: 'Possession', v: project.possession_date
-                        ? new Date(project.possession_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
-                        : '—' },
+                      ? new Date(project.possession_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+                      : '—' },
                     { l: 'RERA',       v: project.rera_number || '—' },
                     { l: 'Config',     v: hasConfigs ? project.configurations.join(', ') : '—' },
                   ].map(({ l, v }) => (
                     <div key={l} className="flex justify-between items-start gap-3 py-2.5 border-b border-gray-50 last:border-0">
-                      <span className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider flex-shrink-0 pt-0.5">{l}</span>
+                      <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider flex-shrink-0 pt-0.5">{l}</span>
                       <span className="text-sm font-semibold text-gray-800 text-right">{v}</span>
                     </div>
                   ))}
@@ -722,7 +888,7 @@ export default function ProjectDetail() {
                     <Download size={16} className="text-teal-500"/> Quick Download
                   </h3>
                   <div className="space-y-2.5">
-                    {projectDocuments.unit_plans?.length > 0 && (
+                    {projectDocuments?.unit_plans?.length > 0 && (
                       <button onClick={() => downloadAll('unit_plan')}
                         className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors group">
                         <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
@@ -735,7 +901,7 @@ export default function ProjectDetail() {
                         <Download size={14} className="text-blue-500 flex-shrink-0 group-hover:translate-y-0.5 transition-transform"/>
                       </button>
                     )}
-                    {projectDocuments.creatives?.length > 0 && (
+                    {projectDocuments?.creatives?.length > 0 && (
                       <button onClick={() => downloadAll('creative')}
                         className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-100 transition-colors group">
                         <div className="w-8 h-8 rounded-lg bg-purple-500 flex items-center justify-center flex-shrink-0">
@@ -746,6 +912,32 @@ export default function ProjectDetail() {
                           <p className="text-[10px] text-purple-500">{projectDocuments.creatives.length} file{projectDocuments.creatives.length > 1 ? 's' : ''}</p>
                         </div>
                         <Download size={14} className="text-purple-500 flex-shrink-0 group-hover:translate-y-0.5 transition-transform"/>
+                      </button>
+                    )}
+                    {projectDocuments?.payment_plans?.length > 0 && (
+                      <button onClick={() => downloadAll('payment_plan')}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-green-50 hover:bg-green-100 border border-green-100 transition-colors group">
+                        <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center flex-shrink-0">
+                          <FileArchive size={14} className="text-white"/>
+                        </div>
+                        <div className="text-left flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-green-700">Payment Plans ZIP</p>
+                          <p className="text-[10px] text-green-500">{projectDocuments.payment_plans.length} file{projectDocuments.payment_plans.length > 1 ? 's' : ''}</p>
+                        </div>
+                        <Download size={14} className="text-green-500 flex-shrink-0 group-hover:translate-y-0.5 transition-transform"/>
+                      </button>
+                    )}
+                    {projectDocuments?.videos?.length > 0 && (
+                      <button onClick={() => downloadAll('video')}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-100 transition-colors group">
+                        <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0">
+                          <FileArchive size={14} className="text-white"/>
+                        </div>
+                        <div className="text-left flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-amber-700">Videos ZIP</p>
+                          <p className="text-[10px] text-amber-500">{projectDocuments.videos.length} file{projectDocuments.videos.length > 1 ? 's' : ''}</p>
+                        </div>
+                        <Download size={14} className="text-amber-500 flex-shrink-0 group-hover:translate-y-0.5 transition-transform"/>
                       </button>
                     )}
                     {totalDocs > 1 && (
@@ -774,6 +966,7 @@ export default function ProjectDetail() {
         <ShareProjectModal
           projectId={id}
           projectName={project.name}
+          projectDocuments={projectDocuments}
           onClose={() => setShowShare(false)}
         />
       )}

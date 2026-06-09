@@ -376,51 +376,14 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, sal
 }
 
 
-// Shows full number (clickable) if admin or approved access.
-// Shows masked + Request button for non-admin without access.
-// Shows Pending badge if request already submitted.
-function PhoneCell({ lead, canSeePhone }) {
-  const [access,     setAccess]     = useState(null)   // null=loading, {has_access,phone,request}
-  const [requesting, setRequesting] = useState(false)
-  const [showModal,  setShowModal]  = useState(false)
-  const [reason,     setReason]     = useState('')
-  const [reqLoading, setReqLoading] = useState(false)
-  const [reqError,   setReqError]   = useState('')
-  const [reqSuccess, setReqSuccess] = useState('')
-
-  useEffect(() => {
-    if (canSeePhone) { setAccess({ has_access: true, phone: lead.phone }); return }
-    let cancelled = false
-    api.get(`/phone-reveal/check/${lead.id}`)
-      .then(r => { if (!cancelled) setAccess(r.data.data) })
-      .catch(() => { if (!cancelled) setAccess({ has_access: false, phone: null, request: null }) })
-    return () => { cancelled = true }
-  }, [lead.id, canSeePhone, lead.phone])
-
-  const submitRequest = async () => {
-    setReqError(''); setReqLoading(true)
-    try {
-      await api.post('/phone-reveal/request', { lead_id: lead.id, reason: reason || undefined })
-      setReqSuccess('Request submitted!')
-      setAccess(p => ({ ...p, request: { status: 'pending' } }))
-      setTimeout(() => { setShowModal(false); setReqSuccess(''); setReason('') }, 800)
-    } catch(e) { setReqError(e.response?.data?.message || 'Request failed') }
-    finally { setReqLoading(false) }
-  }
-
-  if (access === null) {
+// Shows full number (clickable) if admin.
+// Shows masked + View button for others.
+// Shows last 5 digits when View is clicked.
+function PhoneCell({ lead, canSeePhone, visiblePhoneLeadId, setVisiblePhoneLeadId }) {
+  if (canSeePhone) {
     return (
       <div className="flex flex-col gap-0.5">
-        <span className="text-sm text-gray-300 dark:text-gray-600 animate-pulse">Loading…</span>
-      </div>
-    )
-  }
-
-  if (canSeePhone || access.has_access) {
-    const phone = access.phone || lead.phone
-    return (
-      <div className="flex flex-col gap-0.5">
-        <a href={`tel:${phone}`} className="text-brand hover:underline font-medium text-sm">{phone}</a>
+        <a href={`tel:${lead.phone}`} className="text-brand hover:underline font-medium text-sm">{lead.phone}</a>
         {lead.alternate_phone_number && (
           <span className="text-[10px] text-gray-400">Alt: {lead.alternate_phone_number}</span>
         )}
@@ -428,50 +391,24 @@ function PhoneCell({ lead, canSeePhone }) {
     )
   }
 
-  if (access.request?.status === 'pending') {
+  if (visiblePhoneLeadId === lead.id) {
     return (
       <div className="flex flex-col gap-1">
-        <span className="text-sm text-gray-500 dark:text-gray-400">{lead.phone?.slice(0,5)}*****</span>
-        <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-full w-fit">
-          ⏳ Pending
-        </span>
+        <a href={`tel:${lead.phone}`} className="text-brand hover:underline font-medium text-sm">{lead.phone}</a>
+        {lead.alternate_phone_number && (
+          <span className="text-[10px] text-gray-400">Alt: {lead.alternate_phone_number}</span>
+        )}
       </div>
     )
   }
 
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-sm text-gray-500 dark:text-gray-400">{lead.phone?.slice(0,5)}*****</span>
-      <button onClick={() => setShowModal(true)}
+      <span className="text-sm text-gray-500 dark:text-gray-400">*****{lead.phone?.slice(-5)}</span>
+      <button onClick={() => setVisiblePhoneLeadId(lead.id)}
         className="text-[11px] font-semibold text-brand hover:text-brand/80 flex items-center gap-1 w-fit transition-colors">
-        <Phone size={11}/> Request
+        <Eye size={11}/> View
       </button>
-
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)}>
-          <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center"><Phone size={16} className="text-brand"/></div>
-              <div><p className="text-sm font-bold text-gray-900 dark:text-white">Request Phone Access</p><p className="text-xs text-gray-400">{lead.name}</p></div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Reason <span className="font-normal text-gray-400">(optional)</span></label>
-              <input value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Need to follow up" autoFocus
-                className="w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"/>
-            </div>
-            {reqError   && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-xl">{reqError}</p>}
-            {reqSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-xl">{reqSuccess}</p>}
-            <div className="flex gap-2">
-              <button onClick={() => setShowModal(false)} className="flex-1 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500">Cancel</button>
-              <button onClick={submitRequest} disabled={reqLoading}
-                className="flex-1 py-2 rounded-xl bg-brand hover:bg-brand/90 text-white text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-60">
-                {reqLoading ? <Loader2 size={13} className="animate-spin"/> : <Phone size={13}/>}
-                {reqLoading ? 'Sending…' : 'Submit'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -1435,9 +1372,10 @@ export default function Leads() {
   const [editSuccess, setEditSuccess] = useState('')
   const [pendingRecordings,  setPendingRecordings]  = useState([])   // add mode — recordings to attach on create
   const [existingRecordings, setExistingRecordings] = useState([])   // edit mode — recordings from API
+  const [visiblePhoneLeadId, setVisiblePhoneLeadId] = useState(null) // track which lead's phone is visible
 
   useEffect(() => {
-    const params = { page, per_page: 20 }
+    const params = { page, per_page: 10 }
     if (search)         params.search      = search
     if (filterStatus)   params.status      = filterStatus
     if (filterSource)   params.source_id   = filterSource
@@ -1445,7 +1383,7 @@ export default function Leads() {
     dispatch(fetchLeads(params))
     // sales_manager also sees their OWN assigned leads via /me/leads
     if (isSalesManager) {
-      const myParams = { page: myPage, per_page: 20 }
+      const myParams = { page: myPage, per_page: 10 }
       if (search)       myParams.search = search
       if (filterStatus) myParams.status = filterStatus
       dispatch(fetchMyLeads(myParams))
@@ -1477,7 +1415,7 @@ export default function Leads() {
     if (createLead.fulfilled.match(result)) {
       setAddSuccess('Lead created successfully!')
       setPendingRecordings([])
-      dispatch(fetchLeads({ page, per_page: 20 }))
+      dispatch(fetchLeads({ page, per_page: 10 }))
       setTimeout(() => { setShowAddModal(false); setAddSuccess(''); setAddForm(defaultForm) }, 800)
     }
   }
@@ -1488,7 +1426,7 @@ export default function Leads() {
     const result = await dispatch(updateLead({ id: selectedLead.id, leadData: editForm }))
     if (updateLead.fulfilled.match(result)) {
       setEditSuccess('Lead updated!')
-      dispatch(fetchLeads({ page, per_page: 20 }))
+      dispatch(fetchLeads({ page, per_page: 10 }))
       setTimeout(() => { setShowEditModal(false); setEditSuccess('') }, 800)
     }
   }
@@ -1496,7 +1434,7 @@ export default function Leads() {
   const handleDeleteLead = async (lead) => {
     if (window.confirm(`Delete lead "${lead.name}"?`)) {
       const result = await dispatch(deleteLead(lead.id))
-      if (deleteLead.fulfilled.match(result)) dispatch(fetchLeads({ page, per_page: 20 }))
+      if (deleteLead.fulfilled.match(result)) dispatch(fetchLeads({ page, per_page: 10 }))
     }
   }
 
@@ -1531,7 +1469,7 @@ export default function Leads() {
     // Uses new /leads/:id/reassign API for audit trail
     const result = await dispatch(updateLead({ id: selectedLead.id, leadData: { assigned_to: reassignTo } }))
     if (updateLead.fulfilled.match(result)) {
-      dispatch(fetchLeads({ page, per_page: 20 }))
+      dispatch(fetchLeads({ page, per_page: 10 }))
       setShowReassignModal(false)
     }
   }
@@ -1566,7 +1504,7 @@ export default function Leads() {
     setShowBulkConvertModal(false)
     setSelectedLeads([])
     setConvertSuccess(type === 'follow_up' ? `${selectedLeads.length} follow-ups created!` : `${selectedLeads.length} site visits scheduled!`)
-    dispatch(fetchLeads({ page, per_page: 20 }))
+    dispatch(fetchLeads({ page, per_page: 10 }))
     setTimeout(() => setConvertSuccess(''), 3000)
   }
 
@@ -1574,7 +1512,7 @@ export default function Leads() {
     setShowConvertModal(false)
     setConvertLead(null)
     setConvertSuccess(type === 'follow_up' ? 'Lead converted to follow-up!' : 'Site visit scheduled!')
-    dispatch(fetchLeads({ page, per_page: 20 }))
+    dispatch(fetchLeads({ page, per_page: 10 }))
     setTimeout(() => setConvertSuccess(''), 3000)
   }
 
@@ -1617,7 +1555,7 @@ export default function Leads() {
             />
           </div>
           <button
-            onClick={() => dispatch(fetchLeads({ page, per_page: 20 }))}
+            onClick={() => dispatch(fetchLeads({ page, per_page: 10 }))}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors"
           >
             <RefreshCw size={14} />
@@ -1709,7 +1647,7 @@ export default function Leads() {
       )}
 
       {/* Table — uses activeList/activePag based on role + tab */}
-      {(({ activeList, activeLoading, activePag, activePage, setActivePage }) => {
+      {(({ activeList, activeLoading, activePag, activePage, setActivePage, visiblePhoneLeadId, setVisiblePhoneLeadId }) => {
       // Expose activeList so modals outside the IIFE can access it
       // eslint-disable-next-line no-unused-expressions
       activeLeadListRef.current = activeList
@@ -1767,7 +1705,7 @@ export default function Leads() {
                       </div>
                     </td>
                     <td className="py-3 px-3 text-gray-600 dark:text-gray-400 hidden md:table-cell">
-                      <PhoneCell lead={lead} canSeePhone={canSeePhone}/>
+                      <PhoneCell lead={lead} canSeePhone={canSeePhone} visiblePhoneLeadId={visiblePhoneLeadId} setVisiblePhoneLeadId={setVisiblePhoneLeadId}/>
                     </td>
                     <td className="py-3 px-3 hidden md:table-cell">
                       <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-400">
@@ -1851,6 +1789,8 @@ export default function Leads() {
         activePag:     isSalesManager && leadsTab === 'my' ? myPagination : pagination,
         activePage:    isSalesManager && leadsTab === 'my' ? myPage     : page,
         setActivePage: isSalesManager && leadsTab === 'my' ? setMyPage  : setPage,
+        visiblePhoneLeadId: visiblePhoneLeadId,
+        setVisiblePhoneLeadId: setVisiblePhoneLeadId,
       })}
 
       {/* Add Lead Modal */}
@@ -1901,7 +1841,7 @@ export default function Leads() {
           lead={selectedLead}
           salesExecs={salesExecs}
           onClose={() => { setShowReassignModal(false); setSelectedLead(null) }}
-          onSuccess={() => dispatch(fetchLeads({ page, per_page: 20 }))}
+          onSuccess={() => dispatch(fetchLeads({ page, per_page: 10 }))}
         />
       )}
 
@@ -1912,7 +1852,7 @@ export default function Leads() {
           leads={list}
           salesExecs={salesExecs}
           onClose={() => setShowBulkReassignModal(false)}
-          onSuccess={() => { setSelectedLeads([]); dispatch(fetchLeads({ page, per_page: 20 })) }}
+          onSuccess={() => { setSelectedLeads([]); dispatch(fetchLeads({ page, per_page: 10 })) }}
         />
       )}
 
@@ -1932,7 +1872,7 @@ export default function Leads() {
           salesExecs={salesExecs}
           currentUser={currentUser}
           onClose={() => setShowBulkUploadModal(false)}
-          onSuccess={() => { dispatch(fetchLeads({ page: 1, per_page: 20 })); if (isSalesManager) dispatch(fetchMyLeads({ page: 1, per_page: 20 })); setPage(1) }}
+          onSuccess={() => { dispatch(fetchLeads({ page: 1, per_page: 10 })); if (isSalesManager) dispatch(fetchMyLeads({ page: 1, per_page: 10 })); setPage(1) }}
         />
       )}
 

@@ -6,7 +6,8 @@ import {
   ChevronDown, Loader2, UserCheck, MessageSquare,
   Clock, CheckCircle, Info, ExternalLink, ShieldCheck,
   PlusCircle, CalendarPlus, ArrowRight, RefreshCw, History, Users, PhoneCall as PhoneCallIcon,
-  Mic, MicOff, Play, Pause, Upload, Trash, Edit2, Plus, X, Settings2, Trash2, ArrowUp, ArrowDown, Palette, Check, Building2
+  Mic, MicOff, Play, Pause, Upload, Trash, Edit2, Plus, X, Settings2, Trash2, ArrowUp, ArrowDown, Palette, Check, Building2,
+  Eye
 } from 'lucide-react'
 import api from '../api/axios'
 import CustomSelect from '../components/ui/CustomSelect'
@@ -308,12 +309,8 @@ export default function LeadDetail() {
   // Reassignment history — visible for admin, super_admin, sales_manager
   const canSeeHistory = ['admin', 'super_admin', 'sales_manager'].includes(currentUser?.role)
   const canSeePhone   = ['admin', 'super_admin'].includes(currentUser?.role)
-  const [phoneAccess, setPhoneAccess] = useState(null)  // null=loading, { has_access, phone, request }
-  const [showPhoneReq,setShowPhoneReq]= useState(false)
-  const [reqReason,   setReqReason]   = useState('')
-  const [reqLoading,  setReqLoading]  = useState(false)
-  const [reqError,    setReqError]    = useState('')
-  const [reqSuccess,  setReqSuccess]  = useState('')
+  const [showPhone, setShowPhone] = useState(false)
+  const [showAltPhone, setShowAltPhone] = useState(false)
   const [reassignHistory,     setReassignHistory]     = useState([])
   const [historyLoading,      setHistoryLoading]      = useState(false)
   const [historyTotal,        setHistoryTotal]         = useState(0)
@@ -464,10 +461,7 @@ export default function LeadDetail() {
     return () => dispatch(clearCurrentLead())
   }, [dispatch, id])
 
-  // Fetch phone access when lead data arrives
-  useEffect(() => {
-    if (lead?.id) fetchPhoneAccess()
-  }, [lead?.id, canSeePhone])
+
 
   useEffect(() => {
     if (lead?.status) setNewStatus(lead.status)
@@ -501,24 +495,7 @@ export default function LeadDetail() {
     ['sales_executive', 'sales_manager', 'external_caller'].includes(u.role) && u.is_active
   )
 
-  const fetchPhoneAccess = async () => {
-    if (canSeePhone) { setPhoneAccess({ has_access: true, phone: lead?.phone }); return }
-    try {
-      const r = await api.get(`/phone-reveal/check/${id}`)
-      setPhoneAccess(r.data.data)
-    } catch { setPhoneAccess({ has_access: false, phone: null, request: null }) }
-  }
 
-  const submitPhoneRequest = async () => {
-    setReqError(''); setReqLoading(true)
-    try {
-      await api.post('/phone-reveal/request', { lead_id: id, reason: reqReason || undefined })
-      setReqSuccess('Request submitted! Admin will be notified.')
-      setPhoneAccess(p => ({ ...p, request: { status: 'pending' } }))
-      setTimeout(() => { setShowPhoneReq(false); setReqSuccess(''); setReqReason('') }, 800)
-    } catch(e) { setReqError(e.response?.data?.message || 'Request failed') }
-    finally { setReqLoading(false) }
-  }
 
   const handleReassign = async () => {
     if (!reassignTo) { setReassignError('Please select a team member'); return }
@@ -615,30 +592,23 @@ export default function LeadDetail() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-10">
-                  {/* Phone Number tile — smart: admin sees full, others see masked + request */}
+                  {/* Phone Number tile — smart: admin sees full, others see masked + view */}
                   <div className="p-4 rounded-2xl border border-gray-50 dark:border-gray-800/50 bg-gray-50/50 dark:bg-[#0f0f0f]/50">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center text-blue-600 bg-blue-50 dark:bg-opacity-10"><Phone size={14}/></div>
                       <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Phone Number</span>
                     </div>
-                    {phoneAccess === null ? (
-                      <div className="h-5 w-24 bg-gray-100 dark:bg-gray-800 rounded animate-pulse"/>
-                    ) : phoneAccess.has_access ? (
-                      <a href={`tel:${phoneAccess.phone || lead.phone}`} className="text-sm font-semibold text-brand hover:underline">{phoneAccess.phone || lead.phone}</a>
-                    ) : phoneAccess.request?.status === 'pending' ? (
-                      <div>
-                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{lead.phone?.slice(0,5)}*****</p>
-                        <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full mt-1 inline-block">⏳ Request Pending</span>
-                      </div>
+                    {canSeePhone ? (
+                      <a href={`tel:${lead.phone}`} className="text-sm font-semibold text-brand hover:underline">{lead.phone}</a>
+                    ) : showPhone ? (
+                      <a href={`tel:${lead.phone}`} className="text-sm font-semibold text-brand hover:underline">{lead.phone}</a>
                     ) : (
                       <div>
-                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">{lead.phone?.slice(0,5)}*****</p>
-                        {!canSeePhone && (
-                          <button onClick={() => setShowPhoneReq(true)}
-                            className="flex items-center gap-1.5 text-xs font-semibold text-brand bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2.5 py-1.5 rounded-lg transition-colors">
-                            <Phone size={11}/> Request Access
-                          </button>
-                        )}
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">*****{lead.phone?.slice(-5)}</p>
+                        <button onClick={() => { setShowPhone(true); setShowAltPhone(false); }}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-brand bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2.5 py-1.5 rounded-lg transition-colors">
+                          <Eye size={11}/> View
+                        </button>
                       </div>
                     )}
                   </div>
@@ -650,10 +620,18 @@ export default function LeadDetail() {
                       <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Alt Phone</span>
                     </div>
                     {lead.alternate_phone_number ? (
-                      (canSeePhone || phoneAccess?.has_access) ? (
+                      canSeePhone ? (
+                        <a href={`tel:${lead.alternate_phone_number}`} className="text-sm font-semibold text-brand hover:underline">{lead.alternate_phone_number}</a>
+                      ) : showAltPhone ? (
                         <a href={`tel:${lead.alternate_phone_number}`} className="text-sm font-semibold text-brand hover:underline">{lead.alternate_phone_number}</a>
                       ) : (
-                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{lead.alternate_phone_number?.slice(0,5)}*****</p>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">*****{lead.alternate_phone_number?.slice(-5)}</p>
+                          <button onClick={() => { setShowAltPhone(true); setShowPhone(false); }}
+                            className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 px-2.5 py-1.5 rounded-lg transition-colors">
+                            <Eye size={11}/> View
+                          </button>
+                        </div>
                       )
                     ) : <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Not provided</p>}
                   </div>
@@ -1089,46 +1067,7 @@ export default function LeadDetail() {
         </div>
       )}
 
-      {/* Phone Request Modal */}
-      {showPhoneReq && !canSeePhone && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowPhoneReq(false)}>
-          <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center flex-shrink-0">
-                <Phone size={18} className="text-brand"/>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-gray-900 dark:text-white">Request Phone Access</p>
-                <p className="text-xs text-gray-400">{lead?.name}</p>
-              </div>
-            </div>
-            <div className="bg-gray-50 dark:bg-[#0f0f0f] rounded-xl px-4 py-3 border border-gray-100 dark:border-gray-800">
-              <p className="text-xs text-gray-500">
-                Admins will be notified and can approve your request. The phone number will be revealed once approved.
-              </p>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
-                Reason <span className="font-normal text-gray-400">(optional)</span>
-              </label>
-              <input value={reqReason} onChange={e => setReqReason(e.target.value)}
-                placeholder="e.g. Need to confirm site visit timing"
-                autoFocus
-                className="w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100"/>
-            </div>
-            {reqError   && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-xl">{reqError}</p>}
-            {reqSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-xl">{reqSuccess}</p>}
-            <div className="flex gap-3">
-              <button onClick={() => setShowPhoneReq(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500 hover:bg-gray-50">Cancel</button>
-              <button onClick={submitPhoneRequest} disabled={reqLoading}
-                className="flex-1 py-2.5 rounded-xl bg-brand hover:bg-brand/90 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60">
-                {reqLoading ? <Loader2 size={13} className="animate-spin"/> : <Phone size={13}/>}
-                {reqLoading ? 'Sending…' : 'Submit Request'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Reassign Action Modal */}
       {showReassignAction && (
@@ -1151,7 +1090,7 @@ export default function LeadDetail() {
                 <Avatar name={lead?.name} size="sm"/>
                 <div>
                   <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{lead?.name}</p>
-                  <p className="text-xs text-gray-400">{(canSeePhone || phoneAccess?.has_access) ? (phoneAccess?.phone || lead?.phone) : lead?.phone?.slice(0,5) + '*****'}</p>
+                  <p className="text-xs text-gray-400">{canSeePhone ? lead?.phone : '*****' + lead?.phone?.slice(-5)}</p>
                 </div>
                 <div className="ml-auto text-right">
                   <p className="text-[10px] text-gray-400">Currently assigned to</p>

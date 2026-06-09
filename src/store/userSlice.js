@@ -10,6 +10,8 @@ export const fetchUsers = createAsyncThunk(
       const allowedParams = {}
       if (params.role && params.role !== '--') allowedParams.role = params.role
       if (params.is_active !== '' && params.is_active !== undefined) allowedParams.is_active = params.is_active
+      if (params.page) allowedParams.page = params.page
+      if (params.per_page) allowedParams.per_page = params.per_page
 
       const response = await api.get('/users', { params: allowedParams })
       return response.data
@@ -111,6 +113,7 @@ const userSlice = createSlice({
   initialState: {
     list: [],
     roles: [],
+    pagination: {},
     currentUser: null,
     loading: false,
     detailLoading: false,
@@ -134,6 +137,7 @@ const userSlice = createSlice({
       .addCase(fetchUsers.fulfilled, (state, action) => {
         state.loading = false
         state.list = action.payload.data || []
+        state.pagination = action.payload.pagination || {}
       })
       .addCase(fetchUsers.rejected, (state, action) => { state.loading = false; state.error = action.payload })
 

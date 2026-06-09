@@ -91,6 +91,56 @@ function StatCard({ icon: Icon, label, value, sub, color = 'brand' }) {
   )
 }
 
+function CustomDropdown({ value, onChange, options, placeholder, className = '' }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const selectedOption = options.find(opt => opt.value === value)
+
+  const handleOptionClick = (optionValue) => {
+    onChange(optionValue)
+    setIsOpen(false)
+  }
+
+  return (
+    <div className={`relative ${className}`}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center justify-between px-3 py-2 text-sm bg-white dark:bg-[#141414] border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer hover:border-[#0082f3] transition-all"
+      >
+        <span className="text-gray-900 dark:text-gray-100">
+          {selectedOption?.label || placeholder}
+        </span>
+        <ChevronDown
+          size={14}
+          className={`text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        />
+      </div>
+      {isOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-[#141414] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg overflow-hidden max-h-60 overflow-y-auto">
+            {options.map((option) => (
+              <div
+                key={option.value}
+                onClick={() => handleOptionClick(option.value)}
+                className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                  option.value === value
+                    ? 'bg-blue-50 dark:bg-blue-900/20 text-[#0082f3]'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#1a1a1a]'
+                }`}
+              >
+                {option.label}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function SlipBadge({ slip }) {
   if (!slip) return <span className="text-xs text-gray-400">—</span>
   return (
@@ -393,12 +443,20 @@ function AdminSalaryView({ user }) {
         <div className="space-y-4">
           {/* Filters */}
           <div className="flex items-center gap-3 flex-wrap">
-            <select value={filterMonth} onChange={e => setFilterMonth(parseInt(e.target.value))} className={inputCls + ' w-36'}>
-              {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
-            </select>
-            <select value={filterYear} onChange={e => setFilterYear(parseInt(e.target.value))} className={inputCls + ' w-28'}>
-              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+            <CustomDropdown
+              value={filterMonth}
+              onChange={(val) => setFilterMonth(parseInt(val))}
+              options={MONTHS.map(m => ({ value: m.v, label: m.l }))}
+              placeholder="Select Month"
+              className="w-36"
+            />
+            <CustomDropdown
+              value={filterYear}
+              onChange={(val) => setFilterYear(parseInt(val))}
+              options={YEARS.map(y => ({ value: y, label: y }))}
+              placeholder="Select Year"
+              className="w-28"
+            />
           </div>
 
           <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
@@ -632,15 +690,21 @@ function AdminSalaryView({ user }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Month *</label>
-              <select value={genForm.month} onChange={e => setGenForm(f => ({ ...f, month: parseInt(e.target.value) }))} className={inputCls}>
-                {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
-              </select>
+              <CustomDropdown
+                value={genForm.month}
+                onChange={(val) => setGenForm(f => ({ ...f, month: parseInt(val) }))}
+                options={MONTHS.map(m => ({ value: m.v, label: m.l }))}
+                placeholder="Select Month"
+              />
             </div>
             <div>
               <label className={labelCls}>Year *</label>
-              <select value={genForm.year} onChange={e => setGenForm(f => ({ ...f, year: parseInt(e.target.value) }))} className={inputCls}>
-                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
+              <CustomDropdown
+                value={genForm.year}
+                onChange={(val) => setGenForm(f => ({ ...f, year: parseInt(val) }))}
+                options={YEARS.map(y => ({ value: y, label: y }))}
+                placeholder="Select Year"
+              />
             </div>
           </div>
 
@@ -684,15 +748,21 @@ function AdminSalaryView({ user }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Month *</label>
-              <select value={genAllForm.month} onChange={e => setGenAllForm(f => ({ ...f, month: parseInt(e.target.value) }))} className={inputCls}>
-                {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
-              </select>
+              <CustomDropdown
+                value={genAllForm.month}
+                onChange={(val) => setGenAllForm(f => ({ ...f, month: parseInt(val) }))}
+                options={MONTHS.map(m => ({ value: m.v, label: m.l }))}
+                placeholder="Select Month"
+              />
             </div>
             <div>
               <label className={labelCls}>Year *</label>
-              <select value={genAllForm.year} onChange={e => setGenAllForm(f => ({ ...f, year: parseInt(e.target.value) }))} className={inputCls}>
-                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
+              <CustomDropdown
+                value={genAllForm.year}
+                onChange={(val) => setGenAllForm(f => ({ ...f, year: parseInt(val) }))}
+                options={YEARS.map(y => ({ value: y, label: y }))}
+                placeholder="Select Year"
+              />
             </div>
           </div>
           <div>
@@ -806,6 +876,8 @@ function AdminSalaryView({ user }) {
 function EmployeeSalaryView({ user }) {
   const dispatch = useDispatch()
   const { mySalary, myAttendance, loading, error } = useSelector(s => s.salary)
+  const { user: currentUser } = useSelector(s => s.auth)
+  const isSuperAdmin = currentUser?.role === 'super_admin'
 
   const [tab,         setTab]         = useState('slips')   // 'slips' | 'daywise'
   const [filterMonth, setFilterMonth] = useState('')
@@ -914,13 +986,23 @@ function EmployeeSalaryView({ user }) {
       {tab === 'slips' && (
         <>
           <div className="flex items-center gap-3 flex-wrap">
-            <select value={filterYear}  onChange={e => setFilterYear(parseInt(e.target.value))}  className={inputCls + ' w-28'}>
-              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className={inputCls + ' w-36'}>
-              <option value="">All Months</option>
-              {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
-            </select>
+            <CustomDropdown
+              value={filterYear}
+              onChange={(val) => setFilterYear(parseInt(val))}
+              options={YEARS.map(y => ({ value: y, label: y }))}
+              placeholder="Select Year"
+              className="w-28"
+            />
+            <CustomDropdown
+              value={filterMonth}
+              onChange={setFilterMonth}
+              options={[
+                { value: '', label: 'All Months' },
+                ...MONTHS.map(m => ({ value: m.v, label: m.l }))
+              ]}
+              placeholder="Select Month"
+              className="w-36"
+            />
             <button onClick={() => dispatch(fetchMySalary({ year: filterYear }))}
               className="p-2 rounded-xl border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all">
               <RefreshCw size={14} className={loading.mySalary ? 'animate-spin' : ''} />
@@ -1010,12 +1092,20 @@ function EmployeeSalaryView({ user }) {
         <div className="space-y-4">
           {/* Month/year filter */}
           <div className="flex items-center gap-3 flex-wrap">
-            <select value={dwMonth} onChange={e => setDwMonth(parseInt(e.target.value))} className={inputCls + ' w-36'}>
-              {MONTHS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
-            </select>
-            <select value={dwYear}  onChange={e => setDwYear(parseInt(e.target.value))}  className={inputCls + ' w-28'}>
-              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+            <CustomDropdown
+              value={dwMonth}
+              onChange={(val) => setDwMonth(parseInt(val))}
+              options={MONTHS.map(m => ({ value: m.v, label: m.l }))}
+              placeholder="Select Month"
+              className="w-36"
+            />
+            <CustomDropdown
+              value={dwYear}
+              onChange={(val) => setDwYear(parseInt(val))}
+              options={YEARS.map(y => ({ value: y, label: y }))}
+              placeholder="Select Year"
+              className="w-28"
+            />
             <button
               onClick={() => {
                 const from = `${dwYear}-${String(dwMonth).padStart(2, '0')}-01`
@@ -1066,10 +1156,10 @@ function EmployeeSalaryView({ user }) {
           ) : (
             <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
               {/* Table header */}
-              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-3 px-5 py-3 bg-gray-50 dark:bg-[#141414] border-b border-gray-100 dark:border-gray-800 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+              <div className={`grid gap-3 px-5 py-3 bg-gray-50 dark:bg-[#141414] border-b border-gray-100 dark:border-gray-800 text-[10px] font-bold text-gray-400 uppercase tracking-wider ${isSuperAdmin ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'}`}>
                 <span>Date</span>
                 <span className="text-center">Status</span>
-                <span className="text-center">Hours</span>
+                {isSuperAdmin && <span className="text-center">Hours</span>}
                 <span className="text-right">Earned</span>
               </div>
 
@@ -1079,7 +1169,7 @@ function EmployeeSalaryView({ user }) {
                   const earned = dayEarned(rec.status)
                   const cfg    = STATUS_CONFIG[rec.status] || STATUS_CONFIG.absent
                   return (
-                    <div key={rec.id} className="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center px-5 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
+                    <div key={rec.id} className={`grid gap-3 items-center px-5 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors ${isSuperAdmin ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'}`}>
                       {/* Date + times */}
                       <div>
                         <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{fmtDate(d)}</p>
@@ -1096,9 +1186,11 @@ function EmployeeSalaryView({ user }) {
                       </span>
 
                       {/* Working hours */}
-                      <span className="text-xs text-gray-400 text-center">
-                        {rec.working_hours ? `${rec.working_hours}h` : '—'}
-                      </span>
+                      {isSuperAdmin && (
+                        <span className="text-xs text-gray-400 text-center">
+                          {rec.working_hours ? `${rec.working_hours}h` : '—'}
+                        </span>
+                      )}
 
                       {/* Earned */}
                       <div className="text-right min-w-[80px]">

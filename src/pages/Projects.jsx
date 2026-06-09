@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { Plus, MapPin, Building2, IndianRupee, Users, Edit2, Trash2, RefreshCw, Search, ChevronDown, Download, Upload, FileImage, FileText, X, CheckCircle2, Loader2, Eye, Paperclip, Share2, Mail, SendHorizonal, AlertCircle } from 'lucide-react'
-import { fetchProjects, createProject, updateProject, deleteProject, clearProjectError } from '../store/projectSlice'
+import { fetchProjects, createProject, updateProject, deleteProject, clearProjectError, fetchProjectDocuments } from '../store/projectSlice'
 import CardSkeleton from '../components/loaders/CardSkeleton'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -36,19 +36,47 @@ const defaultForm = {
   description: '',
   status: 'active',
   rera_number: '',
+  brochure_url: '',
+  video_url: '',
+  payment_plan: '',
+  home_loan_info: '',
 }
 
 // ── ShareProjectModal ─────────────────────────────────────────────────────────
-function ShareProjectModal({ projectId, projectName, onClose }) {
+function ShareProjectModal({ projectId, projectName, onClose, projectDocuments }) {
   const ic  = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all"
   const [emailInput, setEmailInput] = useState('')
   const [emails,     setEmails]     = useState([])
-  const [message,    setMessage]    = useState('')
+  const [message,    setMessage]    = useState('Hi, here are the project details!')
+  const [selectedDocuments, setSelectedDocuments] = useState([])
+  const [selectedFields, setSelectedFields] = useState(['name', 'price_range', 'configurations'])
   const [sending,    setSending]    = useState(false)
   const [success,    setSuccess]    = useState('')
   const [error,      setError]      = useState('')
+  const [showDocumentsDropdown, setShowDocumentsDropdown] = useState(false)
+  const [showFieldsDropdown, setShowFieldsDropdown] = useState(false)
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  const availableFields = [
+    { key: 'name', label: 'Project Name' },
+    { key: 'developer', label: 'Developer' },
+    { key: 'city', label: 'City' },
+    { key: 'locality', label: 'Locality' },
+    { key: 'price_range', label: 'Price Range' },
+    { key: 'total_units', label: 'Total Units' },
+    { key: 'rera_number', label: 'RERA Number' },
+    { key: 'configurations', label: 'Configurations' },
+    { key: 'status', label: 'Status' },
+    { key: 'description', label: 'Description' }
+  ]
+
+  const allDocuments = [
+    ...(projectDocuments?.unit_plans || []),
+    ...(projectDocuments?.creatives || []),
+    ...(projectDocuments?.payment_plans || []),
+    ...(projectDocuments?.videos || [])
+  ]
 
   const addEmail = () => {
     const val = emailInput.trim()
@@ -66,8 +94,31 @@ function ShareProjectModal({ projectId, projectName, onClose }) {
 
   const removeEmail = email => setEmails(prev => prev.filter(e => e !== email))
 
+  const toggleDocument = (docId) => {
+    setSelectedDocuments(prev =>
+      prev.includes(docId)
+        ? prev.filter(id => id !== docId)
+        : [...prev, docId]
+    )
+  }
+
+  const toggleField = (fieldKey) => {
+    setSelectedFields(prev =>
+      prev.includes(fieldKey)
+        ? prev.filter(key => key !== fieldKey)
+        : [...prev, fieldKey]
+    )
+  }
+
+  const toggleAllDocuments = () => {
+    if (selectedDocuments.length === allDocuments.length) {
+      setSelectedDocuments([])
+    } else {
+      setSelectedDocuments(allDocuments.map(doc => doc.id))
+    }
+  }
+
   const handleSend = async () => {
-    // Also add whatever is still in the input field
     let finalEmails = [...emails]
     const typed = emailInput.trim()
     if (typed) {
@@ -75,12 +126,13 @@ function ShareProjectModal({ projectId, projectName, onClose }) {
       if (!finalEmails.includes(typed)) finalEmails.push(typed)
     }
     if (finalEmails.length === 0) { setError('Add at least one email address'); return }
-
     setSending(true); setError(''); setSuccess('')
     try {
       const res = await api.post(`/projects/${projectId}/share`, {
-        emails:  finalEmails,
+        emails: finalEmails,
         message: message.trim() || undefined,
+        document_ids: selectedDocuments.length > 0 ? selectedDocuments : undefined,
+        fields: selectedFields.length > 0 ? selectedFields : undefined
       })
       setSuccess(`Project shared with ${res.data.data?.total_sent || finalEmails.length} recipient${finalEmails.length > 1 ? 's' : ''}!`)
       setTimeout(() => onClose(), 2000)
@@ -92,11 +144,11 @@ function ShareProjectModal({ projectId, projectName, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose} style={{ margin: '0px' }}>
+      <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-[#1a1a1a]">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center">
               <Share2 size={15} className="text-brand" />
@@ -153,27 +205,83 @@ function ShareProjectModal({ projectId, projectName, onClose }) {
             </div>
           </div>
 
-          {/* Optional message */}
+          {/* Personal message */}
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
               Personal message <span className="text-gray-400 font-normal">(optional)</span>
             </label>
-            <textarea
-              rows={3}
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              placeholder="Hi, please find the project details as discussed..."
-              className={ic}
-            />
+            <textarea rows={3} value={message} onChange={e => setMessage(e.target.value)}
+              placeholder="Hi, here are the project details!"
+              className={ic} />
           </div>
 
-          {/* What will be sent info */}
-          <div className="bg-gray-50 dark:bg-[#141414] rounded-xl px-4 py-3 text-xs text-gray-500 dark:text-gray-400 space-y-1 border border-gray-100 dark:border-gray-800">
-            <p className="font-semibold text-gray-600 dark:text-gray-300 mb-1">Email will include:</p>
-            <p>✓ Full project details (location, price, RERA, configurations)</p>
-            <p>✓ All unit plans + creatives attached as a ZIP file</p>
-            <p>✓ Your personal message (if provided)</p>
+          {/* Fields to include */}
+          <div className="relative">
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+              Fields to include
+            </label>
+            <button onClick={() => setShowFieldsDropdown(!showFieldsDropdown)}
+              className={ic + " flex items-center justify-between"}>
+              <span className="text-sm">
+                {selectedFields.length === 0 ? 'Select fields' : `${selectedFields.length} field${selectedFields.length > 1 ? 's' : ''} selected`}
+              </span>
+              <ChevronDown size={14} className={`transition-transform ${showFieldsDropdown ? 'rotate-180' : ''}`}/>
+            </button>
+            {showFieldsDropdown && (
+              <div className="absolute w-full mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto">
+                {availableFields.map(field => (
+                  <label key={field.key} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 first:rounded-t-xl last:rounded-b-xl">
+                    <input type="checkbox"
+                      checked={selectedFields.includes(field.key)}
+                      onChange={() => toggleField(field.key)}
+                      className="w-4 h-4 rounded border-gray-300 text-brand focus:ring-brand"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{field.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Documents to include */}
+          {allDocuments.length > 0 && (
+            <div className="relative">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                Documents to include
+              </label>
+              <button onClick={() => setShowDocumentsDropdown(!showDocumentsDropdown)}
+                className={ic + " flex items-center justify-between"}>
+                <span className="text-sm">
+                  {selectedDocuments.length === 0 ? 'Select documents' : `${selectedDocuments.length} document${selectedDocuments.length > 1 ? 's' : ''} selected`}
+                </span>
+                <ChevronDown size={14} className={`transition-transform ${showDocumentsDropdown ? 'rotate-180' : ''}`}/>
+              </button>
+              {showDocumentsDropdown && (
+                <div className="absolute w-full mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto">
+                  <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800">
+                    <input type="checkbox"
+                      checked={selectedDocuments.length === allDocuments.length && allDocuments.length > 0}
+                      onChange={toggleAllDocuments}
+                      className="w-4 h-4 rounded border-gray-300 text-brand focus:ring-brand"
+                    />
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Select All</span>
+                  </label>
+                  {allDocuments.map(doc => (
+                    <label key={doc.id} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <input type="checkbox"
+                        checked={selectedDocuments.includes(doc.id)}
+                        onChange={() => toggleDocument(doc.id)}
+                        className="w-4 h-4 rounded border-gray-300 text-brand focus:ring-brand"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{doc.file_name}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {error   && (
             <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">
@@ -190,7 +298,7 @@ function ShareProjectModal({ projectId, projectName, onClose }) {
         </div>
 
         {/* Footer buttons */}
-        <div className="px-6 pb-5 flex gap-3">
+        <div className="px-6 pb-5 flex gap-3 sticky bottom-0 bg-white dark:bg-[#1a1a1a] border-t border-gray-100 dark:border-gray-800 pt-4">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
             Cancel
           </button>
@@ -231,10 +339,10 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
 
       {/* Name + Developer */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         <div>
           <label className={lc}>Project Name *</label>
           <input required value={formData.name}
@@ -252,7 +360,7 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
       </div>
 
       {/* City + Locality */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         <div>
           <label className={lc}>City *</label>
           <input required value={formData.city}
@@ -270,7 +378,7 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
       </div>
 
       {/* Status */}
-      <div className="grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-1 gap-2">
         <CustomSelect
           label="Status"
           value={formData.status}
@@ -289,7 +397,7 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
       </div>
 
       {/* Total Units + RERA */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         <div>
           <label className={lc}>Total Units</label>
           <input type="number" value={formData.total_units}
@@ -306,6 +414,27 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
         </div>
       </div>
 
+      {/* Brochure URL + Video URL */}
+      
+
+      {/* Payment Plan + Home Loan Info */}
+      <div className="grid grid-cols-1 gap-2">
+        <div>
+          <label className={lc}>Payment Plan Text</label>
+          <textarea rows={2} value={formData.payment_plan}
+            onChange={e => setFormData(p => ({ ...p, payment_plan: e.target.value }))}
+            placeholder="20% on booking, 30% on construction, 50% on possession..."
+            className={ic} />
+        </div>
+        <div>
+          <label className={lc}>Home Loan Info</label>
+          <textarea rows={2} value={formData.home_loan_info}
+            onChange={e => setFormData(p => ({ ...p, home_loan_info: e.target.value }))}
+            placeholder="80% loan available from HDFC, ICICI at 8.5% interest..."
+            className={ic} />
+        </div>
+      </div>
+
       {/* Description */}
       <div>
         <label className={lc}>Description</label>
@@ -316,7 +445,7 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
       </div>
 
       {/* File Uploads */}
-      <div className="grid grid-cols-2 gap-4 pt-2">
+      <div className="grid grid-cols-1 gap-2 pt-1">
         {/* Unit Plans */}
         <div>
           <label className={lc}>Unit Plans</label>
@@ -333,7 +462,7 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
             </div>
           </div>
           {uploadFiles.unit_plans?.length > 0 && (
-            <div className="mt-2 space-y-1">
+            <div className="mt-1.5 space-y-1">
               {uploadFiles.unit_plans.map((file, idx) => (
                 <div key={idx} className="flex items-center justify-between px-2 py-1 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg group">
                   <span className="text-[10px] text-blue-600 dark:text-blue-400 truncate flex-1 mr-2">{file.name}</span>
@@ -362,11 +491,70 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
             </div>
           </div>
           {uploadFiles.creatives?.length > 0 && (
-            <div className="mt-2 space-y-1">
+            <div className="mt-1.5 space-y-1">
               {uploadFiles.creatives.map((file, idx) => (
                 <div key={idx} className="flex items-center justify-between px-2 py-1 bg-purple-50/50 dark:bg-purple-900/10 rounded-lg group">
                   <span className="text-[10px] text-purple-600 dark:text-purple-400 truncate flex-1 mr-2">{file.name}</span>
                   <button onClick={() => removeFile('creatives', idx)} className="text-gray-400 hover:text-red-500 transition-colors">
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Payment Plans */}
+        <div>
+          <label className={lc}>Payment Plan Files</label>
+          <div className="relative group">
+            <input 
+              type="file" 
+              multiple 
+              onChange={(e) => handleFileChange(e, 'payment_plans')}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            />
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl group-hover:border-brand group-hover:bg-brand/5 transition-all">
+              <Paperclip size={14} className="text-gray-400 group-hover:text-brand" />
+              <span className="text-xs text-gray-500 group-hover:text-brand">Upload Payment Plans</span>
+            </div>
+          </div>
+          {uploadFiles.payment_plans?.length > 0 && (
+            <div className="mt-1.5 space-y-1">
+              {uploadFiles.payment_plans.map((file, idx) => (
+                <div key={idx} className="flex items-center justify-between px-2 py-1 bg-green-50/50 dark:bg-green-900/10 rounded-lg group">
+                  <span className="text-[10px] text-green-600 dark:text-green-400 truncate flex-1 mr-2">{file.name}</span>
+                  <button onClick={() => removeFile('payment_plans', idx)} className="text-gray-400 hover:text-red-500 transition-colors">
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Videos */}
+        <div>
+          <label className={lc}>Video Files</label>
+          <div className="relative group">
+            <input 
+              type="file" 
+              multiple 
+              accept="video/*"
+              onChange={(e) => handleFileChange(e, 'videos')}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            />
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl group-hover:border-brand group-hover:bg-brand/5 transition-all">
+              <Paperclip size={14} className="text-gray-400 group-hover:text-brand" />
+              <span className="text-xs text-gray-500 group-hover:text-brand">Upload Videos</span>
+            </div>
+          </div>
+          {uploadFiles.videos?.length > 0 && (
+            <div className="mt-1.5 space-y-1">
+              {uploadFiles.videos.map((file, idx) => (
+                <div key={idx} className="flex items-center justify-between px-2 py-1 bg-amber-50/50 dark:bg-amber-900/10 rounded-lg group">
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 truncate flex-1 mr-2">{file.name}</span>
+                  <button onClick={() => removeFile('videos', idx)} className="text-gray-400 hover:text-red-500 transition-colors">
                     <X size={12} />
                   </button>
                 </div>
@@ -385,7 +573,7 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
 export default function Projects() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
-  const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.projects)
+  const { list, loading, pagination, actionLoading, actionError, projectDocuments } = useSelector(s => s.projects)
   const { user: currentUser } = useSelector(s => s.auth)
 
   const [search,       setSearch]       = useState('')
@@ -394,7 +582,7 @@ export default function Projects() {
   const [page,         setPage]         = useState(1)
 
   const [showAddModal,  setShowAddModal]  = useState(false)
-  const [uploadFiles, setUploadFiles] = useState({ unit_plans: [], creatives: [] })
+  const [uploadFiles, setUploadFiles] = useState({ unit_plans: [], creatives: [], payment_plans: [], videos: [] })
   const [showEditModal, setShowEditModal] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -405,16 +593,34 @@ export default function Projects() {
   const [addForm,  setAddForm]  = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
   const [success,    setSuccess]    = useState('')
+  const [downloadError, setDownloadError] = useState('')
+  const [localError, setLocalError] = useState('')
   const [exporting,  setExporting]  = useState(false)
-  const [downloading, setDownloading] = useState({}) // { [projectId]: { unit_plan: bool, creative: false } }
+  const [downloading, setDownloading] = useState({}) // { [projectId]: { unit_plan: bool, creative: false, payment_plan: bool, video: false } }
 
   useEffect(() => {
-    const params = { page, per_page: 20 }
+    const params = { page, per_page: 10 }
     if (search) params.search = search
     if (filterStatus) params.status = filterStatus
     if (filterCity) params.city = filterCity
     dispatch(fetchProjects(params))
   }, [dispatch, search, filterStatus, filterCity, page])
+
+  useEffect(() => {
+    if (actionError) {
+      setLocalError(actionError)
+      setTimeout(() => {
+        dispatch(clearProjectError())
+        setLocalError('')
+      }, 5000)
+    }
+  }, [actionError, dispatch])
+
+  useEffect(() => {
+    if (shareProject) {
+      dispatch(fetchProjectDocuments(shareProject.id))
+    }
+  }, [shareProject, dispatch])
 
   const canManage = ['super_admin', 'admin'].includes(currentUser?.role)
   const isViewOnly = !canManage  // sales roles have view-only access
@@ -450,20 +656,48 @@ export default function Projects() {
         }
       }
 
-      // 3. Prepare project data with file details
+      // 3. Upload Payment Plans
+      const paymentPlanDetails = []
+      for (const file of uploadFiles.payment_plans) {
+        const formData = new FormData()
+        formData.append('payment_plan', file)
+        const res = await api.post('/projects/upload-payment-plan', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        if (res.data.success) {
+          paymentPlanDetails.push(res.data.data)
+        }
+      }
+
+      // 4. Upload Videos
+      const videoDetails = []
+      for (const file of uploadFiles.videos) {
+        const formData = new FormData()
+        formData.append('video', file)
+        const res = await api.post('/projects/upload-video', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        if (res.data.success) {
+          videoDetails.push(res.data.data)
+        }
+      }
+
+      // 5. Prepare project data with file details
       const projectData = {
         ...addForm,
         unit_plans: unitPlanDetails,
         creatives: creativeDetails,
+        payment_plans: paymentPlanDetails,
+        videos: videoDetails,
         total_units: addForm.total_units ? parseInt(addForm.total_units) : 0
       }
 
-      // 4. Create Project
+      // 6. Create Project
       const result = await dispatch(createProject(projectData))
       if (createProject.fulfilled.match(result)) {
         setSuccess('Project created!')
-        setUploadFiles({ unit_plans: [], creatives: [] })
-        dispatch(fetchProjects({ page, per_page: 20 }))
+        setUploadFiles({ unit_plans: [], creatives: [], payment_plans: [], videos: [] })
+        dispatch(fetchProjects({ page, per_page: 10 }))
         setTimeout(() => { 
           setShowAddModal(false)
           setSuccess('')
@@ -482,7 +716,7 @@ export default function Projects() {
     const result = await dispatch(updateProject({ id: selectedProject.id, data: editForm }))
     if (updateProject.fulfilled.match(result)) {
       setSuccess('Project updated!')
-      dispatch(fetchProjects({ page, per_page: 20 }))
+      dispatch(fetchProjects({ page, per_page: 10 }))
       setTimeout(() => { setShowEditModal(false); setSuccess('') }, 800)
     }
   }
@@ -496,7 +730,7 @@ export default function Projects() {
     if (!projectToDelete) return
     const result = await dispatch(deleteProject(projectToDelete.id))
     if (deleteProject.fulfilled.match(result)) {
-      dispatch(fetchProjects({ page, per_page: 20 }))
+      dispatch(fetchProjects({ page, per_page: 10 }))
       setShowDeleteModal(false)
       setProjectToDelete(null)
     }
@@ -515,6 +749,10 @@ export default function Projects() {
       description:    project.description || '',
       status:         project.status || 'active',
       rera_number:    project.rera_number || '',
+      brochure_url:   project.brochure_url || '',
+      video_url:      project.video_url || '',
+      payment_plan:   project.payment_plan || '',
+      home_loan_info: project.home_loan_info || '',
     })
     setShowEditModal(true)
   }
@@ -557,14 +795,27 @@ export default function Projects() {
   const handleDownloadAll = async (projectId, projectName, docType) => {
     try {
       setDownloading(prev => ({ ...prev, [projectId]: { ...prev[projectId], [docType]: true } }))
-      const params = docType ? `?document_type=${docType}` : ''
-      const res = await api.get(`/projects/${projectId}/documents/download-all${params}`, { responseType: 'blob' })
+      setDownloadError('')
+      
+      let endpoint = `/projects/${projectId}/documents/download-all`
+      if (docType === 'unit_plan') {
+        endpoint = `/projects/${projectId}/documents/unit-plans/download-all`
+      } else if (docType === 'creative') {
+        endpoint = `/projects/${projectId}/documents/creatives/download-all`
+      } else if (docType === 'payment_plan') {
+        endpoint = `/projects/${projectId}/documents/payment-plans/download-all`
+      } else if (docType === 'video') {
+        endpoint = `/projects/${projectId}/documents/videos/download-all`
+      }
+      
+      const res = await api.get(endpoint, { responseType: 'blob' })
       
       // Check if blob is empty or too small (e.g., error message instead of ZIP)
       if (res.data.size < 100) {
         const text = await res.data.text()
         if (text.includes('No documents found')) {
-          alert(`No ${docType.replace('_', ' ')}s found for this project.`)
+          setDownloadError(`No ${docType.replace('_', ' ')}s found for this project.`)
+          setTimeout(() => setDownloadError(''), 5000)
           return
         }
       }
@@ -576,7 +827,8 @@ export default function Projects() {
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
     } catch (err) {
       console.error('Download failed:', err)
-      alert('Download failed. No files might be available.')
+      setDownloadError('Download failed. No files might be available.')
+      setTimeout(() => setDownloadError(''), 5000)
     } finally {
       setDownloading(prev => ({ ...prev, [projectId]: { ...prev[projectId], [docType]: false } }))
     }
@@ -584,6 +836,24 @@ export default function Projects() {
 
   return (
     <div className="space-y-4">
+
+      {/* Error notification */}
+      {(downloadError || localError) && (
+        <div className="flex items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+          <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
+          <p className="text-sm text-red-600 dark:text-red-400 flex-1">{downloadError || localError}</p>
+          <button onClick={() => { setDownloadError(''); setLocalError(''); dispatch(clearProjectError()) }} className="text-red-400 hover:text-red-600 flex-shrink-0"><X size={14} /></button>
+        </div>
+      )}
+
+      {/* Success notification */}
+      {success && (
+        <div className="flex items-center gap-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-3">
+          <CheckCircle2 size={16} className="text-green-500 flex-shrink-0" />
+          <p className="text-sm text-green-600 dark:text-green-400 flex-1">{success}</p>
+          <button onClick={() => setSuccess('')} className="text-green-400 hover:text-green-600 flex-shrink-0"><X size={14} /></button>
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
@@ -619,7 +889,7 @@ export default function Projects() {
               className="px-3 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand w-28 text-gray-900 dark:text-gray-100 placeholder-gray-400" />
           </div>
 
-          <button onClick={() => dispatch(fetchProjects({ page, per_page: 20 }))}
+          <button onClick={() => dispatch(fetchProjects({ page, per_page: 10 }))}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors">
             <RefreshCw size={14} />
           </button>
@@ -724,26 +994,42 @@ export default function Projects() {
                   </div>
 
                   {/* Download Options for Sales roles */}
-                  {['sales_manager', 'sales_executive', 'external_caller', 'admin', 'super_admin'].includes(currentUser?.role) && (
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'unit_plan') }}
-                        disabled={downloading[project.id]?.unit_plan}
-                        className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50"
-                      >
-                        {downloading[project.id]?.unit_plan ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                        Unit Plan
-                      </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'creative') }}
-                        disabled={downloading[project.id]?.creative}
-                        className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 text-[10px] font-bold hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-50"
-                      >
-                        {downloading[project.id]?.creative ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                        Creative
-                      </button>
-                    </div>
-                  )}
+      {['sales_manager', 'sales_executive', 'external_caller', 'admin', 'super_admin'].includes(currentUser?.role) && (
+        <div className="grid grid-cols-2 md:grid-cols-2 gap-2 mb-3">
+          <button 
+            onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'unit_plan') }}
+            disabled={downloading[project.id]?.unit_plan}
+            className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50"
+          >
+            {downloading[project.id]?.unit_plan ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+            Unit Plans
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'creative') }}
+            disabled={downloading[project.id]?.creative}
+            className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 text-[10px] font-bold hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-50"
+          >
+            {downloading[project.id]?.creative ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+            Creatives
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'payment_plan') }}
+            disabled={downloading[project.id]?.payment_plan}
+            className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-[10px] font-bold hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors disabled:opacity-50"
+          >
+            {downloading[project.id]?.payment_plan ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+            Payment Plans
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'video') }}
+            disabled={downloading[project.id]?.video}
+            className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:opacity-50"
+          >
+            {downloading[project.id]?.video ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+            Videos
+          </button>
+        </div>
+      )}
 
                   <Button onClick={() => navigate(`/projects/${project.id}`)} variant="outline" size="sm" className="w-full mt-auto">View Project</Button>
                 </div>
@@ -768,9 +1054,6 @@ export default function Projects() {
       <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setSuccess('') }} title="Add New Project" size="lg">
         <form onSubmit={handleAdd} className="space-y-4">
           <ProjectForm formData={addForm} setFormData={setAddForm} uploadFiles={uploadFiles} setUploadFiles={setUploadFiles} />
-          
-          {success && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
-          {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="outline" className="flex-1" onClick={() => setShowAddModal(false)}>Cancel</Button>
             <Button type="submit" className="flex-1" loading={actionLoading}>Add Project</Button>
@@ -782,8 +1065,6 @@ export default function Projects() {
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSuccess('') }} title="Edit Project" size="lg">
         <form onSubmit={handleEdit} className="space-y-4">
           <ProjectForm formData={editForm} setFormData={setEditForm} uploadFiles={{ unit_plans: [], creatives: [] }} setUploadFiles={() => {}} />
-          {success && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
-          {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="outline" className="flex-1" onClick={() => setShowEditModal(false)}>Cancel</Button>
             <Button type="submit" className="flex-1" loading={actionLoading}>Update Project</Button>
@@ -817,6 +1098,7 @@ export default function Projects() {
           projectId={shareProject.id}
           projectName={shareProject.name}
           onClose={() => setShareProject(null)}
+          projectDocuments={projectDocuments}
         />
       )}
     </div>

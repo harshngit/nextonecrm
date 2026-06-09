@@ -691,9 +691,13 @@ export default function FollowUps() {
   )
   const canManage = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
 
+  const toggleAll = () => {
+    setSelectedTasks(prev => prev.length === list.length ? [] : list.map(t => t.id))
+  }
+
   // ── Load data ───────────────────────────────────────────────────────────────
   const loadTasks = () => {
-    const params = { page, per_page: 50 }
+    const params = { page, per_page: 10 }
     if (filterStatus === 'pending')   { params.is_completed = false }
     if (filterStatus === 'completed') { params.is_completed = true }
     if (filterStatus === 'overdue')   { params.overdue = true; params.is_completed = false }
@@ -987,32 +991,178 @@ export default function FollowUps() {
         ))}
       </div>
 
-      {/* Content */}
-      {loading ? (
-        <div className="bg-white dark:bg-[#1a1a1a] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-2xl p-4">
-          <ListSkeleton rows={4} />
-        </div>
-      ) : list.length === 0 ? (
-        <div className="text-center py-20">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand/10 mb-6">
-            <CheckCircle size={32} className="text-brand" />
+      {/* Summary row + inline selection actions */}
+      {!loading && (
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-sm text-gray-500 dark:text-[#888]">
+            Showing <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span>
+            {pagination?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span></>} follow-ups
           </div>
-          <h3 className="font-display text-2xl font-bold text-gray-900 dark:text-white">All caught up!</h3>
-          <p className="text-gray-500 dark:text-[#888] mt-2 text-base">No follow-ups here.</p>
+
+          {/* Inline bulk-action pills — only visible when rows are checked */}
+          {selectedTasks.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                {selectedTasks.length} selected
+              </span>
+              {canManage && (
+                <button onClick={() => setShowBulkConvert(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97]">
+                  <ArrowRightCircle size={13} /> Convert {selectedTasks.length}
+                </button>
+              )}
+              <button onClick={() => setSelectedTasks([])}
+                className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <X size={12} />
+              </button>
+            </div>
+          )}
         </div>
-      ) : (
-        <>
-          <Section title="⚠️ Overdue"           tasks={overdueTasks}   icon={AlertCircle}  iconColor="text-red-600 dark:text-red-400"   accent="border-red-200 dark:border-red-900/50" selectable />
-          <Section title="📞 Today's Follow-ups" tasks={todayTasks}     icon={Phone}        iconColor="text-blue-600 dark:text-blue-400" accent="border-blue-200 dark:border-blue-900/40" selectable />
-          <Section title="📅 Upcoming"           tasks={upcomingTasks}  icon={Clock}        iconColor="text-brand" selectable />
-          <Section title="✅ Completed"           tasks={completedTasks} icon={CheckCircle}  iconColor="text-green-600 dark:text-green-400" />
-        </>
       )}
+
+      {/* Table */}
+      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-200">
+        {loading ? (
+          <div className="p-4"><ListSkeleton rows={8} /></div>
+        ) : list.length === 0 ? (
+          <div className="py-16 text-center text-gray-400 dark:text-[#888]">
+            <CheckCircle size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" strokeWidth={1.5} />
+            <p className="font-medium">No follow-ups found</p>
+            <p className="text-sm mt-1">Try adjusting your filters or add a new follow-up</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-800 bg-blue-50/50 dark:bg-blue-900/10">
+                  <th className="py-3 pl-4 pr-2 w-8">
+                    <input type="checkbox"
+                      checked={selectedTasks.length === list.length && list.length > 0}
+                      onChange={toggleAll} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
+                  </th>
+                  {['Lead', 'Task', 'Due', 'Priority', 'Assigned', 'Status', 'Actions'].map((h, i) => (
+                    <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wide whitespace-nowrap
+                      ${['Priority', 'Assigned'].includes(h) ? 'hidden md:table-cell' : ''}
+                      ${h === 'Actions' ? 'text-right' : ''}`}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                {list.map(task => {
+                  const category = classifyTask(task)
+                  return (
+                    <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-colors">
+                      <td className="py-3 pl-4 pr-2">
+                        <input type="checkbox" checked={selectedTasks.includes(task.id)}
+                          onChange={() => toggleTask(task.id)} className="rounded border-gray-300" />
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2.5">
+                          <Avatar name={task.lead_name || task.title} size="sm" />
+                          <div>
+                            <div
+                              className="font-medium text-gray-900 dark:text-gray-100 cursor-pointer hover:text-brand transition-colors"
+                              onClick={() => task.lead_id ? navigate(`/leads/${task.lead_id}`) : navigate(`/follow-ups/${task.id}`)}
+                            >
+                              {task.lead_name || '—'}
+                            </div>
+                            {task.lead_phone && (
+                              <div className="text-xs text-gray-400">{task.lead_phone}</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-gray-600 dark:text-gray-400">
+                        <div className="text-sm font-medium">{task.title}</div>
+                        {task.notes && (
+                          <div className="text-xs text-gray-400 line-clamp-1">{task.notes}</div>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className={`text-xs ${category === 'overdue' ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                          <Clock size={10} className="inline mr-1" />
+                          {formatDue(task)}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 hidden md:table-cell">
+                        <span className={`text-xs px-2 py-1 rounded-lg ${priorityStyle[task.priority] || priorityStyle.medium}`}>
+                          {task.priority || 'Medium'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 hidden md:table-cell">
+                        {task.assigned_to_name ? (
+                          <div className="flex items-center gap-1.5">
+                            <Avatar name={task.assigned_to_name} size="xs" />
+                            <span className="text-xs text-gray-600 dark:text-gray-400">{task.assigned_to_name}</span>
+                          </div>
+                        ) : <span className="text-xs text-gray-400">Unassigned</span>}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`text-xs px-2 py-1 rounded-lg
+                          ${category === 'completed' ? 'bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400' :
+                            category === 'overdue' ? 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400' :
+                            category === 'today' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' :
+                            'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
+                        >
+                          {category === 'completed' ? 'Done' :
+                            category === 'overdue' ? 'Overdue' :
+                            category === 'today' ? 'Today' : 'Upcoming'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex items-center justify-end gap-1">
+                          {task.lead_phone && (
+                            <a href={`tel:${task.lead_phone}`} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title="Call">
+                              <Phone size={13} />
+                            </a>
+                          )}
+                          {!task.is_completed && (
+                            <button onClick={() => openComplete(task)}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title="Mark Done">
+                              <CheckCircle2 size={13} />
+                            </button>
+                          )}
+                          <button onClick={() => navigate(`/follow-ups/${task.id}`)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors" title="View Details">
+                            <Eye size={13} />
+                          </button>
+                          {canManage && task.lead_id && !task.is_completed && (
+                            <button onClick={() => { setConvertTask(task); setShowConvertModal(true); }}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors" title="Convert to Site Visit">
+                              <ArrowRightCircle size={13} />
+                            </button>
+                          )}
+                          {canManage && (
+                            <>
+                              <button onClick={() => openEdit(task)}
+                                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit">
+                                <Edit2 size={13} />
+                              </button>
+                              <button onClick={() => confirmDelete(task)}
+                                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Delete">
+                                <Trash2 size={13} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Pagination */}
       {pagination?.total_pages > 1 && (
-        <div className="flex items-center justify-between px-2 text-xs text-gray-500">
-          <span>Page {pagination.page} of {pagination.total_pages} · {pagination.total} total</span>
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-gray-500 dark:text-[#888]">
+            Page {pagination.page} of {pagination.total_pages} · {pagination.total} total
+          </div>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
             <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(p => p + 1)}>Next</Button>

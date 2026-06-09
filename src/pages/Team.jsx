@@ -113,7 +113,7 @@ function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, l
 export default function Team() {
   const navigate   = useNavigate()
   const dispatch   = useDispatch()
-  const { list, loading, actionLoading, actionError } = useSelector(s => s.users)
+  const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
 
   const isSalesManager = currentUser?.role === 'sales_manager'
@@ -125,11 +125,12 @@ export default function Team() {
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [assignTarget,    setAssignTarget]    = useState(null)
   const [assignSuccess,   setAssignSuccess]   = useState('')
+  const [page,            setPage]            = useState(1)
 
   // For sales_manager: API already scopes to their team via manager_id on server
   useEffect(() => {
-    dispatch(fetchUsers({ role: filterRole, is_active: filterActive }))
-  }, [dispatch, filterRole, filterActive])
+    dispatch(fetchUsers({ role: filterRole, is_active: filterActive, page, per_page: 10 }))
+  }, [dispatch, filterRole, filterActive, page])
 
   useEffect(() => {
     if (!showAssignModal) { dispatch(clearUserError()); setAssignSuccess('') }
@@ -384,6 +385,17 @@ export default function Team() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {pagination?.total_pages > 1 && (
+        <div className="flex items-center justify-between text-xs text-gray-500">
+          <span>Page {page} of {pagination.total_pages} · {pagination.total} total</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
+            <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(p => p + 1)}>Next</Button>
+          </div>
+        </div>
+      )}
 
       {!isSalesManager && (
         <p className="text-xs text-gray-400 dark:text-[#888] text-center">

@@ -165,7 +165,7 @@ function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, l
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function UserManagement() {
   const dispatch = useDispatch()
-  const { list, roles, loading, actionLoading, actionError } = useSelector(s => s.users)
+  const { list, roles, pagination, loading, actionLoading, actionError } = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
 
   const isSalesManager = currentUser?.role === 'sales_manager'
@@ -188,6 +188,7 @@ export default function UserManagement() {
   const [showPassword,    setShowPassword]    = useState(false)
   const [exporting,       setExporting]       = useState(false)
   const [form,            setForm]            = useState(defaultForm)
+  const [page,            setPage]            = useState(1)
 
   useEffect(() => {
     dispatch(fetchRoles())
@@ -195,8 +196,8 @@ export default function UserManagement() {
 
   // sales_manager: API already scopes to their team; fetch without is_active to get all
   useEffect(() => {
-    dispatch(fetchUsers({ role: filterRole }))
-  }, [dispatch, filterRole])
+    dispatch(fetchUsers({ role: filterRole, page, per_page: 10 }))
+  }, [dispatch, filterRole, page])
 
   useEffect(() => {
     if (!showModal)       { dispatch(clearUserError()); setSuccess('');       setShowPassword(false) }
@@ -459,7 +460,7 @@ export default function UserManagement() {
             </div>
           )}
           <button
-            onClick={() => dispatch(fetchUsers({ role: filterRole }))}
+            onClick={() => dispatch(fetchUsers({ role: filterRole, page, per_page: 10 }))}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors shadow-sm bg-white dark:bg-[#1a1a1a]">
             <RefreshCw size={14} />
           </button>
@@ -502,6 +503,17 @@ export default function UserManagement() {
             <TableSection users={inactiveUsers} label="Inactive" dot="bg-gray-400" />
           )}
         </>
+      )}
+
+      {/* Pagination */}
+      {pagination?.total_pages > 1 && (
+        <div className="flex items-center justify-between text-xs text-gray-500">
+          <span>Page {page} of {pagination.total_pages} · {pagination.total} total</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
+            <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(p => p + 1)}>Next</Button>
+          </div>
+        </div>
       )}
 
       {/* Register / Edit Modal — admin/super_admin only */}

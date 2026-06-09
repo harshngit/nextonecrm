@@ -141,7 +141,7 @@ export default function Notifications() {
   const [showDeleteAll, setShowDeleteAll] = useState(false)
 
   useEffect(() => {
-    const params = { page, per_page: 30 }
+    const params = { page, per_page: 10 }
     if (filterRead !== '') params.is_read = filterRead
     if (filterType)        params.type    = filterType
     dispatch(fetchNotifications(params))
@@ -230,7 +230,7 @@ export default function Notifications() {
 
           {/* Refresh */}
           <button
-            onClick={() => dispatch(fetchNotifications({ page, per_page: 30 }))}
+            onClick={() => dispatch(fetchNotifications({ page, per_page: 10 }))}
             className="w-8 h-8 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors"
           >
             <RefreshCw size={13} />
@@ -377,17 +377,19 @@ export default function Notifications() {
               )
             })}
 
-            {/* Load more */}
-            {pagination?.total_pages > 1 && page < pagination.total_pages && (
-              <div className="text-center pt-2">
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} loading={loading}>
-                  Load more
-                </Button>
+            {/* Pagination */}
+            {pagination?.total_pages > 1 && (
+              <div className="flex items-center justify-between text-xs text-gray-500 pt-2">
+                <span>Page {page} of {pagination.total_pages} · {pagination.total} total</span>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>Prev</Button>
+                  <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage((p) => p + 1)}>Next</Button>
+                </div>
               </div>
             )}
 
             {pagination?.total > 0 && (
-              <p className="text-xs text-center text-gray-400 dark:text-[#888]">
+              <p className="text-xs text-center text-gray-400 dark:text-[#888] mt-2">
                 Showing {list.length} of {pagination.total} notifications
               </p>
             )}
