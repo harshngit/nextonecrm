@@ -1,11 +1,47 @@
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, X } from 'lucide-react'
 
-export default function CustomSelect({ value, onChange, options, placeholder = 'Select option...', label, required }) {
+export default function CustomSelect({ value, onChange, options, placeholder = 'Select option...', label, required, multiple = false }) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef(null)
 
-  const selectedOption = options.find(opt => opt.value === value)
+  const isValueSelected = (optValue) => {
+    if (multiple) {
+      return Array.isArray(value) && value.includes(optValue)
+    }
+    return value === optValue
+  }
+
+  const getSelectedDisplay = () => {
+    if (multiple) {
+      if (!Array.isArray(value) || value.length === 0) return placeholder
+      const selected = options.filter(opt => value.includes(opt.value))
+      if (selected.length === 1) return selected[0].label
+      return `${selected.length} selected`
+    }
+    const selectedOption = options.find(opt => opt.value === value)
+    return selectedOption ? selectedOption.label : placeholder
+  }
+
+  const handleOptionClick = (optValue) => {
+    if (multiple) {
+      if (Array.isArray(value) && value.includes(optValue)) {
+        onChange(value.filter(v => v !== optValue))
+      } else {
+        onChange([...(Array.isArray(value) ? value : []), optValue])
+      }
+    } else {
+      onChange(optValue)
+      setIsOpen(false)
+    }
+  }
+
+  const removeValue = (e, optValue) => {
+    e.stopPropagation()
+    if (multiple && Array.isArray(value)) {
+      onChange(value.filter(v => v !== optValue))
+    }
+  }
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -30,13 +66,29 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
           isOpen ? 'border-brand ring-1 ring-brand/20' : 'border-[#e2e8f0] dark:border-[#2a2a2a]'
         } text-gray-900 dark:text-gray-100 shadow-sm`}
       >
-        <div className="flex items-center gap-2 overflow-hidden">
-          {selectedOption?.color && (
-            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: selectedOption.color }} />
+        <div className="flex items-center gap-2 overflow-hidden flex-1">
+          {multiple && Array.isArray(value) && value.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {options
+                .filter(opt => value.includes(opt.value))
+                .slice(0, 2)
+                .map(opt => (
+                  <span key={opt.value} className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand/10 text-brand text-[11px] rounded-md">
+                    {opt.label}
+                    <button onClick={(e) => removeValue(e, opt.value)} className="hover:text-red-500">
+                      <X size={10} />
+                    </button>
+                  </span>
+                ))}
+              {value.length > 2 && (
+                <span className="text-xs text-gray-500">+{value.length - 2} more</span>
+              )}
+            </div>
+          ) : (
+            <span className={`truncate ${!getSelectedDisplay() || getSelectedDisplay() === placeholder ? 'text-gray-400' : ''}`}>
+              {getSelectedDisplay()}
+            </span>
           )}
-          <span className={`truncate ${!selectedOption ? 'text-gray-400' : ''}`}>
-            {selectedOption ? selectedOption.label : placeholder}
-          </span>
         </div>
         <ChevronDown
           size={16}
@@ -53,16 +105,18 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
               options.map((opt) => (
                 <div
                   key={opt.value}
-                  onClick={() => {
-                    onChange(opt.value)
-                    setIsOpen(false)
-                  }}
+                  onClick={() => handleOptionClick(opt.value)}
                   className={`px-4 py-2 text-sm cursor-pointer transition-colors flex items-center gap-2 ${
-                    value === opt.value
+                    isValueSelected(opt.value)
                       ? 'bg-brand/10 text-brand font-medium'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
                 >
+                  {multiple && (
+                    <div className={`w-4 h-4 border rounded flex items-center justify-center ${isValueSelected(opt.value) ? 'bg-brand border-brand' : 'border-gray-300 dark:border-gray-600'}`}>
+                      {isValueSelected(opt.value) && <span className="text-white text-xs">✓</span>}
+                    </div>
+                  )}
                   {opt.color && (
                     <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: opt.color }} />
                   )}

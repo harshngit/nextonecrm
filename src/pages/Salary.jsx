@@ -21,6 +21,7 @@ import {
 } from '../store/salarySlice'
 import Modal from '../components/ui/Modal'
 import Avatar from '../components/ui/Avatar'
+import Button from '../components/ui/Button'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -162,6 +163,9 @@ function AdminSalaryView({ user }) {
   const [tab, setTab]                   = useState('employees')
   const [filterMonth, setFilterMonth]   = useState(thisMonth)
   const [filterYear, setFilterYear]     = useState(thisYear)
+  const [employeesPage, setEmployeesPage] = useState(1)
+  const [slipsPage, setSlipsPage]         = useState(1)
+  const perPage = 10
 
   // Set Salary modal
   const [setSalaryModal, setSetSalaryModal] = useState(false)
@@ -172,6 +176,13 @@ function AdminSalaryView({ user }) {
     working_days_in_month: '26',
     effective_from:        '',
     notes:                 '',
+  })
+  
+  // Appraisal form
+  const [appraisalForm, setAppraisalForm] = useState({
+    new_salary:     '',
+    effective_from: '',
+    notes:          '',
   })
 
   // Generate slip modal (single)
@@ -188,15 +199,28 @@ function AdminSalaryView({ user }) {
 
   // Result modal (after generate)
   const [resultModal, setResultModal] = useState(false)
+  
+  // Appraisal modal
+  const [appraisalModal, setAppraisalModal] = useState(false)
+  const [appraisalTarget, setAppraisalTarget] = useState(null)
+  
+  // Incentive modal
+  const [incentiveModal, setIncentiveModal] = useState(false)
+  const [incentiveTarget, setIncentiveTarget] = useState(null)
+  const [incentiveForm, setIncentiveForm] = useState({
+    amount: '',
+    reason: '',
+  })
 
   useEffect(() => {
-    dispatch(fetchAllEmployeeSalaries())
-    dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, per_page: 100 }))
-  }, [dispatch])
+    dispatch(fetchAllEmployeeSalaries({ page: employeesPage, per_page: perPage }))
+    dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, page: slipsPage, per_page: perPage }))
+  }, [dispatch, employeesPage, slipsPage])
 
   useEffect(() => {
     if (tab === 'slips') {
-      dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, per_page: 100 }))
+      setSlipsPage(1)
+      dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, page: 1, per_page: perPage }))
     }
   }, [tab, filterMonth, filterYear, dispatch])
 
@@ -205,16 +229,16 @@ function AdminSalaryView({ user }) {
       if (actionSuccess.includes('Generated')) setResultModal(true)
       if (actionSuccess.includes('Slip generated')) {
         setGenModal(false)
-        dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, per_page: 100 }))
+        dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, page: slipsPage, per_page: perPage }))
         setTimeout(() => dispatch(clearSuccess()), 3000)
       }
       if (actionSuccess.includes('set for')) {
         setSetSalaryModal(false)
-        dispatch(fetchAllEmployeeSalaries())
+        dispatch(fetchAllEmployeeSalaries({ page: employeesPage, per_page: perPage }))
         setTimeout(() => dispatch(clearSuccess()), 3000)
       }
     }
-  }, [actionSuccess])
+  }, [actionSuccess, dispatch, filterMonth, filterYear, slipsPage, employeesPage, perPage])
 
   const openSetSalary = (emp) => {
     setSalaryTargetE(emp)
@@ -235,6 +259,40 @@ function AdminSalaryView({ user }) {
   const openHistory = (emp) => {
     dispatch(fetchSalaryHistory(emp.id))
     setHistModal(true)
+  }
+  
+  const openAppraisal = (emp) => {
+    setAppraisalTarget(emp)
+    setAppraisalForm({
+      new_salary:     emp.monthly_salary ? String(emp.monthly_salary) : '',
+      effective_from: new Date().toISOString().split('T')[0],
+      notes:          '',
+    })
+    setAppraisalModal(true)
+  }
+  
+  const openIncentive = (emp) => {
+    setIncentiveTarget(emp)
+    setIncentiveForm({ amount: '', reason: '' })
+    setIncentiveModal(true)
+  }
+  
+  const handleAddIncentive = async () => {
+    if (!incentiveTarget || !incentiveForm.amount || !incentiveForm.reason) return
+    try {
+      await api.post('/salary/incentive', {
+        user_id: incentiveTarget.id,
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+        amount: parseFloat(incentiveForm.amount),
+        reason: incentiveForm.reason,
+      })
+      setIncentiveModal(false)
+      setIncentiveForm({ amount: '', reason: '' })
+      dispatch(fetchAllEmployeeSalaries({ page: employeesPage, per_page: perPage }))
+    } catch (err) {
+      console.error('Failed to add incentive:', err)
+    }
   }
 
   const openGenerate = (emp) => {
@@ -292,7 +350,7 @@ function AdminSalaryView({ user }) {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
-            onClick={() => { dispatch(fetchAllEmployeeSalaries()); dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, per_page: 100 })) }}
+            onClick={() => { setEmployeesPage(1); setSlipsPage(1); dispatch(fetchAllEmployeeSalaries({ page: 1, per_page: perPage })); dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, page: 1, per_page: perPage })) }}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl transition-all"
           >
             <RefreshCw size={13} className={loading.employees || loading.slips ? 'animate-spin' : ''} />
@@ -421,6 +479,20 @@ function AdminSalaryView({ user }) {
                           >
                             <History size={14} />
                           </button>
+                          <button
+                            onClick={() => openAppraisal(emp)}
+                            title="Appraisal"
+                            className="p-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 transition-colors"
+                          >
+                            <TrendingUp size={14} />
+                          </button>
+                          <button
+                            onClick={() => openIncentive(emp)}
+                            title="Add Incentive"
+                            className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 transition-colors"
+                          >
+                            <Banknote size={14} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -431,6 +503,24 @@ function AdminSalaryView({ user }) {
                 <div className="text-center py-12 text-gray-400">
                   <Users size={32} className="mx-auto mb-2 opacity-40" />
                   <p className="text-sm">No employees found</p>
+                </div>
+              )}
+              {/* Summary and Pagination */}
+              {(employees.data?.length > 0 || employees.total > 0) && (
+                <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-[#141414]">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Showing <span className="font-semibold text-gray-900 dark:text-white">{employees.data?.length || 0}</span>
+                    {employees.total > 0 && (
+                      <>
+                        {' '}of <span className="font-semibold text-gray-900 dark:text-white">{employees.total}</span>
+                      </>
+                    )}{' '}
+                    employees
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" disabled={employeesPage === 1} onClick={() => setEmployeesPage(p => p - 1)}>Prev</Button>
+                    <Button size="sm" variant="outline" disabled={employeesPage >= (employees.total_pages || 1)} onClick={() => setEmployeesPage(p => p + 1)}>Next</Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -513,6 +603,24 @@ function AdminSalaryView({ user }) {
                     <FileText size={32} className="mx-auto mb-2 opacity-40" />
                     <p className="text-sm">No slips generated for this period</p>
                     <p className="text-xs mt-1">Generate slips from the Employees tab</p>
+                  </div>
+                )}
+                {/* Summary and Pagination */}
+                {(slips.data?.length > 0 || slips.pagination?.total > 0) && (
+                  <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-[#141414]">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      Showing <span className="font-semibold text-gray-900 dark:text-white">{slips.data?.length || 0}</span>
+                      {slips.pagination?.total > 0 && (
+                        <>
+                          {' '}of <span className="font-semibold text-gray-900 dark:text-white">{slips.pagination.total}</span>
+                        </>
+                      )}{' '}
+                      slips
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" disabled={slipsPage === 1} onClick={() => setSlipsPage(p => p - 1)}>Prev</Button>
+                      <Button size="sm" variant="outline" disabled={slipsPage >= (slips.pagination?.total_pages || 1)} onClick={() => setSlipsPage(p => p + 1)}>Next</Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -819,6 +927,161 @@ function AdminSalaryView({ user }) {
         ) : null}
         <div className="flex justify-end mt-4">
           <button onClick={() => setHistModal(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Close</button>
+        </div>
+      </Modal>
+      
+      {/* ── MODAL: Appraisal ──────────────────────────────────────────────── */}
+      <Modal isOpen={appraisalModal} onClose={() => setAppraisalModal(false)} title={`Appraisal — ${appraisalTarget?.full_name}`} size="sm">
+        <div className="space-y-4">
+          {/* Employee info */}
+          {appraisalTarget && (
+            <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
+              <Avatar name={appraisalTarget.full_name} size="sm" />
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{appraisalTarget.full_name}</p>
+                <p className="text-xs text-gray-500">
+                  Current: {appraisalTarget.monthly_salary ? fmtCurrency(appraisalTarget.monthly_salary) : 'Not Set'}
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {/* New salary */}
+          <div>
+            <label className={labelCls}>New Monthly Salary (₹)</label>
+            <div className="relative">
+              <IndianRupee size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="number" min="0" step="500"
+                value={appraisalForm.new_salary}
+                onChange={(e) => setAppraisalForm({ ...appraisalForm, new_salary: e.target.value })}
+                placeholder="Enter new salary"
+                className={inputCls + ' pl-9'}
+              />
+            </div>
+          </div>
+          
+          {/* Effective from */}
+          <div>
+            <label className={labelCls}>Effective From</label>
+            <input
+              type="date"
+              value={appraisalForm.effective_from}
+              onChange={(e) => setAppraisalForm({ ...appraisalForm, effective_from: e.target.value })}
+              className={inputCls}
+            />
+          </div>
+          
+          {/* Notes */}
+          <div>
+            <label className={labelCls}>Notes (Optional)</label>
+            <input
+              type="text"
+              value={appraisalForm.notes}
+              onChange={(e) => setAppraisalForm({ ...appraisalForm, notes: e.target.value })}
+              placeholder="Reason for appraisal"
+              className={inputCls}
+            />
+          </div>
+          
+          {/* Live difference calculation */}
+          {appraisalForm.new_salary && appraisalTarget?.monthly_salary && (
+            <div className="p-3 bg-gray-50 dark:bg-[#141414] rounded-xl">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-gray-500">Difference</span>
+                <span className={`font-bold ${parseFloat(appraisalForm.new_salary) > parseFloat(appraisalTarget.monthly_salary) ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                  {parseFloat(appraisalForm.new_salary) > parseFloat(appraisalTarget.monthly_salary) ? '+' : ''}
+                  {fmtCurrency(parseFloat(appraisalForm.new_salary) - parseFloat(appraisalTarget.monthly_salary))}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={() => setAppraisalModal(false)}
+            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              if (!appraisalForm.new_salary) return;
+              const perDay = appraisalForm.new_salary && parseFloat(appraisalForm.new_salary) / 26;
+              dispatch(setEmployeeSalary({
+                user_id: appraisalTarget.id,
+                monthly_salary: parseFloat(appraisalForm.new_salary),
+                per_day_salary: perDay,
+                working_days_in_month: 26,
+                effective_from: appraisalForm.effective_from || undefined,
+                notes: appraisalForm.notes || undefined,
+              }));
+              setAppraisalModal(false);
+            }}
+            disabled={loading.action || !appraisalForm.new_salary}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all disabled:opacity-50"
+          >
+            {loading.action ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
+            Save Appraisal
+          </button>
+        </div>
+      </Modal>
+      
+      {/* ── MODAL: Add Incentive ──────────────────────────────────────────── */}
+      <Modal isOpen={incentiveModal} onClose={() => setIncentiveModal(false)} title="Add Incentive" size="sm">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-xl">
+            {incentiveTarget && <Avatar name={incentiveTarget.full_name} size="sm" />}
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{incentiveTarget?.full_name}</p>
+              <p className="text-xs text-gray-500">
+                {new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Amount (₹)</label>
+            <div className="relative">
+              <IndianRupee size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="number" min="0" step="100"
+                value={incentiveForm.amount}
+                onChange={(e) => setIncentiveForm({ ...incentiveForm, amount: e.target.value })}
+                placeholder="Enter amount"
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#141414] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
+              />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Reason</label>
+            <textarea
+              value={incentiveForm.reason}
+              onChange={(e) => setIncentiveForm({ ...incentiveForm, reason: e.target.value })}
+              placeholder="e.g., Closed 5 deals — exceeded target"
+              rows={3}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#141414] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm resize-none"
+            />
+          </div>
+        </div>
+        
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={() => setIncentiveModal(false)}
+            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleAddIncentive}
+            disabled={!incentiveForm.amount || !incentiveForm.reason}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-xl transition-all disabled:opacity-50"
+          >
+            <Banknote size={14} />
+            Add
+          </button>
         </div>
       </Modal>
 

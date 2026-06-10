@@ -19,10 +19,10 @@ export const setEmployeeSalary = createAsyncThunk(
 // Admin: get all employees with current salary
 export const fetchAllEmployeeSalaries = createAsyncThunk(
   'salary/fetchAllEmployeeSalaries',
-  async (_, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue }) => {
     try {
-      const res = await api.get('/salary/employees')
-      return res.data.data
+      const res = await api.get('/salary/employees', { params })
+      return res.data.data || res.data
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || 'Failed to fetch salaries')
     }

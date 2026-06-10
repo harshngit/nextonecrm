@@ -4,10 +4,11 @@ import { useDispatch, useSelector } from 'react-redux'
 import {
   ArrowLeft, IndianRupee, Calendar, RefreshCw, Loader2,
   AlertCircle, CheckCircle, LogIn, LogOut, Timer, ChevronLeft,
-  ChevronRight, Banknote, TrendingUp, FileText, Users,
+  ChevronRight, Banknote, TrendingUp, FileText, Users, Plus,
 } from 'lucide-react'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
+import Modal from '../components/ui/Modal'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -104,6 +105,20 @@ export default function SalaryDetail() {
   // Generated slips for this user
   const [slips,       setSlips]       = useState([])
   const [slipsLoading,setSlipsLoading]= useState(false)
+  
+  // Salary history and incentives
+  const [salaryHistory, setSalaryHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState('salary-history')
+  
+  // Incentives
+  const [incentives, setIncentives] = useState([])
+  const [incentivesLoading, setIncentivesLoading] = useState(false)
+  const [addIncentiveModal, setAddIncentiveModal] = useState(false)
+  const [incentiveForm, setIncentiveForm] = useState({
+    amount: '',
+    reason: '',
+  })
 
   // ── Fetch employee info + salary ───────────────────────────────────────────
   useEffect(() => {
@@ -169,10 +184,68 @@ export default function SalaryDetail() {
       setSlipsLoading(false)
     }
   }
+  
+  // ── Fetch salary history for this user ──────────────────────────────────────
+  const fetchSalaryHistory = async () => {
+    setHistoryLoading(true)
+    try {
+      const res = await api.get(`/salary/history/${user_id}`)
+      setSalaryHistory(res.data.data?.history || [])
+    } catch {
+      setSalaryHistory([])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+  
+  // ── Fetch incentives for this user ──────────────────────────────────────────
+  const fetchIncentives = async () => {
+    setIncentivesLoading(true)
+    try {
+      const res = await api.get('/salary/incentives', {
+        params: { user_id, month, year }
+      })
+      // Try multiple possible keys for data
+      let incentivesData = []
+      if (Array.isArray(res.data)) {
+        incentivesData = res.data
+      } else if (Array.isArray(res.data.data)) {
+        incentivesData = res.data.data
+      } else if (Array.isArray(res.data.data?.data)) {
+        incentivesData = res.data.data.data
+      }
+      setIncentives(incentivesData)
+    } catch {
+      setIncentives([])
+    } finally {
+      setIncentivesLoading(false)
+    }
+  }
+  
+  // ── Add incentive for this user ─────────────────────────────────────────────
+  const handleAddIncentive = async () => {
+    if (!incentiveForm.amount || !incentiveForm.reason) return
+    try {
+      await api.post('/salary/incentive', {
+        user_id,
+        month,
+        year,
+        amount: parseFloat(incentiveForm.amount),
+        reason: incentiveForm.reason,
+      })
+      setAddIncentiveModal(false)
+      setIncentiveForm({ amount: '', reason: '' })
+      fetchIncentives()
+    } catch (err) {
+      console.error('Failed to add incentive:', err)
+    }
+  }
 
   useEffect(() => {
     fetchAttendance()
     fetchSlips()
+    fetchSalaryHistory()
+    fetchIncentives()
   }, [user_id, month, year])
 
   // ── Salary calculation per day ────────────────────────────────────────────
@@ -469,6 +542,181 @@ export default function SalaryDetail() {
           </>
         )}
       </div>
+      
+      {/* ── Tabs: Salary History & Incentives ──────────────────────────────────── */}
+      <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+        {/* Tab headers */}
+        <div className="flex items-center border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#141414]">
+          {[
+            { id: 'salary-history', label: 'Salary History' },
+            { id: 'incentives', label: 'Incentives' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 px-5 py-3 text-sm font-bold transition-all border-b-2 ${
+                activeTab === tab.id
+                  ? 'text-[#0082f3] border-[#0082f3] bg-white dark:bg-[#1a1a1a]'
+                  : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        
+        {/* Tab content */}
+        <div className="p-5">
+          {activeTab === 'salary-history' && (
+            <div>
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 size={24} className="animate-spin text-[#0082f3]" />
+                </div>
+              ) : salaryHistory.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <TrendingUp size={32} className="mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">No salary history yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {salaryHistory.map((record, i) => (
+                    <div key={i} className="p-4 bg-gray-50 dark:bg-[#141414] rounded-xl border border-gray-100 dark:border-gray-700">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-gray-900 dark:text-white">
+                              {fmtCurrency(record.monthly_salary)}
+                            </p>
+                            {record.effective_from && (
+                              <span className="text-xs text-gray-400">
+                                from {new Date(record.effective_from).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </span>
+                            )}
+                          </div>
+                          {record.notes && (
+                            <p className="text-xs text-gray-500 mt-1">{record.notes}</p>
+                          )}
+                        </div>
+                        {record.set_by_name && (
+                          <span className="text-xs text-gray-400">Set by {record.set_by_name}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {activeTab === 'incentives' && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-900 dark:text-white">
+                  Incentives for {MONTHS.find(m => m.v === month)?.l} {year}
+                </h3>
+                <button
+                  onClick={() => setAddIncentiveModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-500 hover:bg-green-600 rounded-xl transition-all"
+                >
+                  <Plus size={12} />
+                  Add Incentive
+                </button>
+              </div>
+              
+              {incentivesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 size={24} className="animate-spin text-[#0082f3]" />
+                </div>
+              ) : !Array.isArray(incentives) || incentives.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <Banknote size={32} className="mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">No incentives for this month</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {incentives.map((incentive, i) => (
+                    <div key={i} className="p-4 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/30">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-bold text-green-600 dark:text-green-400">
+                            {fmtCurrency(incentive.amount)}
+                          </p>
+                          <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                            {incentive.reason}
+                          </p>
+                        </div>
+                        {incentive.created_at && (
+                          <span className="text-xs text-gray-400">
+                            {new Date(incentive.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* ── Modal: Add Incentive ─────────────────────────────────────────────── */}
+      <Modal isOpen={addIncentiveModal} onClose={() => setAddIncentiveModal(false)} title="Add Incentive" size="sm">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-xl">
+            {employee && <Avatar name={employee.full_name} size="sm" />}
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{employee?.full_name}</p>
+              <p className="text-xs text-gray-500">
+                {MONTHS.find(m => m.v === month)?.l} {year}
+              </p>
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Amount (₹)</label>
+            <div className="relative">
+              <IndianRupee size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="number" min="0" step="100"
+                value={incentiveForm.amount}
+                onChange={(e) => setIncentiveForm({ ...incentiveForm, amount: e.target.value })}
+                placeholder="Enter amount"
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#141414] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
+              />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Reason</label>
+            <textarea
+              value={incentiveForm.reason}
+              onChange={(e) => setIncentiveForm({ ...incentiveForm, reason: e.target.value })}
+              placeholder="e.g., Closed 5 deals in June — exceeded target"
+              rows={3}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#141414] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm resize-none"
+            />
+          </div>
+        </div>
+        
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={() => setAddIncentiveModal(false)}
+            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleAddIncentive}
+            disabled={!incentiveForm.amount || !incentiveForm.reason}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-xl transition-all disabled:opacity-50"
+          >
+            <Plus size={14} />
+            Add
+          </button>
+        </div>
+      </Modal>
     </div>
   )
 }

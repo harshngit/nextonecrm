@@ -68,7 +68,7 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
     commission_percent:   closure?.commission_percent   || '',
     commission_paid:      closure?.commission_paid      || false,
     commission_paid_date: closure?.commission_paid_date || '',
-    closed_by_manager:    closure?.closed_by_manager?.id || closure?.closed_by_manager || '',
+    closed_by_managers:   closure?.closed_by_managers?.map(m => m.id) || (closure?.closed_by_manager ? [closure.closed_by_manager.id || closure.closed_by_manager] : []),
     closure_notes:        closure?.closure_notes        || '',
   })
   const [loading, setLoading] = useState(false)
@@ -298,9 +298,9 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
               </div>
             </div>
 
-            <CustomSelect label="Reporting Manager" value={form.closed_by_manager}
-              onChange={v => setForm(p => ({ ...p, closed_by_manager: v }))}
-              options={managerOptions} placeholder="Select manager..." />
+            <CustomSelect label="Reporting Manager" value={form.closed_by_managers}
+              onChange={v => setForm(p => ({ ...p, closed_by_managers: v }))}
+              options={managerOptions} placeholder="Select manager(s)..." multiple />
 
             <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer">
               <input type="checkbox" checked={form.commission_paid}
@@ -494,16 +494,24 @@ function ClosureDrawer({ closure, onClose }) {
 
           {/* Closed by */}
           {(closure.closed_by_name || closure.closed_by?.name) && (
-            <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
+            <div className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 dark:border-gray-800">
               <Avatar name={closure.closed_by_name || closure.closed_by?.name} size="sm" />
-              <div>
+              <div className="flex-1">
                 <p className="text-xs text-gray-400">Closed by</p>
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">{closure.closed_by_name || closure.closed_by?.name}</p>
               </div>
-              {(closure.closed_by_manager_name || closure.closed_by_manager?.name) && (
-                <div className="ml-auto text-right">
-                  <p className="text-xs text-gray-400">Manager</p>
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400">{closure.closed_by_manager_name || closure.closed_by_manager?.name}</p>
+              {(closure.closed_by_managers?.length > 0 || closure.closed_by_manager_name || closure.closed_by_manager?.name) && (
+                <div className="text-right">
+                  <p className="text-xs text-gray-400">Manager{closure.closed_by_managers?.length > 1 ? 's' : ''}</p>
+                  <div className="flex flex-col gap-1">
+                    {closure.closed_by_managers?.length > 0 ? (
+                      closure.closed_by_managers.map((m, i) => (
+                        <p key={i} className="text-xs font-medium text-gray-600 dark:text-gray-400">{m.name}</p>
+                      ))
+                    ) : (
+                      <p className="text-xs font-medium text-gray-600 dark:text-gray-400">{closure.closed_by_manager_name || closure.closed_by_manager?.name}</p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

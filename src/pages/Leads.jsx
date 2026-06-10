@@ -334,12 +334,29 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, sal
 
       {/* Source + Status */}
       <div className={`grid gap-3 ${isEdit ? 'grid-cols-2' : 'grid-cols-1'}`}>
-        <CustomSelect label="Lead Source" value={formData.source_id || formData.source}
+        <CustomSelect 
+          label="Lead Source" 
+          value={(() => {
+            // Try to find source by ID first, then by name
+            if (formData.source_id) {
+              const hasMatchingId = sourceOptions.some(opt => opt.value === formData.source_id)
+              if (hasMatchingId) return formData.source_id
+            }
+            if (formData.source) {
+              const matchedOpt = sourceOptions.find(opt => 
+                opt.label.toLowerCase() === formData.source.toLowerCase()
+              )
+              if (matchedOpt) return matchedOpt.value
+            }
+            return ''
+          })()}
           onChange={val => {
             const selected = sourceList.find(s => s.id === val)
             setFormData(prev => ({ ...prev, source_id: selected?.id || val, source: selected?.name || val }))
           }}
-          options={sourceOptions} placeholder="Select Platform" />
+          options={sourceOptions} 
+          placeholder="Select Platform" 
+        />
         {isEdit && <CustomSelect label="Stage" value={formData.status} onChange={val => setFormData(prev => ({ ...prev, status: val }))} options={stageOptions} />}
       </div>
 
@@ -1440,22 +1457,75 @@ export default function Leads() {
 
   const openEdit = async (lead) => {
     setSelectedLead(lead)
-    setEditForm({
-      name: lead.name || '',
-      phone: lead.phone || '',
-      alternate_phone_number: lead.alternate_phone_number || '',
-      email: lead.email || '',
-      source: lead.source || '',
-      source_id: lead.source_id || '',
-      project_id: lead.project_id || '',
-      assigned_to: lead.assigned_to || '',
-      budget: lead.budget || '',
-      location_preference: lead.location_preference || '',
-      notes: lead.notes || '',
-      status: lead.status || 'New',
-      callback_time: lead.callback_time || '',
-      next_followup_time: lead.next_followup_time || '',
-    })
+    try {
+      // Fetch lead details from API
+      const res = await api.get(`/leads/${lead.id}`)
+      const leadData = res.data.data
+      
+      // Find matching source from sourceList by either ID or name
+      let sourceId = leadData.source_id || ''
+      let sourceName = leadData.source || ''
+      
+      if (sourceList && (!sourceId || sourceId === '')) {
+        // Try to find by name if we don't have source_id
+        const matchedSource = sourceList.find(s => 
+          s.name.toLowerCase() === (leadData.source || '').toLowerCase()
+        )
+        if (matchedSource) {
+          sourceId = matchedSource.id
+          sourceName = matchedSource.name
+        }
+      }
+      
+      // Set edit form with fetched data
+      setEditForm({
+        name: leadData.name || '',
+        phone: leadData.phone || '',
+        alternate_phone_number: leadData.alternate_phone_number || '',
+        email: leadData.email || '',
+        source: sourceName,
+        source_id: sourceId,
+        project_id: leadData.project?.id || leadData.project_id || '',
+        assigned_to: leadData.assigned_to?.id || leadData.assigned_to || '',
+        budget: leadData.budget || '',
+        location_preference: leadData.location_preference || '',
+        notes: leadData.notes || '',
+        status: leadData.status || 'New',
+        callback_time: leadData.callback_time || '',
+        next_followup_time: leadData.next_followup_time || '',
+      })
+    } catch (err) {
+      // Fall back to the original lead data if API fails
+      let sourceId = lead.source_id || ''
+      let sourceName = lead.source || ''
+      
+      if (sourceList && (!sourceId || sourceId === '')) {
+        const matchedSource = sourceList.find(s => 
+          s.name.toLowerCase() === (lead.source || '').toLowerCase()
+        )
+        if (matchedSource) {
+          sourceId = matchedSource.id
+          sourceName = matchedSource.name
+        }
+      }
+      
+      setEditForm({
+        name: lead.name || '',
+        phone: lead.phone || '',
+        alternate_phone_number: lead.alternate_phone_number || '',
+        email: lead.email || '',
+        source: sourceName,
+        source_id: sourceId,
+        project_id: lead.project_id || '',
+        assigned_to: lead.assigned_to || '',
+        budget: lead.budget || '',
+        location_preference: lead.location_preference || '',
+        notes: lead.notes || '',
+        status: lead.status || 'New',
+        callback_time: lead.callback_time || '',
+        next_followup_time: lead.next_followup_time || '',
+      })
+    }
     // Fetch existing call recordings for this lead
     try {
       const res = await api.get(`/leads/${lead.id}/call-recordings`)

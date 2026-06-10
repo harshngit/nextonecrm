@@ -216,19 +216,33 @@ function formatDue(task) {
 }
 
 // ── Form — defined OUTSIDE to prevent typing/focus bug ────────────────────────
-function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit }) {
+function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit, selectedTask }) {
   const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
-  const leadOptions = leads.map(l => ({
-    value: l.id,
-    label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}`
-  }))
+  // Create lead options with fallback if needed
+  const leadOptions = [
+    ...leads.map(l => ({
+      value: l.id,
+      label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}`
+    })),
+    // Add fallback if lead from task isn't in list
+    ...(isEdit && selectedTask?.lead_id && !leads.find(l => l.id === selectedTask.lead_id) && selectedTask?.lead_name
+      ? [{ value: selectedTask.lead_id, label: selectedTask.lead_name }]
+      : [])
+  ]
 
-  const execOptions = salesExecs.map(u => ({
-    value: u.id,
-    label: `${u.first_name} ${u.last_name}`
-  }))
+  // Create exec options with fallback if needed
+  const execOptions = [
+    ...salesExecs.map(u => ({
+      value: u.id,
+      label: `${u.first_name} ${u.last_name}`
+    })),
+    // Add fallback if assigned from task isn't in list
+    ...(isEdit && selectedTask?.assigned_to && !salesExecs.find(u => u.id === selectedTask.assigned_to) && selectedTask?.assigned_name
+      ? [{ value: selectedTask.assigned_to, label: selectedTask.assigned_name }]
+      : [])
+  ]
 
   return (
     <div className="space-y-4">
@@ -551,7 +565,7 @@ function BulkConvertFUModal({ taskIds, tasks, onClose, onSuccess }) {
 }
 
 
-function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, isSelected, onSelect }) {
+function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, isSelected, onSelect, editLoading }) {
   const navigate = useNavigate()
   const category = classifyTask(task)
 
@@ -582,7 +596,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, is
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
             <span 
               className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate cursor-pointer hover:text-brand transition-colors"
-              onClick={() => task.lead_id ? navigate(`/leads/${task.lead_id}`) : navigate(`/follow-ups/${task.id}`)}
+              onClick={() => navigate(`/follow-ups/${task.id}`)}
             >
               {task.lead_name || '—'}
             </span>
@@ -609,8 +623,8 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, is
                 {formatDue(task)}
               </span>
             </div>
-            {task.assigned_to_name && (
-              <span className="text-xs text-gray-400">→ {task.assigned_to_name}</span>
+            {task.assigned_name && (
+              <span className="text-xs text-gray-400">→ {task.assigned_name}</span>
             )}
           </div>
         </div>
@@ -640,8 +654,9 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, is
                 </button>
               )}
               <button onClick={() => onEdit(task)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit">
-                <Edit2 size={13} />
+                disabled={editLoading === task.id}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Edit">
+                {editLoading === task.id ? <Loader2 size={13} className="animate-spin" /> : <Edit2 size={13} />}
               </button>
               <button onClick={() => onDelete(task)}
                 className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Delete">
@@ -658,6 +673,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, is
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function FollowUps() {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
   const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.followUps)
   const { list: leadList } = useSelector(s => s.leads)
   const { list: userList } = useSelector(s => s.users)
@@ -668,12 +684,13 @@ export default function FollowUps() {
   const [page, setPage] = useState(1)
 
   const [showAddModal,      setShowAddModal]      = useState(false)
-  const [showEditModal,     setShowEditModal]      = useState(false)
+  const [showEditModal,     setShowEditModal]     = useState(false)
   const [showCompleteModal, setShowCompleteModal]  = useState(false)
   const [showDeleteModal,   setShowDeleteModal]    = useState(false)
   const [taskToDelete,      setTaskToDelete]       = useState(null)
   const [showExportModal,   setShowExportModal]    = useState(false)
   const [selectedTask,      setSelectedTask]       = useState(null)
+  const [completeNotes,     setCompleteNotes]      = useState('')
 
 
   const [addForm,  setAddForm]  = useState(defaultForm)
@@ -685,6 +702,7 @@ export default function FollowUps() {
   const [showConvertModal,  setShowConvertModal]  = useState(false)
   const [convertTask,       setConvertTask]       = useState(null)
   const [convertSuccess,    setConvertSuccess]    = useState('')
+  const [editLoading,       setEditLoading]       = useState(null) // Track which task is loading
 
   const salesExecs = userList.filter(u =>
     ['sales_executive', 'sales_manager'].includes(u.role) && u.is_active
@@ -770,11 +788,11 @@ export default function FollowUps() {
     e.preventDefault()
     // Optimistic UI update
     dispatch(markCompleted(selectedTask.id))
-    const result = await dispatch(completeFollowUp(selectedTask.id))
+    const result = await dispatch(completeFollowUp({ id: selectedTask.id, notes: completeNotes }))
     if (completeFollowUp.fulfilled.match(result)) {
       setSuccess('Task marked as done!')
       loadTasks()
-      setTimeout(() => { setShowCompleteModal(false); setSuccess('') }, 600)
+      setTimeout(() => { setShowCompleteModal(false); setSuccess(''); setCompleteNotes('') }, 600)
     }
   }
 
@@ -791,24 +809,51 @@ export default function FollowUps() {
     setShowDeleteModal(true)
   }
 
-  const openEdit = (task) => {
+  const openEdit = async (task) => {
+    console.log('openEdit called with task:', task)
+    setEditLoading(task.id)
     setSelectedTask(task)
-    const dueDate = task.due_date ? task.due_date.split('T')[0] : ''
-    const dueTime = task.due_date ? task.due_date.split('T')[1]?.slice(0, 5) : '10:00'
+    // First populate form with original task data immediately
+    const originalDueDate = task.due_date ? task.due_date.split('T')[0] : ''
+    const originalDueTime = task.due_date ? task.due_date.split('T')[1]?.slice(0, 5) : '10:00'
     setEditForm({
       title:       task.title || '',
       lead_id:     task.lead_id || '',
-      due_date:    dueDate,
-      due_time:    dueTime || '10:00',
+      due_date:    originalDueDate,
+      due_time:    originalDueTime || '10:00',
       assigned_to: task.assigned_to || '',
       priority:    task.priority || 'medium',
       notes:       task.notes || '',
     })
-    setShowEditModal(true)
+    setShowEditModal(true) // Open modal immediately
+    
+    try {
+      // Then fetch latest from API and update form
+      const res = await api.get(`/tasks/${task.id}`)
+      const taskData = res.data.data
+      console.log('API returned taskData:', taskData)
+      const dueDate = taskData.due_date ? taskData.due_date.split('T')[0] : ''
+      const dueTime = taskData.due_date ? taskData.due_date.split('T')[1]?.slice(0, 5) : '10:00'
+      setEditForm({
+        title:       taskData.title || '',
+        lead_id:     taskData.lead_id || '',
+        due_date:    dueDate,
+        due_time:    dueTime || '10:00',
+        assigned_to: taskData.assigned_to || '',
+        priority:    taskData.priority || 'medium',
+        notes:       taskData.notes || '',
+      })
+    } catch (err) {
+      console.error('API call failed:', err)
+      // API failed, form already has original data
+    } finally {
+      setEditLoading(null)
+    }
   }
 
   const openComplete = (task) => {
     setSelectedTask(task)
+    setCompleteNotes('')
     setShowCompleteModal(true)
   }
 
@@ -844,7 +889,7 @@ export default function FollowUps() {
   }
 
   // ── Section Component ────────────────────────────────────────────────────────
-  const Section = ({ title, tasks, icon: Icon, iconColor, accent, selectable }) => {
+  const Section = ({ title, tasks, icon: Icon, iconColor, accent, selectable, editLoading }) => {
     if (tasks.length === 0) return null
     return (
       <div className={`bg-white dark:bg-[#1a1a1a] border ${accent || 'border-[#e2e8f0] dark:border-[#2a2a2a]'} rounded-2xl p-5`}>
@@ -885,6 +930,7 @@ export default function FollowUps() {
               canManage={canManage}
               isSelected={selectedTasks.includes(task.id)}
               onSelect={selectable ? toggleTask : undefined}
+              editLoading={editLoading}
             />
           ))}
         </div>
@@ -1064,7 +1110,7 @@ export default function FollowUps() {
                           <div>
                             <div
                               className="font-medium text-gray-900 dark:text-gray-100 cursor-pointer hover:text-brand transition-colors"
-                              onClick={() => task.lead_id ? navigate(`/leads/${task.lead_id}`) : navigate(`/follow-ups/${task.id}`)}
+                              onClick={() => navigate(`/follow-ups/${task.id}`)}
                             >
                               {task.lead_name || '—'}
                             </div>
@@ -1092,10 +1138,10 @@ export default function FollowUps() {
                         </span>
                       </td>
                       <td className="py-3 px-3 hidden md:table-cell">
-                        {task.assigned_to_name ? (
+                        {task.assigned_to ? (
                           <div className="flex items-center gap-1.5">
-                            <Avatar name={task.assigned_to_name} size="xs" />
-                            <span className="text-xs text-gray-600 dark:text-gray-400">{task.assigned_to_name}</span>
+                            <Avatar name={task.assigned_to_name || task.assigned_to} size="xs" />
+                            <span className="text-xs text-gray-600 dark:text-gray-400">{task.assigned_to_name || task.assigned_to}</span> 
                           </div>
                         ) : <span className="text-xs text-gray-400">Unassigned</span>}
                       </td>
@@ -1137,8 +1183,9 @@ export default function FollowUps() {
                           {canManage && (
                             <>
                               <button onClick={() => openEdit(task)}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit">
-                                <Edit2 size={13} />
+                                disabled={editLoading === task.id}
+                                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Edit">
+                                {editLoading === task.id ? <Loader2 size={13} className="animate-spin" /> : <Edit2 size={13} />}
                               </button>
                               <button onClick={() => confirmDelete(task)}
                                 className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Delete">
@@ -1186,7 +1233,7 @@ export default function FollowUps() {
       {/* Edit Modal */}
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSuccess('') }} title="Edit Follow-up Task">
         <form onSubmit={handleEdit} className="space-y-4">
-          <FollowUpForm formData={editForm} setFormData={setEditForm} leads={leadList} salesExecs={salesExecs} isEdit={true} />
+          <FollowUpForm formData={editForm} setFormData={setEditForm} leads={leadList} salesExecs={salesExecs} isEdit={true} selectedTask={selectedTask} />
           {success    && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -1205,6 +1252,17 @@ export default function FollowUps() {
               <p className="text-xs text-gray-400 mt-0.5">{selectedTask.lead_name} · {formatDue(selectedTask)}</p>
             </div>
           )}
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Completion Notes</label>
+            <textarea
+              value={completeNotes}
+              onChange={(e) => setCompleteNotes(e.target.value)}
+              placeholder="Enter completion notes..."
+              rows={4}
+              className="w-full px-3 py-2 text-sm bg-background border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand transition-all resize-none"
+            />
+          </div>
 
           {success    && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
