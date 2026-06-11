@@ -19,6 +19,7 @@ import {
   clearError,
   clearSuccess,
 } from '../store/salarySlice'
+import api from '../api/axios'
 import Modal from '../components/ui/Modal'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
@@ -271,6 +272,24 @@ function AdminSalaryView({ user }) {
     setAppraisalModal(true)
   }
   
+  const handleSaveAppraisal = async () => {
+    if (!appraisalTarget || !appraisalForm.new_salary) return
+    try {
+      await api.post('/salary/appraisal', {
+        user_id: appraisalTarget.id,
+        new_salary: parseFloat(appraisalForm.new_salary),
+        effective_from: appraisalForm.effective_from,
+        appraisal_note: appraisalForm.notes,
+        working_days_in_month: 26
+      })
+      setAppraisalModal(false)
+      setAppraisalForm({ new_salary: '', effective_from: '', notes: '' })
+      dispatch(fetchAllEmployeeSalaries({ page: employeesPage, per_page: perPage }))
+    } catch (err) {
+      console.error('Failed to save appraisal:', err)
+    }
+  }
+  
   const openIncentive = (emp) => {
     setIncentiveTarget(emp)
     setIncentiveForm({ amount: '', reason: '' })
@@ -457,13 +476,24 @@ function AdminSalaryView({ user }) {
                           >
                             <Eye size={14} />
                           </button>
-                          <button
-                            onClick={() => openSetSalary(emp)}
-                            title="Set Salary"
-                            className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
-                          >
-                            <IndianRupee size={14} />
-                          </button>
+                          {/* Show Set Salary button if salary not set, otherwise Appraisal button */}
+                          {!emp.salary_set ? (
+                            <button
+                              onClick={() => openSetSalary(emp)}
+                              title="Set Salary"
+                              className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
+                            >
+                              <IndianRupee size={14} />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => openAppraisal(emp)}
+                              title="Appraisal"
+                              className="p-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 transition-colors"
+                            >
+                              <TrendingUp size={14} />
+                            </button>
+                          )}
                           <button
                             onClick={() => openGenerate(emp)}
                             title="Generate Slip"
@@ -478,13 +508,6 @@ function AdminSalaryView({ user }) {
                             className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors"
                           >
                             <History size={14} />
-                          </button>
-                          <button
-                            onClick={() => openAppraisal(emp)}
-                            title="Appraisal"
-                            className="p-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 transition-colors"
-                          >
-                            <TrendingUp size={14} />
                           </button>
                           <button
                             onClick={() => openIncentive(emp)}
@@ -1006,19 +1029,7 @@ function AdminSalaryView({ user }) {
             Cancel
           </button>
           <button
-            onClick={() => {
-              if (!appraisalForm.new_salary) return;
-              const perDay = appraisalForm.new_salary && parseFloat(appraisalForm.new_salary) / 26;
-              dispatch(setEmployeeSalary({
-                user_id: appraisalTarget.id,
-                monthly_salary: parseFloat(appraisalForm.new_salary),
-                per_day_salary: perDay,
-                working_days_in_month: 26,
-                effective_from: appraisalForm.effective_from || undefined,
-                notes: appraisalForm.notes || undefined,
-              }));
-              setAppraisalModal(false);
-            }}
+            onClick={handleSaveAppraisal}
             disabled={loading.action || !appraisalForm.new_salary}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all disabled:opacity-50"
           >
@@ -1142,7 +1153,7 @@ function EmployeeSalaryView({ user }) {
   const { user: currentUser } = useSelector(s => s.auth)
   const isSuperAdmin = currentUser?.role === 'super_admin'
 
-  const [tab,         setTab]         = useState('slips')   // 'slips' | 'daywise'
+  const [tab,         setTab]         = useState('slips')   // 'slips' | 'daywise' | 'history' | 'incentives'
   const [filterMonth, setFilterMonth] = useState('')
   const [filterYear,  setFilterYear]  = useState(thisYear)
   const [expanded,    setExpanded]    = useState(null)
@@ -1150,6 +1161,12 @@ function EmployeeSalaryView({ user }) {
   // Selected month/year for day-wise tab
   const [dwMonth, setDwMonth] = useState(thisMonth)
   const [dwYear,  setDwYear]  = useState(thisYear)
+
+  // For history and incentives
+  const [salaryHistory, setSalaryHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [incentives, setIncentives] = useState([])
+  const [incentivesLoading, setIncentivesLoading] = useState(false)
 
   useEffect(() => {
     dispatch(fetchMySalary({ year: filterYear }))
@@ -1181,6 +1198,48 @@ function EmployeeSalaryView({ user }) {
     if (status === 'half_day') return perDay * 0.5
     return 0
   }
+
+  const fetchMySalaryHistory = async () => {
+    setHistoryLoading(true)
+    try {
+      const res = await api.get('/salary/my-salary-history', {
+        params: { month: dwMonth, year: dwYear }
+      })
+      setSalaryHistory(res.data?.data?.history || [])
+    } catch (err) {
+      console.error('Failed to fetch salary history:', err)
+      setSalaryHistory([])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  const [incentiveSummary, setIncentiveSummary] = useState({ total_incentive_amount: 0, total_count: 0 })
+  const fetchMyIncentives = async () => {
+    setIncentivesLoading(true)
+    try {
+      const res = await api.get('/salary/my-incentives', {
+        params: { month: dwMonth, year: dwYear }
+      })
+      setIncentives(res.data?.data?.incentives || [])
+      setIncentiveSummary({
+        total_incentive_amount: res.data?.data?.total_incentive_amount || 0,
+        total_count: res.data?.data?.total_count || 0,
+      })
+    } catch (err) {
+      console.error('Failed to fetch my incentives:', err)
+      setIncentives([])
+      setIncentiveSummary({ total_incentive_amount: 0, total_count: 0 })
+    } finally {
+      setIncentivesLoading(false)
+    }
+  }
+
+  // Fetch history or incentives when tab changes
+  useEffect(() => {
+    if (tab === 'history') fetchMySalaryHistory()
+    if (tab === 'incentives') fetchMyIncentives()
+  }, [tab])
 
   return (
     <div className="space-y-6">
@@ -1235,8 +1294,10 @@ function EmployeeSalaryView({ user }) {
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-[#141414] p-1 rounded-xl w-fit">
         {[
-          { v: 'slips',   l: 'Salary Slips' },
-          { v: 'daywise', l: 'Day-wise Earnings' },
+          { v: 'slips',      l: 'Salary Slips' },
+          { v: 'daywise',    l: 'Day-wise Earnings' },
+          { v: 'history',    l: 'Salary History' },
+          { v: 'incentives', l: 'Incentives' },
         ].map(t => (
           <button key={t.v} onClick={() => setTab(t.v)}
             className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${tab === t.v ? 'bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}>
@@ -1272,81 +1333,83 @@ function EmployeeSalaryView({ user }) {
             </button>
           </div>
 
-          {loading.mySalary ? (
-            <div className="flex items-center justify-center h-32 text-gray-400">
-              <Loader2 size={24} className="animate-spin" />
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="text-center py-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
-              <FileText size={36} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
-              <p className="text-sm text-gray-500">No salary slips found</p>
-              <p className="text-xs text-gray-400 mt-1">Your admin hasn't generated a slip for this period yet</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filtered.map(slip => (
-                <div key={slip.id} className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-                  <button
-                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-[#141414] transition-colors text-left"
-                    onClick={() => setExpanded(expanded === slip.id ? null : slip.id)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-                        <FileText size={18} className="text-green-600 dark:text-green-400" />
+          <div className="max-h-96 overflow-y-auto">
+            {loading.mySalary ? (
+              <div className="flex items-center justify-center h-32 text-gray-400">
+                <Loader2 size={24} className="animate-spin" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
+                <FileText size={36} className="mx-auto mb-3 text-gray-300 dark:text-gray-700" />
+                <p className="text-sm text-gray-500">No salary slips found</p>
+                <p className="text-xs text-gray-400 mt-1">Your admin hasn't generated a slip for this period yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filtered.map(slip => (
+                  <div key={slip.id} className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+                    <button
+                      className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-[#141414] transition-colors text-left"
+                      onClick={() => setExpanded(expanded === slip.id ? null : slip.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                          <FileText size={18} className="text-green-600 dark:text-green-400" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900 dark:text-white">{slip.month_label}</p>
+                          <p className="text-xs text-gray-500">{slip.present_days} / {slip.working_days} working days</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold text-gray-900 dark:text-white">{slip.month_label}</p>
-                        <p className="text-xs text-gray-500">{slip.present_days} / {slip.working_days} working days</p>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-xs text-gray-400">Final Salary</p>
+                          <p className="text-base font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</p>
+                        </div>
+                        <ChevronDown size={16} className={`text-gray-400 transition-transform ${expanded === slip.id ? 'rotate-180' : ''}`} />
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="text-xs text-gray-400">Final Salary</p>
-                        <p className="text-base font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</p>
-                      </div>
-                      <ChevronDown size={16} className={`text-gray-400 transition-transform ${expanded === slip.id ? 'rotate-180' : ''}`} />
-                    </div>
-                  </button>
+                    </button>
 
-                  {expanded === slip.id && (
-                    <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-800">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-                        {[
-                          { label: 'Monthly Salary', value: fmtCurrency(slip.monthly_salary), sub: 'Base' },
-                          { label: 'Per Day',         value: fmtCurrency(slip.per_day_salary),  sub: `÷ ${slip.working_days} days` },
-                          { label: 'Days Present',    value: `${slip.present_days}`,            sub: `Absent: ${slip.absent_days}` },
-                          { label: 'Earned Salary',   value: fmtCurrency(slip.earned_salary),  sub: 'Before deductions' },
-                        ].map(item => (
-                          <div key={item.label} className="p-3 bg-gray-50 dark:bg-[#141414] rounded-xl">
-                            <p className="text-xs text-gray-500">{item.label}</p>
-                            <p className="text-sm font-bold text-gray-900 dark:text-white mt-0.5">{item.value}</p>
-                            <p className="text-[11px] text-gray-400">{item.sub}</p>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-xl border border-green-100 dark:border-green-900/30">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">Earned Salary</span>
-                          <span className="font-medium text-gray-900 dark:text-white">{fmtCurrency(slip.earned_salary)}</span>
+                    {expanded === slip.id && (
+                      <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-800">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                          {[
+                            { label: 'Monthly Salary', value: fmtCurrency(slip.monthly_salary), sub: 'Base' },
+                            { label: 'Per Day',         value: fmtCurrency(slip.per_day_salary),  sub: `÷ ${slip.working_days} days` },
+                            { label: 'Days Present',    value: `${slip.present_days}`,            sub: `Absent: ${slip.absent_days}` },
+                            { label: 'Earned Salary',   value: fmtCurrency(slip.earned_salary),  sub: 'Before deductions' },
+                          ].map(item => (
+                            <div key={item.label} className="p-3 bg-gray-50 dark:bg-[#141414] rounded-xl">
+                              <p className="text-xs text-gray-500">{item.label}</p>
+                              <p className="text-sm font-bold text-gray-900 dark:text-white mt-0.5">{item.value}</p>
+                              <p className="text-[11px] text-gray-400">{item.sub}</p>
+                            </div>
+                          ))}
                         </div>
-                        {slip.deductions > 0 && (
-                          <div className="flex items-center justify-between text-sm mt-1">
-                            <span className="text-red-500">Deductions</span>
-                            <span className="font-medium text-red-500">- {fmtCurrency(slip.deductions)}</span>
+                        <div className="mt-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-xl border border-green-100 dark:border-green-900/30">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">Earned Salary</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{fmtCurrency(slip.earned_salary)}</span>
                           </div>
-                        )}
-                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-green-200 dark:border-green-800/50">
-                          <span className="text-sm font-semibold text-gray-900 dark:text-white">Final Salary</span>
-                          <span className="text-lg font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</span>
+                          {slip.deductions > 0 && (
+                            <div className="flex items-center justify-between text-sm mt-1">
+                              <span className="text-red-500">Deductions</span>
+                              <span className="font-medium text-red-500">- {fmtCurrency(slip.deductions)}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-green-200 dark:border-green-800/50">
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white">Final Salary</span>
+                            <span className="text-lg font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</span>
+                          </div>
                         </div>
+                        {slip.notes && <p className="text-xs text-gray-400 mt-2 italic">{slip.notes}</p>}
                       </div>
-                      {slip.notes && <p className="text-xs text-gray-400 mt-2 italic">{slip.notes}</p>}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -1381,118 +1444,257 @@ function EmployeeSalaryView({ user }) {
             </button>
           </div>
 
-          {/* Summary strip */}
-          {attSalary?.monthly_salary && (
-            <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-[#0082f3] to-blue-600 px-5 py-4">
-                <p className="text-blue-100 text-xs font-medium uppercase tracking-wider mb-1">
-                  {MONTHS.find(m => m.v === dwMonth)?.l} {dwYear} — Salary Summary
-                </p>
-                <p className="text-white text-2xl font-bold">{fmtCurrency(attSalary.earned_salary)}</p>
-                <p className="text-blue-200 text-xs mt-0.5">Earned so far · {attSalary.present_days} days present</p>
+          <div className="max-h-96 overflow-y-auto">
+            {/* Summary strip */}
+            {attSalary?.monthly_salary && (
+              <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden mb-4">
+                <div className="bg-gradient-to-r from-[#0082f3] to-blue-600 px-5 py-4">
+                  <p className="text-blue-100 text-xs font-medium uppercase tracking-wider mb-1">
+                    {MONTHS.find(m => m.v === dwMonth)?.l} {dwYear} — Salary Summary
+                  </p>
+                  <p className="text-white text-2xl font-bold">{fmtCurrency(attSalary.earned_salary)}</p>
+                  <p className="text-blue-200 text-xs mt-0.5">Earned so far · {attSalary.present_days} days present</p>
+                </div>
+                <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-800">
+                  {[
+                    { l: 'Monthly Base',  v: fmtCurrency(attSalary.monthly_salary),  c: 'text-gray-800 dark:text-gray-200' },
+                    { l: 'Per Day',       v: fmtCurrency(attSalary.per_day_salary),   c: 'text-emerald-600 dark:text-emerald-400' },
+                    { l: 'Days Present',  v: `${attSalary.present_days}`,             c: 'text-[#0082f3]' },
+                  ].map(x => (
+                    <div key={x.l} className="px-4 py-3 text-center">
+                      <p className={`text-base font-bold ${x.c}`}>{x.v}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{x.l}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-800">
-                {[
-                  { l: 'Monthly Base',  v: fmtCurrency(attSalary.monthly_salary),  c: 'text-gray-800 dark:text-gray-200' },
-                  { l: 'Per Day',       v: fmtCurrency(attSalary.per_day_salary),   c: 'text-emerald-600 dark:text-emerald-400' },
-                  { l: 'Days Present',  v: `${attSalary.present_days}`,             c: 'text-[#0082f3]' },
-                ].map(x => (
-                  <div key={x.l} className="px-4 py-3 text-center">
-                    <p className={`text-base font-bold ${x.c}`}>{x.v}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{x.l}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+            )}
 
-          {/* Day-wise list */}
-          {loading.myAttendance ? (
-            <div className="flex items-center justify-center h-40 text-gray-400">
-              <Loader2 size={24} className="animate-spin" />
-            </div>
-          ) : attData.length === 0 ? (
-            <div className="text-center py-12 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
-              <Calendar size={32} className="mx-auto mb-2 opacity-40 text-gray-400" />
-              <p className="text-sm text-gray-500">No attendance records for this month</p>
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-              {/* Table header */}
-              <div className={`grid gap-3 px-5 py-3 bg-gray-50 dark:bg-[#141414] border-b border-gray-100 dark:border-gray-800 text-[10px] font-bold text-gray-400 uppercase tracking-wider ${isSuperAdmin ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'}`}>
-                <span>Date</span>
-                <span className="text-center">Status</span>
-                {isSuperAdmin && <span className="text-center">Hours</span>}
-                <span className="text-right">Earned</span>
+            {/* Day-wise list */}
+            {loading.myAttendance ? (
+              <div className="flex items-center justify-center h-40 text-gray-400">
+                <Loader2 size={24} className="animate-spin" />
               </div>
+            ) : attData.length === 0 ? (
+              <div className="text-center py-12 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
+                <Calendar size={32} className="mx-auto mb-2 opacity-40 text-gray-400" />
+                <p className="text-sm text-gray-500">No attendance records for this month</p>
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+                {/* Table header */}
+                <div className={`grid gap-3 px-5 py-3 bg-gray-50 dark:bg-[#141414] border-b border-gray-100 dark:border-gray-800 text-[10px] font-bold text-gray-400 uppercase tracking-wider ${isSuperAdmin ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'}`}>
+                  <span>Date</span>
+                  <span className="text-center">Status</span>
+                  {isSuperAdmin && <span className="text-center">Hours</span>}
+                  <span className="text-right">Earned</span>
+                </div>
 
-              <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
-                {attData.map(rec => {
-                  const d      = rec.date?.split('T')[0] || rec.date
-                  const earned = dayEarned(rec.status)
-                  const cfg    = STATUS_CONFIG[rec.status] || STATUS_CONFIG.absent
-                  return (
-                    <div key={rec.id} className={`grid gap-3 items-center px-5 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors ${isSuperAdmin ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'}`}>
-                      {/* Date + times */}
-                      <div>
-                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{fmtDate(d)}</p>
-                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400">
-                          {rec.check_in_time  && <span className="flex items-center gap-0.5"><LogIn  size={9} className="text-emerald-500" />{fmtTime(rec.check_in_time)}</span>}
-                          {rec.check_out_time && <span className="flex items-center gap-0.5"><LogOut size={9} className="text-rose-500"    />{fmtTime(rec.check_out_time)}</span>}
+                <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
+                  {attData.map(rec => {
+                    const d      = rec.date?.split('T')[0] || rec.date
+                    const earned = dayEarned(rec.status)
+                    const cfg    = STATUS_CONFIG[rec.status] || STATUS_CONFIG.absent
+                    return (
+                      <div key={rec.id} className={`grid gap-3 items-center px-5 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors ${isSuperAdmin ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'}`}>
+                        {/* Date + times */}
+                        <div>
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{fmtDate(d)}</p>
+                          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400">
+                            {rec.check_in_time  && <span className="flex items-center gap-0.5"><LogIn  size={9} className="text-emerald-500" />{fmtTime(rec.check_in_time)}</span>}
+                            {rec.check_out_time && <span className="flex items-center gap-0.5"><LogOut size={9} className="text-rose-500"    />{fmtTime(rec.check_out_time)}</span>}
+                          </div>
+                        </div>
+
+                        {/* Status badge */}
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${cfg.badge}`}>
+                          <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${cfg.dot}`} />
+                          {cfg.label}
+                        </span>
+
+                        {/* Working hours */}
+                        {isSuperAdmin && (
+                          <span className="text-xs text-gray-400 text-center">
+                            {rec.working_hours ? `${rec.working_hours}h` : '—'}
+                          </span>
+                        )}
+
+                        {/* Earned */}
+                        <div className="text-right min-w-[80px]">
+                          {earned !== null ? (
+                            <>
+                              <p className={`text-sm font-bold ${earned > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-400'}`}>
+                                {earned > 0 ? `+${fmtCurrency(earned)}` : '₹0'}
+                              </p>
+                              <p className="text-[10px] text-gray-400">
+                                {rec.status === 'half_day' ? '50%' : earned > 0 ? 'full' : 'no pay'}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-xs text-gray-300 dark:text-gray-700">—</p>
+                          )}
                         </div>
                       </div>
+                    )
+                  })}
+                </div>
 
-                      {/* Status badge */}
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${cfg.badge}`}>
-                        <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${cfg.dot}`} />
-                        {cfg.label}
-                      </span>
+                {/* Running total footer */}
+                {perDay && attData.length > 0 && (
+                  <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#141414] flex items-center justify-between">
+                    <span className="text-xs text-gray-500">
+                      {attData.filter(r => ['present','late'].includes(r.status)).length} full + {attData.filter(r => r.status === 'half_day').length} half days
+                    </span>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-400">Total Earned This Period</p>
+                      <p className="text-base font-bold text-[#0082f3]">
+                        {fmtCurrency(
+                          attData.reduce((sum, r) => sum + (dayEarned(r.status) || 0), 0)
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
-                      {/* Working hours */}
-                      {isSuperAdmin && (
-                        <span className="text-xs text-gray-400 text-center">
-                          {rec.working_hours ? `${rec.working_hours}h` : '—'}
-                        </span>
-                      )}
-
-                      {/* Earned */}
-                      <div className="text-right min-w-[80px]">
-                        {earned !== null ? (
-                          <>
-                            <p className={`text-sm font-bold ${earned > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-400'}`}>
-                              {earned > 0 ? `+${fmtCurrency(earned)}` : '₹0'}
+      {/* ── TAB: Salary History ──────────────────────────────────────────────────── */}
+      {tab === 'history' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Salary History</h2>
+            <CustomDropdown
+              value={dwMonth}
+              onChange={(val) => { setDwMonth(val); fetchMySalaryHistory(); }}
+              options={MONTHS.map(m => ({ value: m.v, label: m.l }))}
+              placeholder="Select Month"
+              className="w-32"
+            />
+            <CustomDropdown
+              value={dwYear}
+              onChange={(val) => { setDwYear(parseInt(val)); fetchMySalaryHistory(); }}
+              options={YEARS.map(y => ({ value: y, label: y }))}
+              placeholder="Select Year"
+              className="w-24"
+            />
+            <button onClick={() => fetchMySalaryHistory()} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
+              <RefreshCw size={12} className={historyLoading ? 'animate-spin' : ''} /> Refresh
+            </button>
+          </div>
+          
+          <div className="max-h-96 overflow-y-auto">
+            {historyLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 size={24} className="animate-spin text-[#0082f3]" />
+              </div>
+            ) : salaryHistory.length === 0 ? (
+              <div className="text-center py-12 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
+                <History size={32} className="mx-auto mb-3 opacity-40 text-gray-400" />
+                <p className="text-sm text-gray-500">No salary history yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {salaryHistory.map((rec, i) => (
+                  <div key={rec.id || i} className="p-4 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center">
+                          <IndianRupee size={18} className="text-white" />
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold text-gray-900 dark:text-white">
+                            {fmtCurrency(rec.monthly_salary)}
+                          </p>
+                          {rec.per_day_salary && (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Per day: {fmtCurrency(rec.per_day_salary)}
                             </p>
-                            <p className="text-[10px] text-gray-400">
-                              {rec.status === 'half_day' ? '50%' : earned > 0 ? 'full' : 'no pay'}
-                            </p>
-                          </>
-                        ) : (
-                          <p className="text-xs text-gray-300 dark:text-gray-700">—</p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col items-end gap-1">
+                        {rec.effective_from && (
+                          <p className="text-xs text-gray-600 dark:text-gray-400">
+                            Effective {new Date(rec.effective_from).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </p>
+                        )}
+                        {rec.set_by_name && (
+                          <span className="text-xs text-gray-500 flex items-center gap-1">
+                            <Users size={10} /> Set by {rec.set_by_name}
+                          </span>
                         )}
                       </div>
                     </div>
-                  )
-                })}
-              </div>
-
-              {/* Running total footer */}
-              {perDay && attData.length > 0 && (
-                <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#141414] flex items-center justify-between">
-                  <span className="text-xs text-gray-500">
-                    {attData.filter(r => ['present','late'].includes(r.status)).length} full + {attData.filter(r => r.status === 'half_day').length} half days
-                  </span>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400">Total Earned This Period</p>
-                    <p className="text-base font-bold text-[#0082f3]">
-                      {fmtCurrency(
-                        attData.reduce((sum, r) => sum + (dayEarned(r.status) || 0), 0)
-                      )}
-                    </p>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: Incentives ────────────────────────────────────────────────────────── */}
+      {tab === 'incentives' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Incentives</h2>
+            <CustomDropdown
+              value={dwMonth}
+              onChange={(val) => { setDwMonth(val); fetchMyIncentives(); }}
+              options={MONTHS.map(m => ({ value: m.v, label: m.l }))}
+              placeholder="Select Month"
+              className="w-32"
+            />
+            <CustomDropdown
+              value={dwYear}
+              onChange={(val) => { setDwYear(parseInt(val)); fetchMyIncentives(); }}
+              options={YEARS.map(y => ({ value: y, label: y }))}
+              placeholder="Select Year"
+              className="w-24"
+            />
+            <button onClick={() => fetchMyIncentives()} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
+              <RefreshCw size={12} className={incentivesLoading ? 'animate-spin' : ''} /> Refresh
+            </button>
+          </div>
+          
+          <div className="max-h-96 overflow-y-auto">
+            {incentivesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 size={24} className="animate-spin text-[#0082f3]" />
+              </div>
+            ) : incentives.length === 0 ? (
+              <div className="text-center py-12 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
+                <Banknote size={32} className="mx-auto mb-3 opacity-40 text-gray-400" />
+                <p className="text-sm text-gray-500">No incentives for this month</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {incentives.map((inc, i) => (
+                  <div key={i} className="p-4 bg-green-50 dark:bg-green-900/10 rounded-2xl border border-green-100 dark:border-green-900/30">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-bold text-green-600 dark:text-green-400">
+                          {fmtCurrency(inc.amount)}
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                          {inc.reason}
+                        </p>
+                      </div>
+                      {inc.created_at && (
+                        <span className="text-xs text-gray-400">
+                          {new Date(inc.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

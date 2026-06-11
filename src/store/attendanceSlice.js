@@ -199,6 +199,18 @@ export const approveAttendanceStatus = createAsyncThunk(
   }
 )
 
+export const updateAttendanceStatus = createAsyncThunk(
+  'attendance/updateStatus',
+  async (payload, { rejectWithValue }) => {
+    try {
+      const response = await api.patch(`/attendance/${payload.id}/status`, { status: payload.status, reason: payload.reason })
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update status')
+    }
+  }
+)
+
 export const uploadAttendancePhoto = createAsyncThunk(
   'attendance/uploadPhoto',
   async ({ file, type }, { rejectWithValue }) => {

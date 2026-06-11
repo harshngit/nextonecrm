@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import {
   LayoutDashboard, Users, CalendarCheck, PhoneCall,
   Building2, UserCog, Bell, LogOut, ChevronLeft, ChevronRight,
-  X, Settings, Clock, Phone, IndianRupee, RotateCcw, BadgeCheck,
+  X, Settings, Clock, IndianRupee, RotateCcw, BadgeCheck,
 } from 'lucide-react'
 import { logout } from '../../store/authSlice'
 import Avatar from '../ui/Avatar'
@@ -22,7 +22,6 @@ const navItems = [
   { path: '/team',         label: 'Team',         icon: UserCog,         roles: ['super_admin', 'admin', 'sales_manager'] },
   { path: '/users',        label: 'Users',        icon: Settings,        roles: ['super_admin', 'admin'] },
   { path: '/notifications',   label: 'Notifications',    icon: Bell,   roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
-  { path: '/phone-requests',  label: 'Phone Requests',   icon: Phone,  roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
 ]
 
 const SidebarContent = ({ collapsed, logo, filteredNavItems, setMobileOpen, user, handleLogout }) => (

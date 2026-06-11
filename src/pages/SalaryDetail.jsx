@@ -4,11 +4,12 @@ import { useDispatch, useSelector } from 'react-redux'
 import {
   ArrowLeft, IndianRupee, Calendar, RefreshCw, Loader2,
   AlertCircle, CheckCircle, LogIn, LogOut, Timer, ChevronLeft,
-  ChevronRight, Banknote, TrendingUp, FileText, Users, Plus,
+  ChevronRight, Banknote, TrendingUp, FileText, Users, Plus, X, Edit2
 } from 'lucide-react'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
+import { updateAttendanceStatus } from '../store/attendanceSlice'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -82,7 +83,17 @@ export default function SalaryDetail() {
   const { user_id } = useParams()
   const navigate    = useNavigate()
   const { user } = useSelector(s => s.auth)
-  const isSuperAdmin = user?.role === 'super_admin'
+  const isAdmin = ['super_admin', 'admin'].includes(user?.role)
+
+  const deleteIncentive = async (incentiveId) => {
+    if (!confirm('Are you sure you want to delete this incentive?')) return
+    try {
+      await api.delete(`/salary/incentive/${incentiveId}`)
+      fetchIncentives()
+    } catch (err) {
+      console.error('Failed to delete incentive:', err)
+    }
+  }
 
   const [month, setMonth] = useState(thisMonth)
   const [year,  setYear]  = useState(thisYear)
@@ -96,11 +107,18 @@ export default function SalaryDetail() {
   const [salaryInfo,  setSalaryInfo]  = useState(null)  // { monthly_salary, per_day_salary, effective_from }
 
   // Attendance / day-wise data
-  const [attData,     setAttData]     = useState([])
-  const [attSalary,   setAttSalary]   = useState(null)  // { monthly_salary, per_day_salary, earned_salary, present_days }
-  const [attSummary,  setAttSummary]  = useState(null)
-  const [attLoading,  setAttLoading]  = useState(false)
-  const [attError,    setAttError]    = useState('')
+  const [attData, setAttData] = useState([])
+  const [attSalary, setAttSalary] = useState(null)  // { monthly_salary, per_day_salary, earned_salary, present_days }
+  const [attSummary, setAttSummary] = useState(null)
+  const [attLoading, setAttLoading] = useState(false)
+  const [attError, setAttError] = useState('')
+  const [attPagination, setAttPagination] = useState({ page: 1, per_page: 5, total: 0, total_pages: 1 })
+
+  // Modal for editing attendance status
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editingAttendance, setEditingAttendance] = useState(null)
+  const [editForm, setEditForm] = useState({ status: '', reason: '' })
+  const [editLoading, setEditLoading] = useState(false)
 
   // Generated slips for this user
   const [slips,       setSlips]       = useState([])
@@ -150,18 +168,24 @@ export default function SalaryDetail() {
   }, [user_id])
 
   // ── Fetch attendance + day-wise salary ────────────────────────────────────
-  const fetchAttendance = async () => {
+  const fetchAttendance = async (page = 1) => {
     setAttLoading(true)
     setAttError('')
     try {
       const from = `${year}-${String(month).padStart(2, '0')}-01`
-      const to   = new Date(year, month, 0).toISOString().split('T')[0]
-      const res  = await api.get(`/attendance/user/${user_id}`, {
-        params: { from, to, per_page: 31 },
+      const to = new Date(year, month, 0).toISOString().split('T')[0]
+      const res = await api.get(`/attendance/user/${user_id}`, {
+        params: { from, to, page, per_page: attPagination.per_page },
       })
       setAttData(res.data.data || [])
       setAttSummary(res.data.summary || null)
       setAttSalary(res.data.salary || null)
+      setAttPagination({
+        page: res.data.pagination?.page || 1,
+        per_page: res.data.pagination?.per_page || 5,
+        total: res.data.pagination?.total || 0,
+        total_pages: res.data.pagination?.total_pages || 1,
+      })
     } catch (e) {
       setAttError(e.response?.data?.message || 'Failed to load attendance')
       setAttData([])
@@ -241,8 +265,33 @@ export default function SalaryDetail() {
     }
   }
 
+  // ── Handle edit attendance status ────────────────────────────────────────
+  const handleOpenEditModal = (attendance) => {
+    setEditingAttendance(attendance)
+    setEditForm({ status: attendance.status, reason: attendance.reason || '' })
+    setEditModalOpen(true)
+  }
+
+  const handleUpdateStatus = async () => {
+    if (!editingAttendance || !editForm.status) return
+    setEditLoading(true)
+    try {
+      await api.patch(`/attendance/${editingAttendance.id}/status`, {
+        status: editForm.status,
+        reason: editForm.reason,
+      })
+      setEditModalOpen(false)
+      fetchAttendance(attPagination.page)
+    } catch (err) {
+      console.error('Failed to update status:', err)
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
   useEffect(() => {
-    fetchAttendance()
+    setAttPagination(p => ({ ...p, page: 1 }))
+    fetchAttendance(1)
     fetchSlips()
     fetchSalaryHistory()
     fetchIncentives()
@@ -429,12 +478,13 @@ export default function SalaryDetail() {
         ) : (
           <>
             {/* Column headers */}
-            <div className="grid grid-cols-[2fr_1.2fr_1fr_1fr_1fr] gap-2 px-5 py-2 bg-gray-50 dark:bg-[#141414] border-b border-gray-100 dark:border-gray-800 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+            <div className={`grid gap-2 px-5 py-2 bg-gray-50 dark:bg-[#141414] border-b border-gray-100 dark:border-gray-800 text-[10px] font-bold text-gray-400 uppercase tracking-wider ${isAdmin ? 'grid-cols-[2fr_1.2fr_1fr_1fr_1fr_auto]' : 'grid-cols-[2fr_1.2fr_1fr_1fr_1fr]'}`}>
               <span>Date</span>
               <span>Status</span>
               <span className="text-center">Check-in</span>
               <span className="text-center">Check-out</span>
               <span className="text-right">Earned</span>
+              {isAdmin && <span>Actions</span>}
             </div>
 
             {/* Rows */}
@@ -447,14 +497,14 @@ export default function SalaryDetail() {
                 return (
                   <div
                     key={rec.id || i}
-                    className={`grid grid-cols-[2fr_1.2fr_1fr_1fr_1fr] gap-2 items-center px-5 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors ${i % 2 !== 0 ? 'bg-gray-50/30 dark:bg-white/[0.01]' : ''}`}
+                    className={`grid gap-2 items-center px-5 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors ${i % 2 !== 0 ? 'bg-gray-50/30 dark:bg-white/[0.01]' : ''} ${isAdmin ? 'grid-cols-[2fr_1.2fr_1fr_1fr_1fr_auto]' : 'grid-cols-[2fr_1.2fr_1fr_1fr_1fr]'}`}
                   >
                     {/* Date */}
                     <div>
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{fmtDate(d)}</p>
                       <p className="text-[11px] text-gray-400">
                         {new Date(d).toLocaleDateString('en-IN', { weekday: 'short' })}
-                        {isSuperAdmin && rec.working_hours ? ` · ${rec.working_hours}h` : ''}
+                        {isAdmin && rec.working_hours ? ` · ${rec.working_hours}h` : ''}
                       </p>
                     </div>
 
@@ -506,10 +556,51 @@ export default function SalaryDetail() {
                         <span className="text-xs text-gray-300 dark:text-gray-700">—</span>
                       )}
                     </div>
+
+                    {/* Edit button for admins */}
+                    {isAdmin && (
+                      <div>
+                        <button
+                          onClick={() => handleOpenEditModal(rec)}
+                          className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
+                          title="Edit attendance status"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )
               })}
             </div>
+
+            {/* Pagination */}
+            {attPagination.total_pages > 1 && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#141414]">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  Showing {attData.length} of {attPagination.total} records
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => fetchAttendance(attPagination.page - 1)}
+                    disabled={attPagination.page <= 1}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 hover:text-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">
+                    Page {attPagination.page} of {attPagination.total_pages}
+                  </span>
+                  <button
+                    onClick={() => fetchAttendance(attPagination.page + 1)}
+                    disabled={attPagination.page >= attPagination.total_pages}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 hover:text-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Footer — running total */}
             <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#141414]">
@@ -566,7 +657,7 @@ export default function SalaryDetail() {
         </div>
         
         {/* Tab content */}
-        <div className="p-5">
+        <div className="p-5 max-h-96 overflow-y-auto">
           {activeTab === 'salary-history' && (
             <div>
               {historyLoading ? (
@@ -646,11 +737,22 @@ export default function SalaryDetail() {
                             {incentive.reason}
                           </p>
                         </div>
-                        {incentive.created_at && (
-                          <span className="text-xs text-gray-400">
-                            {new Date(incentive.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {incentive.created_at && (
+                            <span className="text-xs text-gray-400">
+                              {new Date(incentive.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => deleteIncentive(incentive.id)}
+                              className="p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 hover:text-red-600 transition-all"
+                              title="Delete incentive"
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -714,6 +816,64 @@ export default function SalaryDetail() {
           >
             <Plus size={14} />
             Add
+          </button>
+        </div>
+      </Modal>
+
+      {/* ── Modal: Edit Attendance Status ─────────────────────────────────────── */}
+      <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title="Edit Attendance Status" size="sm">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+            {employee && <Avatar name={employee.full_name} size="sm" />}
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{employee?.full_name}</p>
+              <p className="text-xs text-gray-500">
+                {editingAttendance && fmtDate(editingAttendance.date?.split('T')[0] || editingAttendance.date)}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Status</label>
+            <select
+              value={editForm.status}
+              onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#141414] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
+            >
+              <option value="present">Present</option>
+              <option value="late">Late</option>
+              <option value="absent">Absent</option>
+              <option value="on_leave">On Leave</option>
+              <option value="half_day">Half Day</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Reason (optional)</label>
+            <textarea
+              value={editForm.reason}
+              onChange={(e) => setEditForm({ ...editForm, reason: e.target.value })}
+              placeholder="Enter reason for status change"
+              rows={3}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#141414] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm resize-none"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={() => setEditModalOpen(false)}
+            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleUpdateStatus}
+            disabled={editLoading}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-xl transition-all disabled:opacity-50"
+          >
+            {editLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+            Save
           </button>
         </div>
       </Modal>
