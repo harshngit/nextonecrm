@@ -68,7 +68,7 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
     commission_percent:   closure?.commission_percent   || '',
     commission_paid:      closure?.commission_paid      || false,
     commission_paid_date: closure?.commission_paid_date || '',
-    closed_by_managers:   closure?.closed_by_managers?.map(m => m.id) || (closure?.closed_by_manager ? [closure.closed_by_manager.id || closure.closed_by_manager] : []),
+    closed_by_manager:    closure?.closed_by_manager    || closure?.closed_by_managers?.map(m => m.id) || [],
     closure_notes:        closure?.closure_notes        || '',
   })
   const [loading, setLoading] = useState(false)
@@ -298,8 +298,8 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
               </div>
             </div>
 
-            <CustomSelect label="Reporting Manager" value={form.closed_by_managers}
-              onChange={v => setForm(p => ({ ...p, closed_by_managers: v }))}
+            <CustomSelect label="Reporting Manager" value={form.closed_by_manager}
+              onChange={v => setForm(p => ({ ...p, closed_by_manager: v }))}
               options={managerOptions} placeholder="Select manager(s)..." multiple />
 
             <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer">
@@ -561,7 +561,7 @@ export default function Closures() {
   const fetchClosures = async () => {
     setLoading(true)
     try {
-      const params = { page, per_page: 20 }
+      const params = { page, per_page: 10 }
       if (filterStatus) params.status = filterStatus
       const res = await api.get('/closures', { params })
       setClosures(res.data.data || [])
