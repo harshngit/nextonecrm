@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Phone, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users, Mic, MicOff, Play, Pause, Trash, Clock, CalendarClock, Settings2, Check } from 'lucide-react'
 import { fetchLeads, fetchMyLeads, createLead, updateLead, deleteLead, fetchLeadSources, clearLeadError, addLeadSource, updateLeadSource, deleteLeadSource, fetchLeadStatuses } from '../store/leadSlice'
+import { useModulePermissions } from '../hooks/usePermission'
 import { fetchProjects } from '../store/projectSlice'
 import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
@@ -1549,6 +1550,7 @@ export default function Leads() {
   const toggleAll = () =>
     setSelectedLeads(selectedLeads.length === list.length && list.length > 0 ? [] : list.map(l => l.id))
 
+  const perms        = useModulePermissions('leads')
   const canEdit      = ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'].includes(currentUser?.role)
   const canDelete    = ['super_admin', 'admin'].includes(currentUser?.role)
   const canReassign     = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
@@ -1645,13 +1647,15 @@ export default function Leads() {
           {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button> */}
-          <Button icon={Plus} onClick={() => {
-            const r = ['sales_executive','external_caller'].includes(currentUser?.role)
-            setAddForm({ ...defaultForm, assigned_to: r ? currentUser?.id : '' })
-            dispatch(clearLeadError()); setShowAddModal(true)
-          }}>
-            Add Lead
-          </Button>
+          {perms.create && (
+            <Button icon={Plus} onClick={() => {
+              const r = ['sales_executive','external_caller'].includes(currentUser?.role)
+              setAddForm({ ...defaultForm, assigned_to: r ? currentUser?.id : '' })
+              dispatch(clearLeadError()); setShowAddModal(true)
+            }}>
+              Add Lead
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1815,7 +1819,7 @@ export default function Leads() {
                             <ArrowRightCircle size={14} />
                           </button>
                         )}
-                        {canEdit && (
+                        {perms.edit && (
                           <button onClick={() => openEdit(lead)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-[#0082f3] hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit">
                             <Edit2 size={14} />
@@ -1827,7 +1831,7 @@ export default function Leads() {
                             <UserCheck size={14} />
                           </button>
                         )}
-                        {canDelete && (
+                        {perms.delete && (
                           <button onClick={() => handleDeleteLead(lead)}
                             className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Delete">
                             <Trash2 size={14} />

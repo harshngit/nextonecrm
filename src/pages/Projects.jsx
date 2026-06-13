@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { useModulePermissions } from '../hooks/usePermission'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { Plus, MapPin, Building2, IndianRupee, Users, Edit2, Trash2, RefreshCw, Search, ChevronDown, Download, Upload, FileImage, FileText, X, CheckCircle2, Loader2, Eye, Paperclip, Share2, Mail, SendHorizonal, AlertCircle } from 'lucide-react'
@@ -624,6 +625,7 @@ export default function Projects() {
 
   const canManage = ['super_admin', 'admin'].includes(currentUser?.role)
   const isViewOnly = !canManage  // sales roles have view-only access
+  const perms = useModulePermissions('projects')
 
   const handleAdd = async (e) => {
     e.preventDefault()
@@ -901,7 +903,7 @@ export default function Projects() {
               Export
             </Button>
           )} */}
-          {canManage && (
+          {perms.create && (
             <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearProjectError()); setShowAddModal(true) }}>
               Add Project
             </Button>
@@ -943,7 +945,7 @@ export default function Projects() {
                       {project.status}
                     </span>
                   </div>
-                  {canManage && (
+                  {perms.edit && (
                     <div className="absolute top-3 left-3 flex gap-1">
                       <button onClick={() => openEdit(project)}
                         className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-blue-600 transition-colors" title="Edit">

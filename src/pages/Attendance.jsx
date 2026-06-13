@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useModulePermissions } from '../hooks/usePermission'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   Clock, Calendar, ChevronLeft, ChevronRight, Download,
@@ -152,6 +153,7 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin }) {
   const videoRef  = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
+  const perms = useModulePermissions('attendance')
 
   const isCheckedIn  = todayData?.is_checked_in
   const isCheckedOut = todayData?.is_checked_out
@@ -289,7 +291,7 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin }) {
           )}
 
           {/* Action button */}
-          {!isCheckedIn ? (
+          {perms.create && (!isCheckedIn ? (
             <button onClick={() => openCamera('checkin')} disabled={loading.checkin}
               className="w-full py-3 bg-gradient-to-r from-[#0082f3] to-blue-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.98] transition-all disabled:opacity-60">
               {loading.checkin ? <Loader2 size={17} className="animate-spin" /> : <LogIn size={17} />}
@@ -305,7 +307,7 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin }) {
             <div className="w-full py-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 font-semibold rounded-xl flex items-center justify-center gap-2">
               <CheckCircle2 size={17} /> Attendance Complete
             </div>
-          )}
+          ))}
         </div>
       </div>
 

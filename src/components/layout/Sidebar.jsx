@@ -3,25 +3,26 @@ import { useDispatch, useSelector } from 'react-redux'
 import {
   LayoutDashboard, Users, CalendarCheck, PhoneCall,
   Building2, UserCog, Bell, LogOut, ChevronLeft, ChevronRight,
-  X, Settings, Clock, IndianRupee, RotateCcw, BadgeCheck,
+  X, Settings, Clock, IndianRupee, RotateCcw, BadgeCheck, ShieldCheck,
 } from 'lucide-react'
 import { logout } from '../../store/authSlice'
+import { selectPermissions } from '../../store/permissionsSlice'
 import Avatar from '../ui/Avatar'
 import logo from '../../asset/image.png'
 
 const navItems = [
-  { path: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard, roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
-  { path: '/projects',     label: 'Projects',     icon: Building2,       roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
-  { path: '/leads',        label: 'Leads',        icon: Users,           roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
-  { path: '/follow-ups',   label: 'Follow-Ups',   icon: PhoneCall,       roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
-  { path: '/site-visits',  label: 'Site Visits',  icon: CalendarCheck,   roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
-  { path: '/revisits',    label: 'Re-visits',    icon: RotateCcw,       roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
-  { path: '/closures',    label: 'Closures',     icon: BadgeCheck,      roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
-  { path: '/attendance',   label: 'Attendance',   icon: Clock,           roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
-  { path: '/salary',       label: 'Salary',       icon: IndianRupee,     roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
-  { path: '/team',         label: 'Team',         icon: UserCog,         roles: ['super_admin', 'admin', 'sales_manager'] },
-  { path: '/users',        label: 'Users',        icon: Settings,        roles: ['super_admin', 'admin'] },
-  { path: '/notifications',   label: 'Notifications',    icon: Bell,   roles: ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'] },
+  { path: '/dashboard',     label: 'Dashboard',     icon: LayoutDashboard, module: 'dashboard'     },
+  { path: '/projects',      label: 'Projects',      icon: Building2,       module: 'projects'      },
+  { path: '/leads',         label: 'Leads',         icon: Users,           module: 'leads'         },
+  { path: '/follow-ups',    label: 'Follow-Ups',    icon: PhoneCall,       module: 'follow_ups'    },
+  { path: '/site-visits',   label: 'Site Visits',   icon: CalendarCheck,   module: 'site_visits'   },
+  { path: '/revisits',      label: 'Re-visits',     icon: RotateCcw,       module: 'revisits'      },
+  { path: '/closures',      label: 'Closures',      icon: BadgeCheck,      module: 'closures'      },
+  { path: '/attendance',    label: 'Attendance',    icon: Clock,           module: 'attendance'    },
+  { path: '/salary',        label: 'Salary',        icon: IndianRupee,     module: 'salary'        },
+  { path: '/team',          label: 'Team',          icon: UserCog,         module: 'team'          },
+  { path: '/users',         label: 'Users',         icon: Settings,        module: 'users'         },
+  { path: '/notifications', label: 'Notifications', icon: Bell,            module: 'notifications' },
 ]
 
 const SidebarContent = ({ collapsed, logo, filteredNavItems, setMobileOpen, user, handleLogout }) => (
@@ -100,6 +101,7 @@ const SidebarContent = ({ collapsed, logo, filteredNavItems, setMobileOpen, user
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { user } = useSelector((state) => state.auth)
+  const permissions = useSelector(selectPermissions)
   const dispatch = useDispatch()
   const navigate = useNavigate()
 
@@ -108,7 +110,12 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
     navigate('/login')
   }
 
-  const filteredNavItems = navItems.filter(item => item.roles.includes(user?.role))
+  const isAdminRole = user?.role === 'super_admin' || user?.role === 'admin'
+
+  const filteredNavItems = [
+    ...navItems.filter(item => permissions[item.module]?.view === true),
+    ...(isAdminRole ? [{ path: '/access-control', label: 'Access Control', icon: ShieldCheck }] : []),
+  ]
 
   return (
     <>

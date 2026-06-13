@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
+import { useModulePermissions } from '../hooks/usePermission'
 import {
   Plus, RefreshCw, Edit2, X, CheckCircle2, TrendingUp,
   Loader2, AlertCircle, IndianRupee, Building2, Calendar,
@@ -407,10 +408,10 @@ function StatusChangeModal({ closure, onClose, onSuccess }) {
 function ClosureDrawer({ closure, onClose }) {
   if (!closure) return null
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white dark:bg-[#1a1a1a] w-full max-w-md h-full overflow-y-auto border-l border-gray-200 dark:border-gray-800 shadow-2xl"
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-sm m-0 p-0" onClick={onClose}  style={{ margin: '0px' }}>
+      <div className="bg-white dark:bg-[#1a1a1a] w-full max-w-md h-full overflow-y-auto border-l border-gray-200 dark:border-gray-800 shadow-2xl m-0"
            onClick={e => e.stopPropagation()}>
-        <div className="sticky top-0 bg-white dark:bg-[#1a1a1a] border-b border-gray-100 dark:border-gray-800 px-6 py-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-white dark:bg-[#1a1a1a] border-b border-gray-100 dark:border-gray-800 px-6 py-4 flex items-center justify-between z-10 mt-0">
           <div className="flex items-center gap-2">
             <BadgeCheck size={18} className="text-brand" />
             <h2 className="font-bold text-gray-900 dark:text-white">Closure Details</h2>
@@ -557,6 +558,7 @@ export default function Closures() {
 
   const canManage = ['super_admin','admin','sales_manager'].includes(user?.role)
   const isAdmin   = ['super_admin','admin'].includes(user?.role)
+  const perms = useModulePermissions('closures')
 
   const fetchClosures = async () => {
     setLoading(true)
@@ -613,7 +615,9 @@ export default function Closures() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Booking records when leads are converted</p>
         </div>
-        <Button icon={Plus} onClick={() => setShowCreate(true)}>Book Lead</Button>
+        {perms.create && (
+          <Button icon={Plus} onClick={() => setShowCreate(true)}>Book Lead</Button>
+        )}
       </div>
 
       {/* Summary cards (admin/manager only) */}
@@ -770,7 +774,7 @@ export default function Closures() {
                           className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">
                           <ChevronRight size={13} />
                         </button>
-                        {canManage && (
+                        {perms.edit && (
                           <>
                             <button onClick={() => { setSelected(c); setShowEdit(true) }} title="Edit"
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">

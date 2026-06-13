@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
+import { useModulePermissions } from '../hooks/usePermission'
 import {
   Plus, RefreshCw, Eye, Edit2, X, CheckCircle2, Clock, CalendarDays,
   Loader2, AlertCircle, ChevronDown, RotateCcw, Star, MessageSquare,
@@ -372,6 +373,7 @@ export default function Revisits() {
   const [selected,      setSelected]      = useState(null)
 
   const canManage = ['super_admin','admin','sales_manager'].includes(user?.role)
+  const perms = useModulePermissions('revisits')
 
   const fetchRevisits = async () => {
     setLoading(true)
@@ -434,7 +436,7 @@ export default function Revisits() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Follow-up visits linked to original site visits</p>
         </div>
-        {canManage && (
+        {perms.create && (
           <Button icon={Plus} onClick={() => setShowSchedule(true)}>Schedule Re-visit</Button>
         )}
       </div>
@@ -604,7 +606,7 @@ export default function Revisits() {
                           className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">
                           <Eye size={13} />
                         </button>
-                        {canManage && (
+                        {perms.edit && (
                           <>
                             <button onClick={() => { setSelected(rv); setShowEdit(true) }} title="Edit"
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
@@ -624,7 +626,7 @@ export default function Revisits() {
                             <MessageSquare size={13} />
                           </button>
                         )}
-                        {canManage && (
+                        {perms.delete && (
                           <button onClick={() => { setSelected(rv); setShowDelete(true) }} title="Delete"
                             className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                             <Trash2 size={13} />

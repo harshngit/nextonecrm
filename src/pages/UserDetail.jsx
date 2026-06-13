@@ -6,7 +6,7 @@ import {
   TrendingUp, Users, CalendarCheck, PhoneCall,
   CheckCircle2, XCircle, Target, AlertCircle,
   BarChart2, RefreshCw, UserCheck, ShieldCheck,
-  ExternalLink, BookOpen,
+  ExternalLink, BookOpen, Check, X,
 } from 'lucide-react'
 import { fetchUserById, clearCurrentUser } from '../store/userSlice'
 import Badge from '../components/ui/Badge'
@@ -29,6 +29,41 @@ const roleGradients = {
   external_caller:'from-sky-500/20 via-blue-500/10 to-indigo-500/10',
   admin:          'from-blue-500/20 via-indigo-500/10 to-purple-500/10',
   super_admin:    'from-purple-500/20 via-pink-500/10 to-rose-500/10',
+}
+
+// ── permission-override constants ─────────────────────────────────────────────
+const OVERRIDE_MODULES = [
+  { key: 'dashboard',      label: 'Dashboard'         },
+  { key: 'leads',          label: 'Lead Management'   },
+  { key: 'projects',       label: 'Project Management'},
+  { key: 'site_visits',    label: 'Site Visits'       },
+  { key: 'revisits',       label: 'Re-visits'         },
+  { key: 'closures',       label: 'Closures'          },
+  { key: 'follow_ups',     label: 'Follow-Ups'        },
+  { key: 'attendance',     label: 'Attendance'        },
+  { key: 'salary',         label: 'Salary'            },
+  { key: 'team',           label: 'Team'              },
+  { key: 'users',          label: 'User Management'   },
+  { key: 'phone_requests', label: 'Phone Requests'    },
+  { key: 'notifications',  label: 'Notifications'     },
+]
+const OVERRIDE_PERM_KEYS = ['view', 'create', 'edit', 'delete', 'approve', 'export']
+
+function buildBlankOverrideState() {
+  const s = {}
+  for (const mod of OVERRIDE_MODULES) {
+    s[mod.key] = {}
+    for (const pk of OVERRIDE_PERM_KEYS) s[mod.key][pk] = 'DEFAULT'
+  }
+  return s
+}
+
+function overridesFromApi(apiOverrides) {
+  const s = buildBlankOverrideState()
+  for (const ov of apiOverrides) {
+    if (s[ov.module]) s[ov.module][ov.permission_key] = ov.value === true ? 'GRANT' : 'DENY'
+  }
+  return s
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -185,6 +220,7 @@ export default function UserDetail() {
   const navigate = useNavigate()
   const dispatch = useDispatch()
   const { currentUser: user, detailLoading } = useSelector(s => s.users)
+  const { user: authUser } = useSelector(s => s.auth)
 
   const today         = new Date()
   const firstOfMonth  = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
@@ -197,8 +233,19 @@ export default function UserDetail() {
   const [to,       setTo]       = useState(todayStr)
   const [histTab,  setHistTab]  = useState('leads')
 
+  // ── permission overrides state ───────────────────────────────────────────
+  const [overrideState,    setOverrideState]    = useState(buildBlankOverrideState)
+  const [originalOverride, setOriginalOverride] = useState(buildBlankOverrideState)
+  const [overridesLoading, setOverridesLoading] = useState(false)
+  const [overridesError,   setOverridesError]   = useState('')
+  const [savingOverrides,  setSavingOverrides]  = useState(false)
+  const [saveOverrideErr,  setSaveOverrideErr]  = useState('')
+  const [saveOverrideOk,   setSaveOverrideOk]   = useState(false)
+
   useEffect(() => {
     dispatch(fetchUserById(id))
+    const isAdmin = authUser?.role === 'super_admin' || authUser?.role === 'admin'
+    if (isAdmin) fetchOverrides()
     return () => dispatch(clearCurrentUser())
   }, [dispatch, id])
 
@@ -209,6 +256,53 @@ export default function UserDetail() {
       setPerf(res.data.data)
     } catch (e) { setPerfErr(e.response?.data?.message || 'Failed to load performance data') }
     finally { setPerfLoad(false) }
+  }
+
+  const fetchOverrides = async () => {
+    setOverridesLoading(true); setOverridesError('')
+    try {
+      const res = await api.get(`/users/${id}/permission-overrides`)
+      const parsed = overridesFromApi(res.data.data.overrides || [])
+      setOverrideState(parsed)
+      setOriginalOverride(parsed)
+    } catch {
+      setOverridesError('Failed to load permission exceptions.')
+    } finally {
+      setOverridesLoading(false)
+    }
+  }
+
+  const handleSaveOverrides = async () => {
+    setSavingOverrides(true); setSaveOverrideErr(''); setSaveOverrideOk(false)
+    const overrides = []
+    for (const mod of OVERRIDE_MODULES) {
+      for (const pk of OVERRIDE_PERM_KEYS) {
+        const cur = overrideState[mod.key][pk]
+        const orig = originalOverride[mod.key][pk]
+        if (cur === 'GRANT')  overrides.push({ module: mod.key, permission_key: pk, value: true  })
+        else if (cur === 'DENY') overrides.push({ module: mod.key, permission_key: pk, value: false })
+        else if (cur === 'DEFAULT' && orig !== 'DEFAULT')
+          overrides.push({ module: mod.key, permission_key: pk, value: null })
+      }
+    }
+    try {
+      await api.put(`/users/${id}/permission-overrides`, { overrides })
+      setOriginalOverride(overrideState)
+      setSaveOverrideOk(true)
+      setTimeout(() => setSaveOverrideOk(false), 3000)
+    } catch (e) {
+      setSaveOverrideErr(e.response?.data?.message || 'Failed to save exceptions.')
+    } finally {
+      setSavingOverrides(false)
+    }
+  }
+
+  const cycleOverride = (moduleKey, permKey) => {
+    setOverrideState(prev => {
+      const cur  = prev[moduleKey][permKey]
+      const next = cur === 'DEFAULT' ? 'GRANT' : cur === 'GRANT' ? 'DENY' : 'DEFAULT'
+      return { ...prev, [moduleKey]: { ...prev[moduleKey], [permKey]: next } }
+    })
   }
 
   useEffect(() => { if (id) fetchPerf() }, [id, from, to])
@@ -231,10 +325,12 @@ export default function UserDetail() {
     </div>
   )
 
-  const total    = perf?.total_leads   ?? 0
-  const convRate = perf?.conversion_rate ?? 0
-  const showPerf = user && ['sales_executive', 'external_caller', 'sales_manager'].includes(user.role)
-  const gradient = roleGradients[user?.role] || 'from-brand/20 via-blue-500/10 to-purple-500/10'
+  const total          = perf?.total_leads   ?? 0
+  const convRate       = perf?.conversion_rate ?? 0
+  const showPerf       = user && ['sales_executive', 'external_caller', 'sales_manager'].includes(user.role)
+  const gradient       = roleGradients[user?.role] || 'from-brand/20 via-blue-500/10 to-purple-500/10'
+  const showExceptions = user && user.role !== 'super_admin' &&
+    (authUser?.role === 'super_admin' || authUser?.role === 'admin')
 
   const histTabs = [
     { key: 'leads',      label: 'Leads',       icon: Users },
@@ -264,6 +360,7 @@ export default function UserDetail() {
       </div>
 
       {user && (
+        <>
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
           {/* ════════════════════════════════════════════════════════════════
@@ -560,6 +657,100 @@ export default function UserDetail() {
 
           </div>
         </div>
+
+        {/* ── Permission Exceptions ──────────────────────────────────────────── */}
+        {showExceptions && (
+          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-8 shadow-sm">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center flex-shrink-0">
+                <ShieldCheck size={18} className="text-purple-500" />
+              </div>
+              <div>
+                <h3 className="font-display text-lg font-bold text-gray-900 dark:text-white">Permission Exceptions</h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Override this user's role permissions for specific actions. Leave as DEFAULT to follow the role setting.
+                </p>
+              </div>
+            </div>
+
+            {overridesLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 size={24} className="animate-spin text-brand" />
+              </div>
+            ) : overridesError ? (
+              <div className="flex items-center gap-2 text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-4 py-3 rounded-xl border border-red-200 dark:border-red-900 mt-6">
+                <AlertCircle size={16} />{overridesError}
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto mt-6">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 dark:bg-[#0f0f0f] border-b border-gray-200 dark:border-gray-800">
+                        <th className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-52">Module</th>
+                        {OVERRIDE_PERM_KEYS.map(pk => (
+                          <th key={pk} className="py-3 px-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider">{pk}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {OVERRIDE_MODULES.map((mod, idx) => (
+                        <tr key={mod.key} className={idx % 2 === 0 ? 'bg-white dark:bg-transparent' : 'bg-gray-50/60 dark:bg-[#0f0f0f]/40'}>
+                          <td className="py-3 px-4 font-semibold text-gray-800 dark:text-gray-200 whitespace-nowrap">{mod.label}</td>
+                          {OVERRIDE_PERM_KEYS.map(pk => {
+                            const val = overrideState[mod.key][pk]
+                            return (
+                              <td key={pk} className="py-2.5 px-3 text-center">
+                                <button
+                                  onClick={() => cycleOverride(mod.key, pk)}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all
+                                    ${val === 'GRANT'
+                                      ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/50'
+                                      : val === 'DENY'
+                                      ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
+                                      : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                    }`}
+                                >
+                                  {val === 'GRANT' && <Check size={9} />}
+                                  {val === 'DENY'  && <X    size={9} />}
+                                  {val}
+                                </button>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex items-center justify-between mt-6 pt-5 border-t border-gray-100 dark:border-gray-800">
+                  <div>
+                    {saveOverrideErr && (
+                      <p className="text-xs text-red-500 flex items-center gap-1">
+                        <AlertCircle size={12} />{saveOverrideErr}
+                      </p>
+                    )}
+                    {saveOverrideOk && (
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 size={12} />Exceptions saved successfully
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleSaveOverrides}
+                    disabled={savingOverrides}
+                    className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-[#0082f3] rounded-xl hover:bg-[#0070d4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {savingOverrides && <Loader2 size={14} className="animate-spin" />}
+                    Save Exceptions
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        </>
       )}
     </div>
   )

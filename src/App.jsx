@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { authMe } from './store/authSlice'
+import { fetchMyPermissions, selectPermissionsLoaded } from './store/permissionsSlice'
 import { usePushNotifications } from './hooks/usePushNotifications'  // ← NEW
 import Layout from './components/layout/Layout'
 import PageLoader from './components/loaders/PageLoader'
+import PermissionProtectedRoute from './components/auth/PermissionProtectedRoute'
 
 import Login          from './pages/Login'
 import Dashboard      from './pages/Dashboard'
@@ -28,6 +30,7 @@ import Revisits       from './pages/Revisits'
 import RevisitDetail  from './pages/RevisitDetail'
 import Closures       from './pages/Closures'
 import ClosureDetail  from './pages/ClosureDetail'
+import AccessControl  from './pages/AccessControl'
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useSelector((state) => state.auth)
@@ -36,16 +39,9 @@ function ProtectedRoute({ children }) {
   return children
 }
 
-function RoleProtectedRoute({ children, allowedRoles }) {
-  const { user, isAuthenticated, loading } = useSelector((state) => state.auth)
-  if (loading) return <PageLoader />
-  if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (!allowedRoles.includes(user?.role)) return <Navigate to="/dashboard" replace />
-  return children
-}
-
 function AppRoutes() {
   const { isAuthenticated, loading: authLoading } = useSelector((state) => state.auth)
+  const permissionsLoaded = useSelector(selectPermissionsLoaded)
   const dispatch    = useDispatch()
   const location    = useLocation()
   const [pageLoading, setPageLoading] = useState(true)
@@ -54,6 +50,11 @@ function AppRoutes() {
   useEffect(() => {
     if (isAuthenticated) dispatch(authMe())
   }, [dispatch, isAuthenticated])
+
+  // ── Fetch permissions once after auth is confirmed ──────────────────────────
+  useEffect(() => {
+    if (isAuthenticated && !permissionsLoaded) dispatch(fetchMyPermissions())
+  }, [dispatch, isAuthenticated, permissionsLoaded])
 
   // ── Page transition loader ──────────────────────────────────────────────────
   useEffect(() => {
@@ -65,9 +66,8 @@ function AppRoutes() {
   // ── FCM Web Push — registers device after login, removes token on logout ────
   usePushNotifications()  // ← NEW — this is the only line added here
 
-  const ALL_ROLES   = ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller']
-  const ADMIN_ROLES = ['super_admin', 'admin']
-  const SALES_ROLES = ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller']
+  // Block render until auth is settled and (if authenticated) permissions are loaded
+  if (authLoading || (isAuthenticated && !permissionsLoaded)) return <PageLoader />
 
   return (
     <div className="relative min-h-screen">
@@ -77,31 +77,30 @@ function AppRoutes() {
         <Route path="/"      element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
 
         {/* All Auth Users */}
-        <Route path="/dashboard"    element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
-        <Route path="/notifications"element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
+        <Route path="/dashboard"     element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
 
-        {/* Sales & Admin Roles */}
-        <Route path="/leads"        element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Leads /></Layout></RoleProtectedRoute>} />
-        <Route path="/leads/:id"    element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><LeadDetail /></Layout></RoleProtectedRoute>} />
-        <Route path="/site-visits"  element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><SiteVisits /></Layout></RoleProtectedRoute>} />
-        <Route path="/site-visits/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><SiteVisitDetail /></Layout></RoleProtectedRoute>} />
-        <Route path="/revisits"     element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Revisits /></Layout></RoleProtectedRoute>} />
-        <Route path="/revisits/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><RevisitDetail /></Layout></RoleProtectedRoute>} />
-        <Route path="/closures"     element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Closures /></Layout></RoleProtectedRoute>} />
-        <Route path="/closures/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><ClosureDetail /></Layout></RoleProtectedRoute>} />
-        <Route path="/follow-ups"   element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><FollowUps /></Layout></RoleProtectedRoute>} />
-        <Route path="/follow-ups/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><FollowUpDetail /></Layout></RoleProtectedRoute>} />
-        <Route path="/attendance"   element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Attendance /></Layout></RoleProtectedRoute>} />
-        <Route path="/salary"          element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Salary /></Layout></RoleProtectedRoute>} />
-        <Route path="/salary/:user_id" element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><SalaryDetail /></Layout></RoleProtectedRoute>} />
-
-        {/* Admin Only */}
-        <Route path="/projects"     element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><Projects /></Layout></RoleProtectedRoute>} />
-        <Route path="/projects/:id" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><ProjectDetail /></Layout></RoleProtectedRoute>} />
-        <Route path="/team"         element={<RoleProtectedRoute allowedRoles={['super_admin','admin','sales_manager']}><Layout><Team /></Layout></RoleProtectedRoute>} />
-        <Route path="/team/:id"     element={<RoleProtectedRoute allowedRoles={['super_admin','admin','sales_manager']}><Layout><UserDetail /></Layout></RoleProtectedRoute>} />
-        <Route path="/users"        element={<RoleProtectedRoute allowedRoles={ADMIN_ROLES}><Layout><UserManagement /></Layout></RoleProtectedRoute>} />
-        <Route path="/phone-requests" element={<RoleProtectedRoute allowedRoles={SALES_ROLES}><Layout><PhoneRequests /></Layout></RoleProtectedRoute>} />
+        {/* Permission-gated routes */}
+        <Route path="/leads"              element={<PermissionProtectedRoute module="leads"><Layout><Leads /></Layout></PermissionProtectedRoute>} />
+        <Route path="/leads/:id"          element={<PermissionProtectedRoute module="leads"><Layout><LeadDetail /></Layout></PermissionProtectedRoute>} />
+        <Route path="/projects"           element={<PermissionProtectedRoute module="projects"><Layout><Projects /></Layout></PermissionProtectedRoute>} />
+        <Route path="/projects/:id"       element={<PermissionProtectedRoute module="projects"><Layout><ProjectDetail /></Layout></PermissionProtectedRoute>} />
+        <Route path="/site-visits"        element={<PermissionProtectedRoute module="site_visits"><Layout><SiteVisits /></Layout></PermissionProtectedRoute>} />
+        <Route path="/site-visits/:id"    element={<PermissionProtectedRoute module="site_visits"><Layout><SiteVisitDetail /></Layout></PermissionProtectedRoute>} />
+        <Route path="/revisits"           element={<PermissionProtectedRoute module="revisits"><Layout><Revisits /></Layout></PermissionProtectedRoute>} />
+        <Route path="/revisits/:id"       element={<PermissionProtectedRoute module="revisits"><Layout><RevisitDetail /></Layout></PermissionProtectedRoute>} />
+        <Route path="/closures"           element={<PermissionProtectedRoute module="closures"><Layout><Closures /></Layout></PermissionProtectedRoute>} />
+        <Route path="/closures/:id"       element={<PermissionProtectedRoute module="closures"><Layout><ClosureDetail /></Layout></PermissionProtectedRoute>} />
+        <Route path="/follow-ups"         element={<PermissionProtectedRoute module="follow_ups"><Layout><FollowUps /></Layout></PermissionProtectedRoute>} />
+        <Route path="/follow-ups/:id"     element={<PermissionProtectedRoute module="follow_ups"><Layout><FollowUpDetail /></Layout></PermissionProtectedRoute>} />
+        <Route path="/attendance"         element={<PermissionProtectedRoute module="attendance"><Layout><Attendance /></Layout></PermissionProtectedRoute>} />
+        <Route path="/salary"             element={<PermissionProtectedRoute module="salary"><Layout><Salary /></Layout></PermissionProtectedRoute>} />
+        <Route path="/salary/:user_id"    element={<PermissionProtectedRoute module="salary" action="approve"><Layout><SalaryDetail /></Layout></PermissionProtectedRoute>} />
+        <Route path="/team"               element={<PermissionProtectedRoute module="team"><Layout><Team /></Layout></PermissionProtectedRoute>} />
+        <Route path="/team/:id"           element={<PermissionProtectedRoute module="team"><Layout><UserDetail /></Layout></PermissionProtectedRoute>} />
+        <Route path="/users"              element={<PermissionProtectedRoute module="users"><Layout><UserManagement /></Layout></PermissionProtectedRoute>} />
+        <Route path="/phone-requests"     element={<PermissionProtectedRoute module="phone_requests"><Layout><PhoneRequests /></Layout></PermissionProtectedRoute>} />
+        <Route path="/access-control"     element={<PermissionProtectedRoute module="users"><Layout><AccessControl /></Layout></PermissionProtectedRoute>} />
 
         <Route path="*" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
       </Routes>

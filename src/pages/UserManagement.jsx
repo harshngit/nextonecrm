@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { useModulePermissions } from '../hooks/usePermission'
 import { Edit2, Trash2, Shield, UserPlus, Mail, Phone, Lock, RefreshCw, Eye, EyeOff, Download, UserCheck } from 'lucide-react'
 import { fetchUsers, createUser, updateUser, deleteUser, updateUserRole, assignManager, clearUserError, fetchRoles } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
@@ -171,6 +172,7 @@ export default function UserManagement() {
   const isSalesManager = currentUser?.role === 'sales_manager'
   const canManage      = ['super_admin', 'admin'].includes(currentUser?.role)
   const isAdminUser    = ['admin', 'super_admin'].includes(currentUser?.role)
+  const perms = useModulePermissions('users')
   // sales_manager can assign but cannot create/edit/delete
   const canAssign      = canManage || isSalesManager
 
@@ -395,14 +397,14 @@ export default function UserManagement() {
               </button>
             )}
             {/* Edit — admin/super_admin only */}
-            {canManage && (
+            {perms.edit && (
               <button onClick={() => handleOpenModal(user)}
                 className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
                 <Edit2 size={13} />
               </button>
             )}
             {/* Deactivate — admin/super_admin only */}
-            {canManage && user.id !== currentUser?.id && user.role !== 'super_admin' && user.is_active && (
+            {perms.delete && user.id !== currentUser?.id && user.role !== 'super_admin' && user.is_active && (
               <button onClick={() => confirmDelete(user)}
                 className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                 <Trash2 size={13} />
@@ -472,7 +474,7 @@ export default function UserManagement() {
             </Button>
           )} */}
           {/* New User button — admin/super_admin only, NOT sales_manager */}
-          {canManage && (
+          {perms.create && (
             <Button icon={UserPlus} onClick={() => handleOpenModal()}>New User</Button>
           )}
         </div>

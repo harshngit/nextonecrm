@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
+import { useModulePermissions } from '../hooks/usePermission'
 import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw, StarIcon } from 'lucide-react'
 import {
   fetchSiteVisits, createSiteVisit, updateSiteVisit,
@@ -542,6 +543,7 @@ export default function SiteVisits() {
     ['sales_executive', 'sales_manager'].includes(u.role) && u.is_active
   )
   const canManage = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
+  const perms = useModulePermissions('site_visits')
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -691,7 +693,7 @@ export default function SiteVisits() {
           {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button> */}
-          {canManage && (
+          {perms.create && (
             <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearSiteVisitError()); setShowAddModal(true) }}>
               Schedule Visit
             </Button>
@@ -915,7 +917,7 @@ export default function SiteVisits() {
                               <RotateCcw size={13} />
                             </button>
                           )}
-                          {canManage && visit.status === 'scheduled' && (
+                          {perms.edit && visit.status === 'scheduled' && (
                             <>
                               <button onClick={() => openEdit(visit)} title="Edit"
                                 className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">

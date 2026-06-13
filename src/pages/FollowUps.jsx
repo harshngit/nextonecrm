@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
+import { useModulePermissions } from '../hooks/usePermission'
 import {
   CheckCircle, Clock, AlertCircle, Phone, Plus,
   Edit2, Trash2, Download, RefreshCw, ChevronDown, Filter, Eye, X,
@@ -708,6 +709,7 @@ export default function FollowUps() {
     ['sales_executive', 'sales_manager'].includes(u.role) && u.is_active
   )
   const canManage = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
+  const perms = useModulePermissions('follow_ups')
 
   const toggleAll = () => {
     setSelectedTasks(prev => prev.length === list.length ? [] : list.map(t => t.id))
@@ -927,7 +929,7 @@ export default function FollowUps() {
               onEdit={openEdit}
               onDelete={confirmDelete}
               onConvert={selectable ? (t) => { setConvertTask(t); setShowConvertModal(true) } : undefined}
-              canManage={canManage}
+              canManage={perms.edit}
               isSelected={selectedTasks.includes(task.id)}
               onSelect={selectable ? toggleTask : undefined}
               editLoading={editLoading}
@@ -1016,9 +1018,11 @@ export default function FollowUps() {
           {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button> */}
-          <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearFollowUpError()); setShowAddModal(true) }}>
-            Add Follow-up
-          </Button>
+          {perms.create && (
+            <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearFollowUpError()); setShowAddModal(true) }}>
+              Add Follow-up
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1180,7 +1184,7 @@ export default function FollowUps() {
                               <ArrowRightCircle size={13} />
                             </button>
                           )}
-                          {canManage && (
+                          {perms.edit && (
                             <>
                               <button onClick={() => openEdit(task)}
                                 disabled={editLoading === task.id}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
+import { useModulePermissions } from '../hooks/usePermission'
 import {
   IndianRupee, TrendingUp, Calendar, Users, ChevronDown,
   Plus, RefreshCw, FileText, CheckCircle, AlertCircle,
@@ -160,6 +161,7 @@ function AdminSalaryView({ user }) {
   const dispatch  = useDispatch()
   const navigate  = useNavigate()
   const { employees, slips, history, loading, error, actionSuccess, lastGenerated } = useSelector(s => s.salary)
+  const perms = useModulePermissions('salary')
 
   const [tab, setTab]                   = useState('employees')
   const [filterMonth, setFilterMonth]   = useState(thisMonth)
@@ -375,13 +377,15 @@ function AdminSalaryView({ user }) {
             <RefreshCw size={13} className={loading.employees || loading.slips ? 'animate-spin' : ''} />
             Refresh
           </button>
-          <button
-            onClick={() => setGenAllModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all shadow-sm"
-          >
-            <FileText size={13} />
-            Generate All Slips
-          </button>
+          {perms.create && (
+            <button
+              onClick={() => setGenAllModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all shadow-sm"
+            >
+              <FileText size={13} />
+              Generate All Slips
+            </button>
+          )}
         </div>
       </div>
 
@@ -477,7 +481,7 @@ function AdminSalaryView({ user }) {
                             <Eye size={14} />
                           </button>
                           {/* Show Set Salary button if salary not set, otherwise Appraisal button */}
-                          {!emp.salary_set ? (
+                          {perms.edit && (!emp.salary_set ? (
                             <button
                               onClick={() => openSetSalary(emp)}
                               title="Set Salary"
@@ -493,15 +497,17 @@ function AdminSalaryView({ user }) {
                             >
                               <TrendingUp size={14} />
                             </button>
+                          ))}
+                          {perms.create && (
+                            <button
+                              onClick={() => openGenerate(emp)}
+                              title="Generate Slip"
+                              disabled={!emp.salary_set}
+                              className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 transition-colors disabled:opacity-30"
+                            >
+                              <FileText size={14} />
+                            </button>
                           )}
-                          <button
-                            onClick={() => openGenerate(emp)}
-                            title="Generate Slip"
-                            disabled={!emp.salary_set}
-                            className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 transition-colors disabled:opacity-30"
-                          >
-                            <FileText size={14} />
-                          </button>
                           <button
                             onClick={() => openHistory(emp)}
                             title="Salary History"
@@ -509,13 +515,15 @@ function AdminSalaryView({ user }) {
                           >
                             <History size={14} />
                           </button>
-                          <button
-                            onClick={() => openIncentive(emp)}
-                            title="Add Incentive"
-                            className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 transition-colors"
-                          >
-                            <Banknote size={14} />
-                          </button>
+                          {perms.create && (
+                            <button
+                              onClick={() => openIncentive(emp)}
+                              title="Add Incentive"
+                              className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 transition-colors"
+                            >
+                              <Banknote size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
