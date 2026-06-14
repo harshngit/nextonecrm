@@ -32,12 +32,6 @@ import Closures       from './pages/Closures'
 import ClosureDetail  from './pages/ClosureDetail'
 import AccessControl  from './pages/AccessControl'
 
-function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useSelector((state) => state.auth)
-  if (loading) return <PageLoader />
-  if (!isAuthenticated) return <Navigate to="/login" replace />
-  return children
-}
 
 function AppRoutes() {
   const { isAuthenticated, loading: authLoading } = useSelector((state) => state.auth)
@@ -76,9 +70,9 @@ function AppRoutes() {
         <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route path="/"      element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
 
-        {/* All Auth Users */}
-        <Route path="/dashboard"     element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
-        <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
+        {/* Permission-gated for all roles */}
+        <Route path="/dashboard"     element={<PermissionProtectedRoute module="dashboard"><Layout><Dashboard /></Layout></PermissionProtectedRoute>} />
+        <Route path="/notifications" element={<PermissionProtectedRoute module="notifications"><Layout><Notifications /></Layout></PermissionProtectedRoute>} />
 
         {/* Permission-gated routes */}
         <Route path="/leads"              element={<PermissionProtectedRoute module="leads"><Layout><Leads /></Layout></PermissionProtectedRoute>} />
