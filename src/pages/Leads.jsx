@@ -1639,7 +1639,7 @@ export default function Leads() {
               Manage Sources
             </Button>
           )}
-          {canBulkUpload && (
+          {perms.create && (
             <Button variant="outline" size="sm" icon={Upload} onClick={() => setShowBulkUploadModal(true)}>
               Bulk Upload
             </Button>
