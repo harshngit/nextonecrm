@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 import {
   ArrowLeft, Calendar, Clock, User, Building2, MapPin,
   CheckCircle, RefreshCw, Loader2, UserCheck,
   MessageSquare, ShieldCheck, ExternalLink,
-  ChevronDown, Info, Star, TrendingUp, Target
+  ChevronDown, Info, Star, TrendingUp, Target, Eye
 } from 'lucide-react'
 import api from '../api/axios'
 import Badge from '../components/ui/Badge'
@@ -14,6 +15,10 @@ import Button from '../components/ui/Button'
 export default function RevisitDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+
+  const { user: currentUser } = useSelector(s => s.auth)
+  const isAdmin = ['admin', 'super_admin'].includes(currentUser?.role)
+  const [showPhone, setShowPhone] = useState(false)
 
   const [revisit, setRevisit] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -510,6 +515,26 @@ export default function RevisitDetail() {
                   </div>
                 </div>
               </div>
+
+              {/* Phone Number Section */}
+              {revisit.lead_phone && (
+                <div className="mt-4">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Phone Number</p>
+                  {isAdmin ? (
+                    <a href={`tel:${revisit.lead_phone}`} className="text-sm font-semibold text-purple-600 hover:underline">{revisit.lead_phone}</a>
+                  ) : showPhone ? (
+                    <a href={`tel:${revisit.lead_phone}`} className="text-sm font-semibold text-purple-600 hover:underline">{revisit.lead_phone}</a>
+                  ) : (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">*****{revisit.lead_phone?.slice(-5)}</p>
+                      <button onClick={() => setShowPhone(true)}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-purple-600 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 px-2.5 py-1.5 rounded-lg transition-colors">
+                        <Eye size={11}/> View
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Coordinator */}

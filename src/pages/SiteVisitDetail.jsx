@@ -5,7 +5,7 @@ import {
   ArrowLeft, Calendar, Clock, User, Building2, MapPin,
   CheckCircle, RefreshCw, Loader2, UserCheck,
   MessageSquare, ShieldCheck, ExternalLink,
-  ChevronDown, Info, Star, TrendingUp, Target
+  ChevronDown, Info, Star, TrendingUp, Target, Eye
 } from 'lucide-react'
 import { fetchSiteVisitById, clearCurrentVisit, updateSiteVisitStatus, submitSiteVisitFeedback } from '../store/siteVisitSlice'
 import Badge from '../components/ui/Badge'
@@ -18,7 +18,10 @@ export default function SiteVisitDetail() {
   const dispatch = useDispatch()
 
   const { currentVisit: visit, detailLoading, actionLoading } = useSelector(s => s.siteVisits)
+  const { user: currentUser } = useSelector(s => s.auth)
 
+  const isAdmin = ['admin', 'super_admin'].includes(currentUser?.role)
+  const [showPhone, setShowPhone] = useState(false)
   const [newStatus, setNewStatus] = useState('')
   const [feedback, setFeedback] = useState('')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -439,6 +442,26 @@ export default function SiteVisitDetail() {
                   </div>
                 </div>
               </div>
+
+              {/* Phone Number Section */}
+              {visit.lead_phone && (
+                <div className="mt-4">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Phone Number</p>
+                  {isAdmin ? (
+                    <a href={`tel:${visit.lead_phone}`} className="text-sm font-semibold text-brand hover:underline">{visit.lead_phone}</a>
+                  ) : showPhone ? (
+                    <a href={`tel:${visit.lead_phone}`} className="text-sm font-semibold text-brand hover:underline">{visit.lead_phone}</a>
+                  ) : (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">*****{visit.lead_phone?.slice(-5)}</p>
+                      <button onClick={() => setShowPhone(true)}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-brand bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2.5 py-1.5 rounded-lg transition-colors">
+                        <Eye size={11}/> View
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Coordinator */}

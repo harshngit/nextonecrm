@@ -5,7 +5,7 @@ import {
   ArrowLeft, Calendar, Clock, User, Phone, 
   MessageSquare, AlertCircle, CheckCircle, Loader2, 
   UserCheck, MapPin, ExternalLink, ShieldCheck, Info,
-  Send, ChevronDown, CalendarPlus, Edit2
+  Send, ChevronDown, CalendarPlus, Edit2, Eye
 } from 'lucide-react'
 import { fetchFollowUpById, clearCurrentTask, completeFollowUp, updateFollowUp } from '../store/followUpSlice'
 import { fetchLeads } from '../store/leadSlice'
@@ -282,6 +282,10 @@ export default function FollowUpDetail() {
   const { currentTask: task, detailLoading, actionLoading, error } = useSelector(s => s.followUps)
   const { list: leadList } = useSelector(s => s.leads)
   const { list: userList } = useSelector(s => s.users)
+  const { user: currentUser } = useSelector(s => s.auth)
+
+  const isAdmin = ['admin', 'super_admin'].includes(currentUser?.role)
+  const [showPhone, setShowPhone] = useState(false)
   
   const [completeNotes, setCompleteNotes] = useState('')
   const [showConvertModal, setShowConvertModal] = useState(false)
@@ -543,21 +547,52 @@ export default function FollowUpDetail() {
                   </div>
                 </div>
               </div>
+
+              {/* Phone Number Section */}
+              {task.lead_phone && (
+                <div className="mt-4">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Phone Number</p>
+                  {isAdmin ? (
+                    <a href={`tel:${task.lead_phone}`} className="text-sm font-semibold text-brand hover:underline">{task.lead_phone}</a>
+                  ) : showPhone ? (
+                    <a href={`tel:${task.lead_phone}`} className="text-sm font-semibold text-brand hover:underline">{task.lead_phone}</a>
+                  ) : (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">*****{task.lead_phone?.slice(-5)}</p>
+                      <button onClick={() => setShowPhone(true)}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-brand bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 px-2.5 py-1.5 rounded-lg transition-colors">
+                        <Eye size={11}/> View
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 6. Quick Contact */}
             {task.lead_phone && (
               <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-6 shadow-sm">
                 <h3 className="font-display text-base font-bold text-gray-900 dark:text-white mb-5">Quick Contact</h3>
-                <a href={`tel:${task.lead_phone}`} className="flex items-center justify-between p-4 rounded-[20px] bg-green-50/50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/30 group hover:bg-green-500 transition-all">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/20 flex items-center justify-center text-green-600 group-hover:bg-white/20 group-hover:text-white">
-                      <Phone size={18} />
+                {isAdmin || showPhone ? (
+                  <a href={`tel:${task.lead_phone}`} className="flex items-center justify-between p-4 rounded-[20px] bg-green-50/50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/30 group hover:bg-green-500 transition-all">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/20 flex items-center justify-center text-green-600 group-hover:bg-white/20 group-hover:text-white">
+                        <Phone size={18} />
+                      </div>
+                      <div className="text-sm font-bold text-green-700 dark:text-green-400 group-hover:text-white">{task.lead_phone}</div>
                     </div>
-                    <div className="text-sm font-bold text-green-700 dark:text-green-400 group-hover:text-white">{task.lead_phone}</div>
+                    <ArrowLeft size={16} className="text-green-400 rotate-180 group-hover:text-white" />
+                  </a>
+                ) : (
+                  <div className="flex items-center justify-between p-4 rounded-[20px] bg-gray-50/50 dark:bg-[#0f0f0f]/50 border border-gray-100 dark:border-gray-800">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-900/20 flex items-center justify-center text-gray-400">
+                        <Phone size={18} />
+                      </div>
+                      <div className="text-sm font-bold text-gray-700 dark:text-gray-300">*****{task.lead_phone?.slice(-5)}</div>
+                    </div>
                   </div>
-                  <ArrowLeft size={16} className="text-green-400 rotate-180 group-hover:text-white" />
-                </a>
+                )}
               </div>
             )}
 
