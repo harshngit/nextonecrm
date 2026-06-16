@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import {
   LayoutDashboard, Users, CalendarCheck, PhoneCall,
   Building2, UserCog, Bell, LogOut, ChevronLeft, ChevronRight,
-  X, Settings, Clock, IndianRupee, RotateCcw, BadgeCheck, ShieldCheck,
+  X, Settings, Clock, IndianRupee, RotateCcw, BadgeCheck, ShieldCheck, Target,
 } from 'lucide-react'
 import { logout } from '../../store/authSlice'
 import { selectPermissions } from '../../store/permissionsSlice'
@@ -18,6 +18,7 @@ const navItems = [
   { path: '/site-visits',   label: 'Site Visits',   icon: CalendarCheck,   module: 'site_visits'   },
   { path: '/revisits',      label: 'Re-visits',     icon: RotateCcw,       module: 'revisits'      },
   { path: '/closures',      label: 'Closures',      icon: BadgeCheck,      module: 'closures'      },
+  { path: '/targets',       label: 'Targets',       icon: Target,          module: 'targets'       },
   { path: '/attendance',    label: 'Attendance',    icon: Clock,           module: 'attendance'    },
   { path: '/salary',        label: 'Salary',        icon: IndianRupee,     module: 'salary'        },
   { path: '/team',          label: 'Team',          icon: UserCog,         module: 'team'          },

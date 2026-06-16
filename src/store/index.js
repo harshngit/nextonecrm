@@ -11,6 +11,7 @@ import attendanceReducer   from './attendanceSlice'
 import myDataReducer       from './myDataSlice'
 import salaryReducer       from './salarySlice'
 import permissionsReducer  from './permissionsSlice'
+import targetReducer       from './targetSlice'
 
 export const store = configureStore({
   reducer: {
@@ -26,5 +27,6 @@ export const store = configureStore({
     myData:        myDataReducer,
     salary:        salaryReducer,
     permissions:   permissionsReducer,
+    targets:       targetReducer,
   },
 })

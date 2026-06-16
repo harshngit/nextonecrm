@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Shield, RefreshCw, Search, TrendingUp, Users, Calendar, BookOpen, Eye, UserCheck } from 'lucide-react'
+import { Shield, RefreshCw, Search, TrendingUp, Users, Calendar, BookOpen, Eye, UserCheck, MoreVertical } from 'lucide-react'
 import { fetchUsers, assignManager, clearUserError } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
@@ -126,6 +126,8 @@ export default function Team() {
   const [assignTarget,    setAssignTarget]    = useState(null)
   const [assignSuccess,   setAssignSuccess]   = useState('')
   const [page,            setPage]            = useState(1)
+  const [openMenuMemberId, setOpenMenuMemberId] = useState(null)
+  const menuRef = useRef(null)
 
   // For sales_manager: API already scopes to their team via manager_id on server
   useEffect(() => {
@@ -135,6 +137,18 @@ export default function Team() {
   useEffect(() => {
     if (!showAssignModal) { dispatch(clearUserError()); setAssignSuccess('') }
   }, [showAssignModal, dispatch])
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuMemberId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   // Client-side search
   const filtered = list.filter(m => {
@@ -252,7 +266,7 @@ export default function Team() {
       </div>
 
       {/* Table */}
-      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
+      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-xl shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
         {loading ? (
           <div className="p-4"><ListSkeleton rows={6} /></div>
         ) : filtered.length === 0 ? (
@@ -278,7 +292,7 @@ export default function Team() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e2e8f0] dark:divide-[#2a2a2a]">
-                {filtered.map(member => {
+                {filtered.map((member, memberIdx) => {
                   const manager = list.find(m => m.id === member.manager_id)
                   return (
                     <tr key={member.id}
@@ -357,24 +371,35 @@ export default function Team() {
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {/* Assign — only for admin/super_admin, only for assignable roles */}
-                          {showAssignBtn && isAssignable(member) && (
+                      <td className="py-3 px-4 text-right" ref={openMenuMemberId === member.id ? menuRef : null}>
+                        <div className="flex items-center justify-end">
+                          <div className="relative">
                             <button
-                              onClick={() => handleOpenAssign(member)}
-                              title="Assign Manager"
-                              className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all hover:scale-110 active:scale-95">
-                              <UserCheck size={15} />
+                              onClick={() => setOpenMenuMemberId(openMenuMemberId === member.id ? null : member.id)}
+                              className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all">
+                              <MoreVertical size={15} />
                             </button>
-                          )}
-                          {/* View — always visible */}
-                          <button
-                            onClick={() => navigate(`/team/${member.id}`)}
-                            title="View Details"
-                            className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all hover:scale-110 active:scale-95">
-                            <Eye size={16} />
-                          </button>
+                            {openMenuMemberId === member.id && (
+                              <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${memberIdx >= filtered.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                                {/* Assign — only for admin/super_admin, only for assignable roles */}
+                                {showAssignBtn && isAssignable(member) && (
+                                  <button
+                                    onClick={() => { handleOpenAssign(member); setOpenMenuMemberId(null)}}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                    <UserCheck size={14} />
+                                    Assign Manager
+                                  </button>
+                                )}
+                                {/* View — always visible */}
+                                <button
+                                  onClick={() => { navigate(`/team/${member.id}`); setOpenMenuMemberId(null)}}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                  <Eye size={14} />
+                                  View Details
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>

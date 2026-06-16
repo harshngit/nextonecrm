@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { useModulePermissions } from '../hooks/usePermission'
-import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw, StarIcon } from 'lucide-react'
+import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw, StarIcon, MoreVertical } from 'lucide-react'
 import {
   fetchSiteVisits, createSiteVisit, updateSiteVisit,
   updateSiteVisitStatus, cancelSiteVisit, clearSiteVisitError,
@@ -526,6 +526,8 @@ export default function SiteVisits() {
   const [feedbackForm, setFeedbackForm] = useState(defaultFeedback)
   const [success,      setSuccess]      = useState('')
   const [exporting,    setExporting]    = useState(false)
+  const [openMenuVisitId, setOpenMenuVisitId] = useState(null)
+  const menuRef = useRef(null)
 
   useEffect(() => {
     const params = { page, per_page: 20 }
@@ -632,6 +634,19 @@ export default function SiteVisits() {
     setShowRevisitModal(true)
   }
 
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuVisitId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   // ── Calendar week ──────────────────────────────────────────────────────────
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const weekDates = Array.from({ length: 7 }, (_, i) => {
@@ -719,36 +734,38 @@ export default function SiteVisits() {
         <div className="space-y-4">
           <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl p-5 hover:shadow-lg transition-all duration-200">
             <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white mb-4">This Week</h3>
-            <div className="grid grid-cols-7 gap-2">
-              {weekDates.map((date, i) => {
-                const dateStr = date.toISOString().split('T')[0]
-                const dayVisits = list.filter(v => (v.visit_date || '').startsWith(dateStr))
-                const isSelected = selectedDate === dateStr
-                const isToday = dateStr === new Date().toISOString().split('T')[0]
-                
-                return (
-                  <div 
-                    key={i} 
-                    onClick={() => setSelectedDate(dateStr)}
-                    className={`rounded-xl border p-3 min-h-[120px] cursor-pointer transition-all duration-200 
-                      ${isSelected ? 'border-brand bg-brand/5 ring-1 ring-brand/20 shadow-md' : 'border-gray-100 dark:border-gray-800 hover:border-brand/30 hover:bg-gray-50 dark:hover:bg-gray-800/50'}
-                      ${isToday && !isSelected ? 'bg-blue-50/30 dark:bg-blue-900/5' : ''}`}
-                  >
-                    <div className={`text-[10px] uppercase tracking-wider font-bold mb-1 ${isSelected || isToday ? 'text-brand' : 'text-gray-400 dark:text-gray-500'}`}>
-                      {days[i]}
+            <div className="overflow-x-auto -mx-1 px-1">
+              <div className="grid grid-cols-7 gap-2 min-w-[560px] sm:min-w-0">
+                {weekDates.map((date, i) => {
+                  const dateStr = date.toISOString().split('T')[0]
+                  const dayVisits = list.filter(v => (v.visit_date || '').startsWith(dateStr))
+                  const isSelected = selectedDate === dateStr
+                  const isToday = dateStr === new Date().toISOString().split('T')[0]
+
+                  return (
+                    <div
+                      key={i}
+                      onClick={() => setSelectedDate(dateStr)}
+                      className={`rounded-xl border p-3 min-h-[120px] cursor-pointer transition-all duration-200
+                        ${isSelected ? 'border-brand bg-brand/5 ring-1 ring-brand/20 shadow-md' : 'border-gray-100 dark:border-gray-800 hover:border-brand/30 hover:bg-gray-50 dark:hover:bg-gray-800/50'}
+                        ${isToday && !isSelected ? 'bg-blue-50/30 dark:bg-blue-900/5' : ''}`}
+                    >
+                      <div className={`text-[10px] uppercase tracking-wider font-bold mb-1 ${isSelected || isToday ? 'text-brand' : 'text-gray-400 dark:text-gray-500'}`}>
+                        {days[i]}
+                      </div>
+                      <div className={`text-xl font-display font-bold mb-2 ${isSelected || isToday ? 'text-brand' : 'text-gray-900 dark:text-white'}`}>
+                        {date.getDate()}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {dayVisits.slice(0, 3).map(v => (
+                          <div key={v.id} className="w-1.5 h-1.5 rounded-full bg-brand"></div>
+                        ))}
+                        {dayVisits.length > 3 && <div className="text-[10px] text-gray-400 font-bold">+{dayVisits.length - 3}</div>}
+                      </div>
                     </div>
-                    <div className={`text-xl font-display font-bold mb-2 ${isSelected || isToday ? 'text-brand' : 'text-gray-900 dark:text-white'}`}>
-                      {date.getDate()}
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {dayVisits.slice(0, 3).map(v => (
-                        <div key={v.id} className="w-1.5 h-1.5 rounded-full bg-brand"></div>
-                      ))}
-                      {dayVisits.length > 3 && <div className="text-[10px] text-gray-400 font-bold">+{dayVisits.length - 3}</div>}
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           </div>
 
@@ -765,12 +782,12 @@ export default function SiteVisits() {
             </div>
 
             <div className="space-y-3">
-              {list.filter(v => (v.visit_date || '').startsWith(selectedDate)).length === 0 ? (
+              {(() => { const dayVisits = list.filter(v => (v.visit_date || '').startsWith(selectedDate)); return dayVisits.length === 0 ? (
                 <div className="py-10 text-center text-gray-400 dark:text-gray-500 italic">
                   No visits scheduled for this day
                 </div>
               ) : (
-                list.filter(v => (v.visit_date || '').startsWith(selectedDate)).map(visit => (
+                dayVisits.map((visit, visitIdx) => (
                   <div key={visit.id} className="group flex items-center gap-4 p-4 rounded-xl border border-gray-100 dark:border-gray-800 hover:border-brand/30 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all">
                     <Avatar name={visit.lead_name || visit['lead name'] || '?'} size="md" />
                     <div className="flex-1 min-w-0">
@@ -800,31 +817,73 @@ export default function SiteVisits() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => navigate(`/site-visits/${visit.id}`)} 
-                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-brand hover:bg-brand/10 transition-all">
-                        <Eye size={16} />
-                      </button>
-                      {['done', 'rescheduled'].includes(visit.status) && (
-                        <button onClick={() => handleRevisit(visit)} title="Schedule Revisit"
-                          className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-purple-500 hover:bg-purple-50 transition-all">
-                          <RotateCcw size={16} />
+                    <div className="flex items-center gap-2" ref={openMenuVisitId === visit.id ? menuRef : null}>
+                      <div className="relative">
+                        <button
+                          onClick={() => setOpenMenuVisitId(openMenuVisitId === visit.id ? null : visit.id)}
+                          className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-brand hover:bg-brand/10 transition-all">
+                          <MoreVertical size={16} />
                         </button>
-                      )}
-                      <button onClick={() => openEdit(visit)}
-                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-blue-500 hover:bg-blue-50 transition-all">
-                        <Edit2 size={16} />
-                      </button>
+                        
+                        {openMenuVisitId === visit.id && (
+                          <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${visitIdx >= dayVisits.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                            <button
+                              onClick={() => { navigate(`/site-visits/${visit.id}`); setOpenMenuVisitId(null); }}
+                              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                              <Eye size={14} />
+                              View Details
+                            </button>
+                            {['done', 'rescheduled'].includes(visit.status) && (
+                              <button 
+                                onClick={() => { handleRevisit(visit); setOpenMenuVisitId(null); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                <RotateCcw size={14} />
+                                Schedule Revisit
+                              </button>
+                            )}
+                            {perms.edit && visit.status === 'scheduled' && (
+                              <>
+                                <button 
+                                  onClick={() => { openEdit(visit); setOpenMenuVisitId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                  <Edit2 size={14} />
+                                  Edit
+                                </button>
+                                <button 
+                                  onClick={() => { openFeedback(visit); setOpenMenuVisitId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                  <CheckCircle size={14} />
+                                  Mark Outcome
+                                </button>
+                                <button 
+                                  onClick={() => { confirmCancel(visit); setOpenMenuVisitId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                  <X size={14} />
+                                  Cancel
+                                </button>
+                              </>
+                            )}
+                            {visit.status !== 'scheduled' && (
+                              <button 
+                                onClick={() => { openFeedback(visit); setOpenMenuVisitId(null); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                <Edit2 size={14} />
+                                Edit Feedback
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))
-              )}
+              ) })()}
             </div>
           </div>
         </div>
       ) : (
         // ── List ──────────────────────────────────────────────────────────────
-        <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl overflow-hidden shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
+        <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
           {list.length === 0 ? (
             <div className="py-16 text-center text-gray-400 dark:text-[#888]">
               <CalendarDays size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" strokeWidth={1.5} />
@@ -842,7 +901,7 @@ export default function SiteVisits() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {list.map(visit => (
+                  {list.map((visit, visitIdx) => (
                     <tr key={visit.id} className="hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
@@ -905,40 +964,64 @@ export default function SiteVisits() {
                           ) : '—'}
                         </span>
                       </td>
-                      <td className="py-3 px-4">
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => navigate(`/site-visits/${visit.id}`)} title="View Details"
-                              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all hover:scale-110 active:scale-95">
-                              <Eye size={16} />
+                      <td className="py-3 px-4" ref={openMenuVisitId === visit.id ? menuRef : null}>
+                        <div className="flex items-center justify-end">
+                          <div className="relative">
+                            <button
+                              onClick={() => setOpenMenuVisitId(openMenuVisitId === visit.id ? null : visit.id)}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all">
+                              <MoreVertical size={16} />
                             </button>
-                          {['done', 'rescheduled'].includes(visit.status) && (
-                            <button onClick={() => handleRevisit(visit)} title="Schedule Revisit"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">
-                              <RotateCcw size={13} />
-                            </button>
-                          )}
-                          {perms.edit && visit.status === 'scheduled' && (
-                            <>
-                              <button onClick={() => openEdit(visit)} title="Edit"
-                                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
-                                <Edit2 size={13} />
-                              </button>
-                              <button onClick={() => openFeedback(visit)} title="Mark outcome"
-                                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
-                                <CheckCircle size={13} />
-                              </button>
-                              <button onClick={() => confirmCancel(visit)} title="Cancel"
-                                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                                <X size={13} />
-                              </button>
-                            </>
-                          )}
-                          {visit.status !== 'scheduled' && (
-                            <button onClick={() => openFeedback(visit)} title="Edit feedback"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
-                              <Edit2 size={13} />
-                            </button>
-                          )}
+                            
+                            {openMenuVisitId === visit.id && (
+                              <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${visitIdx >= list.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                                <button
+                                  onClick={() => { navigate(`/site-visits/${visit.id}`); setOpenMenuVisitId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                  <Eye size={14} />
+                                  View Details
+                                </button>
+                                {['done', 'rescheduled'].includes(visit.status) && (
+                                  <button 
+                                    onClick={() => { handleRevisit(visit); setOpenMenuVisitId(null); }}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                    <RotateCcw size={14} />
+                                    Schedule Revisit
+                                  </button>
+                                )}
+                                {perms.edit && visit.status === 'scheduled' && (
+                                  <>
+                                    <button 
+                                      onClick={() => { openEdit(visit); setOpenMenuVisitId(null); }}
+                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                      <Edit2 size={14} />
+                                      Edit
+                                    </button>
+                                    <button 
+                                      onClick={() => { openFeedback(visit); setOpenMenuVisitId(null); }}
+                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                      <CheckCircle size={14} />
+                                      Mark Outcome
+                                    </button>
+                                    <button 
+                                      onClick={() => { confirmCancel(visit); setOpenMenuVisitId(null); }}
+                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                      <X size={14} />
+                                      Cancel
+                                    </button>
+                                  </>
+                                )}
+                                {visit.status !== 'scheduled' && (
+                                  <button 
+                                    onClick={() => { openFeedback(visit); setOpenMenuVisitId(null); }}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                    <Edit2 size={14} />
+                                    Edit Feedback
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>

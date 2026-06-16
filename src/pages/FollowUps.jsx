@@ -5,7 +5,7 @@ import { useModulePermissions } from '../hooks/usePermission'
 import {
   CheckCircle, Clock, AlertCircle, Phone, Plus,
   Edit2, Trash2, Download, RefreshCw, ChevronDown, Filter, Eye, X,
-  ArrowRightCircle, CheckCircle2, CalendarPlus, Loader2,
+  ArrowRightCircle, CheckCircle2, CalendarPlus, Loader2, MoreVertical,
 } from 'lucide-react'
 import {
   fetchFollowUps, createFollowUp, updateFollowUp,
@@ -566,7 +566,7 @@ function BulkConvertFUModal({ taskIds, tasks, onClose, onSuccess }) {
 }
 
 
-function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, isSelected, onSelect, editLoading }) {
+function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, isSelected, onSelect, editLoading, openMenuTaskId, setOpenMenuTaskId, openUpward }) {
   const navigate = useNavigate()
   const category = classifyTask(task)
 
@@ -642,27 +642,46 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, is
               Done
             </Button>
           )}
-          {canManage && !task.is_completed && (
+          {canManage && (
             <div className="flex gap-1 justify-end">
-              <button onClick={() => navigate(`/follow-ups/${task.id}`)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all hover:scale-110 active:scale-95" title="View Details">
-                <Eye size={14} />
-              </button>
-              {onConvert && task.lead_id && (
-                <button onClick={() => onConvert(task)}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors" title="Convert to Site Visit">
-                  <ArrowRightCircle size={13} />
+              <div className="relative">
+                <button onClick={() => setOpenMenuTaskId(openMenuTaskId === task.id ? null : task.id)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors" title="Actions">
+                  <MoreVertical size={13} />
                 </button>
-              )}
-              <button onClick={() => onEdit(task)}
-                disabled={editLoading === task.id}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Edit">
-                {editLoading === task.id ? <Loader2 size={13} className="animate-spin" /> : <Edit2 size={13} />}
-              </button>
-              <button onClick={() => onDelete(task)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Delete">
-                <Trash2 size={13} />
-              </button>
+
+                {openMenuTaskId === task.id && (
+                  <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                    <button
+                      onClick={() => { navigate(`/follow-ups/${task.id}`); setOpenMenuTaskId(null)}}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <Eye size={14} />
+                      View Details
+                    </button>
+                    {onConvert && task.lead_id && !task.is_completed && (
+                      <button 
+                        onClick={() => { onConvert(task); setOpenMenuTaskId(null)}}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        <ArrowRightCircle size={14} />
+                        Convert to Site Visit
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => { onEdit(task); setOpenMenuTaskId(null)}}
+                      disabled={editLoading === task.id}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
+                      {editLoading === task.id ? <Loader2 size={14} className="animate-spin" /> : <Edit2 size={14} />}
+                      Edit
+                    </button>
+                    <button 
+                      onClick={() => { onDelete(task); setOpenMenuTaskId(null)}}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                      <Trash2 size={14} />
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -704,6 +723,8 @@ export default function FollowUps() {
   const [convertTask,       setConvertTask]       = useState(null)
   const [convertSuccess,    setConvertSuccess]    = useState('')
   const [editLoading,       setEditLoading]       = useState(null) // Track which task is loading
+  const [openMenuTaskId,    setOpenMenuTaskId]    = useState(null)
+  const menuRef = useRef(null)
 
   const salesExecs = userList.filter(u =>
     ['sales_executive', 'sales_manager'].includes(u.role) && u.is_active
@@ -890,6 +911,19 @@ export default function FollowUps() {
     setTimeout(() => setSuccess(''), 3000)
   }
 
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuTaskId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   // ── Section Component ────────────────────────────────────────────────────────
   const Section = ({ title, tasks, icon: Icon, iconColor, accent, selectable, editLoading }) => {
     if (tasks.length === 0) return null
@@ -921,7 +955,7 @@ export default function FollowUps() {
           )}
         </div>
         <div className="space-y-3">
-          {tasks.map(task => (
+          {tasks.map((task, taskIdx) => (
             <TaskCard
               key={task.id}
               task={task}
@@ -933,6 +967,9 @@ export default function FollowUps() {
               isSelected={selectedTasks.includes(task.id)}
               onSelect={selectable ? toggleTask : undefined}
               editLoading={editLoading}
+              openMenuTaskId={openMenuTaskId}
+              setOpenMenuTaskId={setOpenMenuTaskId}
+              openUpward={taskIdx >= tasks.length - 2}
             />
           ))}
         </div>
@@ -1071,7 +1108,7 @@ export default function FollowUps() {
       )}
 
       {/* Table */}
-      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-200">
+      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-2xl hover:shadow-lg transition-all duration-200">
         {loading ? (
           <div className="p-4"><ListSkeleton rows={8} /></div>
         ) : list.length === 0 ? (
@@ -1100,7 +1137,7 @@ export default function FollowUps() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {list.map(task => {
+                {list.map((task, taskIdx) => {
                   const category = classifyTask(task)
                   return (
                     <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-colors">
@@ -1161,7 +1198,7 @@ export default function FollowUps() {
                             category === 'today' ? 'Today' : 'Upcoming'}
                         </span>
                       </td>
-                      <td className="py-3 px-3">
+                      <td className="py-3 px-3" ref={openMenuTaskId === task.id ? menuRef : null}>
                         <div className="flex items-center justify-end gap-1">
                           {task.lead_phone && (
                             <a href={`tel:${task.lead_phone}`} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title="Call">
@@ -1174,29 +1211,47 @@ export default function FollowUps() {
                               <CheckCircle2 size={13} />
                             </button>
                           )}
-                          <button onClick={() => navigate(`/follow-ups/${task.id}`)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors" title="View Details">
-                            <Eye size={13} />
-                          </button>
-                          {canManage && task.lead_id && !task.is_completed && (
-                            <button onClick={() => { setConvertTask(task); setShowConvertModal(true); }}
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors" title="Convert to Site Visit">
-                              <ArrowRightCircle size={13} />
+                          <div className="relative">
+                            <button onClick={() => setOpenMenuTaskId(openMenuTaskId === task.id ? null : task.id)}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors" title="Actions">
+                              <MoreVertical size={13} />
                             </button>
-                          )}
-                          {perms.edit && (
-                            <>
-                              <button onClick={() => openEdit(task)}
-                                disabled={editLoading === task.id}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Edit">
-                                {editLoading === task.id ? <Loader2 size={13} className="animate-spin" /> : <Edit2 size={13} />}
-                              </button>
-                              <button onClick={() => confirmDelete(task)}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Delete">
-                                <Trash2 size={13} />
-                              </button>
-                            </>
-                          )}
+                            {openMenuTaskId === task.id && (
+                              <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${taskIdx >= list.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                                <button
+                                  onClick={() => { navigate(`/follow-ups/${task.id}`); setOpenMenuTaskId(null)}}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                  <Eye size={14} />
+                                  View Details
+                                </button>
+                                {canManage && task.lead_id && !task.is_completed && (
+                                  <button 
+                                    onClick={() => { setConvertTask(task); setShowConvertModal(true); setOpenMenuTaskId(null)}}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                    <ArrowRightCircle size={14} />
+                                    Convert to Site Visit
+                                  </button>
+                                )}
+                                {perms.edit && (
+                                  <>
+                                    <button 
+                                      onClick={() => { openEdit(task); setOpenMenuTaskId(null)}}
+                                      disabled={editLoading === task.id}
+                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
+                                      {editLoading === task.id ? <Loader2 size={14} className="animate-spin" /> : <Edit2 size={14} />}
+                                      Edit
+                                    </button>
+                                    <button 
+                                      onClick={() => { confirmDelete(task); setOpenMenuTaskId(null)}}
+                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                      <Trash2 size={14} />
+                                      Delete
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>

@@ -530,32 +530,32 @@ export default function LeadDetail() {
   return (
     <div className="max-w-[1400px] mx-auto space-y-6 pb-12">
       {/* Top Header / Breadcrumb */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <button
           onClick={() => navigate('/leads')}
-          className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-brand transition-colors group"
+          className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-brand transition-colors group flex-shrink-0"
         >
           <div className="w-8 h-8 rounded-full bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 flex items-center justify-center group-hover:border-brand/30 transition-all">
             <ArrowLeft size={16} />
           </div>
           Back to Leads
         </button>
-        
-        <div className="flex gap-2">
+
+        <div className="flex gap-2 overflow-x-auto whitespace-nowrap pb-1 -mb-1 sm:pb-0 sm:-mb-0">
           {lead?.status !== 'Booked' && lead?.status !== 'Lost' && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="rounded-xl border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-purple-600 dark:border-purple-900/30 dark:hover:bg-purple-900/20"
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-purple-600 dark:border-purple-900/30 dark:hover:bg-purple-900/20 flex-shrink-0"
               onClick={() => setShowConvertModal(true)}
             >
               <CalendarPlus size={14} className="mr-2" /> Convert Lead
             </Button>
           )}
-          <Button variant="outline" size="sm" className="rounded-xl hidden sm:flex">
+          <Button variant="outline" size="sm" className="rounded-xl flex-shrink-0">
             <ExternalLink size={14} className="mr-2" /> Share
           </Button>
-          <Button size="sm" className="rounded-xl px-5 font-bold shadow-lg shadow-blue-100/50">
+          <Button size="sm" className="rounded-xl px-5 font-bold shadow-lg shadow-blue-100/50 flex-shrink-0">
             Edit Lead
           </Button>
         </div>
@@ -678,20 +678,20 @@ export default function LeadDetail() {
             <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-8 shadow-sm">
 
               {/* Tab header */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex gap-1 p-1 bg-gray-100 dark:bg-[#0f0f0f] rounded-xl w-fit">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+                <div className="flex gap-1 p-1 bg-gray-100 dark:bg-[#0f0f0f] rounded-xl w-full sm:w-fit overflow-x-auto whitespace-nowrap">
                   <button onClick={() => setActiveTab('activity')}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'activity' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all flex-shrink-0 ${activeTab === 'activity' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
                     <Clock size={14} /> Activity
                   </button>
                   <button onClick={() => { setActiveTab('recordings'); if (recordings.length === 0) fetchRecordings() }}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'recordings' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all flex-shrink-0 ${activeTab === 'recordings' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
                     <Mic size={14} /> Recordings
                     {recordings.length > 0 && <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand/10 text-brand">{recordings.length}</span>}
                   </button>
                   {canSeeHistory && (
                     <button onClick={() => { setActiveTab('history'); if (reassignHistory.length === 0) fetchReassignHistory(1) }}
-                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'history' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all flex-shrink-0 ${activeTab === 'history' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
                       <History size={14} /> Reassign History
                       {historyTotal > 0 && <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">{historyTotal}</span>}
                     </button>
@@ -701,7 +701,7 @@ export default function LeadDetail() {
                 {/* Reassign action button — only on history tab for canSeeHistory */}
                 {canSeeHistory && activeTab === 'history' && (
                   <button onClick={() => { setShowReassignAction(true); setReassignTo(''); setReassignReason(''); setReassignError(''); setReassignSuccess('') }}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-semibold transition-colors border border-indigo-100 dark:border-indigo-800/40">
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-semibold transition-colors border border-indigo-100 dark:border-indigo-800/40 flex-shrink-0 self-start sm:self-auto">
                     <Users size={13} /> Reassign Lead
                   </button>
                 )}

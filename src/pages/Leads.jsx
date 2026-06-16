@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Phone, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users, Mic, MicOff, Play, Pause, Trash, Clock, CalendarClock, Settings2, Check } from 'lucide-react'
+import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Phone, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users, Mic, MicOff, Play, Pause, Trash, Clock, CalendarClock, Settings2, Check, MoreVertical } from 'lucide-react'
 import { fetchLeads, fetchMyLeads, createLead, updateLead, deleteLead, fetchLeadSources, clearLeadError, addLeadSource, updateLeadSource, deleteLeadSource, fetchLeadStatuses } from '../store/leadSlice'
 import { useModulePermissions } from '../hooks/usePermission'
 import { fetchProjects } from '../store/projectSlice'
@@ -13,6 +13,7 @@ import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
+import ConfirmModal from '../components/ui/ConfirmModal'
 import CustomSelect from '../components/ui/CustomSelect'
 import ClockPicker from '../components/ui/ClockPicker'
 import ConvertLeadModal from '../components/modals/ConvertLeadModal'
@@ -265,12 +266,13 @@ function CallRecordingsManager({ mode, leadId, pending, setPending, existingRecs
 }
 
 // ─── LeadForm ─────────────────────────────────────────────────────────────────
-function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, salesExecs, currentUser, leadId, pendingRecordings, setPendingRecordings, existingRecordings, onExistingChange }) {
+function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, salesExecs, projects, currentUser, leadId, pendingRecordings, setPendingRecordings, existingRecordings, onExistingChange }) {
   const inputClass = 'w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200'
   const labelClass = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1'
   const isRestricted = ['sales_executive', 'external_caller'].includes(currentUser?.role)
   const sourceOptions = sourceList.map(s => ({ value: s.id, label: s.name }))
-  const execOptions   = salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
+  const execOptions   = salesExecs.map(u => ({ value: u.id, label: u.id === currentUser?.id ? 'Self' : `${u.first_name} ${u.last_name}` }))
+  const projectOptions = projects.map(p => ({ value: p.id, label: p.name || p.project_name }))
 
   useEffect(() => {
     if (isRestricted && !formData.assigned_to && currentUser?.id) {
@@ -317,6 +319,17 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, sal
             <input value={formData.location_preference} onChange={e => setFormData(prev => ({ ...prev, location_preference: e.target.value }))} placeholder="Andheri West" className={inputClass + ' pl-8'} />
           </div>
         </div>
+      </div>
+      
+      {/* Project Name */}
+      <div>
+        <CustomSelect
+          label="Project Name"
+          value={formData.project_id}
+          onChange={val => setFormData(prev => ({ ...prev, project_id: val }))}
+          options={projectOptions}
+          placeholder="Select Project"
+        />
       </div>
 
       {/* Callback + Follow-up */}
@@ -1338,6 +1351,7 @@ export default function Leads() {
   const { list, loading, pagination, sources, statuses, actionLoading, actionError,
           myList, myLoading, myPagination } = useSelector(s => s.leads)
   const { list: userList } = useSelector(s => s.users)
+  const { list: projectList } = useSelector(s => s.projects)
   const { user: currentUser } = useSelector(s => s.auth)
 
   const [search, setSearch] = useState('')
@@ -1376,6 +1390,9 @@ export default function Leads() {
   const [showBulkUploadModal,   setShowBulkUploadModal]   = useState(false)
   const [showBulkPhoneReqModal, setShowBulkPhoneReqModal] = useState(false)
   const [showExportModal,       setShowExportModal]        = useState(false)
+  const [showDeleteModal,       setShowDeleteModal]        = useState(false)
+  const [leadToDelete,          setLeadToDelete]           = useState(null)
+  const [deleting,              setDeleting]               = useState(false)
   const [selectedLead, setSelectedLead] = useState(null)
   const [addForm, setAddForm] = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
@@ -1391,6 +1408,12 @@ export default function Leads() {
   const [pendingRecordings,  setPendingRecordings]  = useState([])   // add mode — recordings to attach on create
   const [existingRecordings, setExistingRecordings] = useState([])   // edit mode — recordings from API
   const [visiblePhoneLeadId, setVisiblePhoneLeadId] = useState(null) // track which lead's phone is visible
+  const [openMenuLeadId, setOpenMenuLeadId] = useState(null) // track which three-dot menu is open
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    dispatch(fetchProjects())
+  }, [dispatch])
 
   useEffect(() => {
     const params = { page, per_page: 10 }
@@ -1449,10 +1472,20 @@ export default function Leads() {
     }
   }
 
-  const handleDeleteLead = async (lead) => {
-    if (window.confirm(`Delete lead "${lead.name}"?`)) {
-      const result = await dispatch(deleteLead(lead.id))
-      if (deleteLead.fulfilled.match(result)) dispatch(fetchLeads({ page, per_page: 10 }))
+  const handleDeleteLead = (lead) => {
+    setLeadToDelete(lead)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDeleteLead = async () => {
+    if (!leadToDelete) return
+    setDeleting(true)
+    const result = await dispatch(deleteLead(leadToDelete.id))
+    setDeleting(false)
+    if (deleteLead.fulfilled.match(result)) {
+      dispatch(fetchLeads({ page, per_page: 10 }))
+      setShowDeleteModal(false)
+      setLeadToDelete(null)
     }
   }
 
@@ -1580,6 +1613,19 @@ export default function Leads() {
     setTimeout(() => setConvertSuccess(''), 3000)
   }
 
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuLeadId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   const handleConvertSuccess = (type) => {
     setShowConvertModal(false)
     setConvertLead(null)
@@ -1649,7 +1695,7 @@ export default function Leads() {
           </Button> */}
           {perms.create && (
             <Button icon={Plus} onClick={() => {
-              const r = ['sales_executive','external_caller'].includes(currentUser?.role)
+              const r = ['sales_executive','external_caller','sales_manager'].includes(currentUser?.role)
               setAddForm({ ...defaultForm, assigned_to: r ? currentUser?.id : '' })
               dispatch(clearLeadError()); setShowAddModal(true)
             }}>
@@ -1677,8 +1723,8 @@ export default function Leads() {
 
       {/* Summary row + inline selection actions */}
       {!(isSalesManager ? (leadsTab === 'my' ? myLoading : loading) : loading) && (
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-sm text-gray-500 dark:text-[#888]">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="text-sm text-gray-500 dark:text-[#888] flex-shrink-0">
             {(() => {
               const activeList = isSalesManager && leadsTab === 'my' ? myList : list
               const activePag  = isSalesManager && leadsTab === 'my' ? myPagination : pagination
@@ -1689,30 +1735,30 @@ export default function Leads() {
 
           {/* Inline bulk-action pills — only visible when rows are checked */}
           {selectedLeads.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 -mb-1 sm:pb-0 sm:-mb-0">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">
                 {selectedLeads.length} selected
               </span>
               {canEdit && (
                 <button onClick={() => setShowBulkConvertModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97]">
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97] flex-shrink-0">
                   <ArrowRightCircle size={13} /> Convert {selectedLeads.length}
                 </button>
               )}
               {canReassign && (
                 <button onClick={() => setShowBulkReassignModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97]">
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97] flex-shrink-0">
                   <Users size={13} /> Reassign {selectedLeads.length}
                 </button>
               )}
               {canRequestPhone && (
                 <button onClick={() => setShowBulkPhoneReqModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97]">
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97] flex-shrink-0">
                   <Phone size={13} /> Request Phones {selectedLeads.length}
                 </button>
               )}
               <button onClick={() => setSelectedLeads([])}
-                className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0">
                 <X size={12} />
               </button>
             </div>
@@ -1726,7 +1772,7 @@ export default function Leads() {
       // eslint-disable-next-line no-unused-expressions
       activeLeadListRef.current = activeList
       return (<>
-      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-2xl overflow-hidden hover:shadow-lg transition-all duration-200">
+      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-2xl hover:shadow-lg transition-all duration-200">
         {activeLoading ? (
           <div className="p-4"><ListSkeleton rows={8} /></div>
         ) : activeList.length === 0 ? (
@@ -1745,12 +1791,12 @@ export default function Leads() {
                       checked={selectedLeads.length === list.length && list.length > 0}
                       onChange={toggleAll} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
                   </th>
-                  {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Finding Location', 'Actions']
+                  {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Project', 'Actions']
                     .filter(h => !(h === 'Assigned' && isSalesManager && leadsTab === 'my'))
                     .map(h => (
                     <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wide whitespace-nowrap
                       ${['Phone', 'Source', 'Assigned'].includes(h) ? 'hidden md:table-cell' : ''}
-                      ${['Finding Location'].includes(h) ? 'hidden xl:table-cell' : ''}
+                      ${['Project'].includes(h) ? 'hidden xl:table-cell' : ''}
                       ${h === 'Actions' ? 'text-right' : ''}`}>
                       {h}
                     </th>
@@ -1758,7 +1804,7 @@ export default function Leads() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {activeList.map(lead => (
+                {activeList.map((lead, leadIdx) => (
                   <tr key={lead.id} className="hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-colors">
                     <td className="py-3 pl-4 pr-2">
                       <input type="checkbox" checked={selectedLeads.includes(lead.id)}
@@ -1805,38 +1851,66 @@ export default function Leads() {
                       />
                     </td>
                     <td className="py-3 px-3 text-xs text-gray-400 hidden xl:table-cell">
-                      {lead.location_preference || '—'}
+                      {lead.project_name || '—'}
                     </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => navigate(`/leads/${lead.id}`)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all hover:scale-110 active:scale-95" title="View Details">
-                          <Eye size={16} />
-                        </button>
-                        {canEdit && (
-                          <button onClick={() => { setConvertLead(lead); setShowConvertModal(true) }}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors" title="Convert">
-                            <ArrowRightCircle size={14} />
+                    <td className="py-3 px-3" ref={openMenuLeadId === lead.id ? menuRef : null}>
+                      <div className="flex items-center justify-end">
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenMenuLeadId(openMenuLeadId === lead.id ? null : lead.id)}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all"
+                          >
+                            <MoreVertical size={16} />
                           </button>
-                        )}
-                        {perms.edit && (
-                          <button onClick={() => openEdit(lead)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-[#0082f3] hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit">
-                            <Edit2 size={14} />
-                          </button>
-                        )}
-                        {canEdit && (
-                          <button onClick={() => { setSelectedLead(lead); setReassignTo(lead.assigned_to || ''); setShowReassignModal(true) }}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors" title="Reassign">
-                            <UserCheck size={14} />
-                          </button>
-                        )}
-                        {perms.delete && (
-                          <button onClick={() => handleDeleteLead(lead)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Delete">
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                          
+                          {openMenuLeadId === lead.id && (
+                            <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${leadIdx >= activeList.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                              <button
+                                onClick={() => { navigate(`/leads/${lead.id}`); setOpenMenuLeadId(null); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                              >
+                                <Eye size={14} />
+                                View Details
+                              </button>
+                              {canEdit && (
+                                <button 
+                                  onClick={() => { setConvertLead(lead); setShowConvertModal(true); setOpenMenuLeadId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                  <ArrowRightCircle size={14} />
+                                  Convert
+                                </button>
+                              )}
+                              {perms.edit && (
+                                <button 
+                                  onClick={() => { openEdit(lead); setOpenMenuLeadId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                  <Edit2 size={14} />
+                                  Edit
+                                </button>
+                              )}
+                              {canEdit && (
+                                <button 
+                                  onClick={() => { setSelectedLead(lead); setReassignTo(lead.assigned_to || ''); setShowReassignModal(true); setOpenMenuLeadId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                  <UserCheck size={14} />
+                                  Reassign
+                                </button>
+                              )}
+                              {perms.delete && (
+                                <button 
+                                  onClick={() => { handleDeleteLead(lead); setOpenMenuLeadId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                >
+                                  <Trash2 size={14} />
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -1873,7 +1947,7 @@ export default function Leads() {
           <LeadForm formData={addForm} setFormData={setAddForm} isEdit={false} 
             sourceList={sourceList.filter(s => s.is_active !== false)} 
             stageOptions={stageOptions}
-            salesExecs={salesExecs} currentUser={currentUser} leadId={null}
+            salesExecs={salesExecs} projects={projectList} currentUser={currentUser} leadId={null}
             pendingRecordings={pendingRecordings} setPendingRecordings={setPendingRecordings}
           />
           {addSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{addSuccess}</p>}
@@ -1891,7 +1965,7 @@ export default function Leads() {
           <LeadForm formData={editForm} setFormData={setEditForm} isEdit={true} 
             sourceList={sourceList.filter(s => s.is_active !== false || s.id === editForm.source_id)} 
             stageOptions={stageOptions}
-            salesExecs={salesExecs} currentUser={currentUser} leadId={selectedLead?.id}
+            salesExecs={salesExecs} projects={projectList} currentUser={currentUser} leadId={selectedLead?.id}
             existingRecordings={existingRecordings}
             onExistingChange={async () => {
               try {
@@ -1986,9 +2060,20 @@ export default function Leads() {
       />
 
       {/* Lead Source Management Modal */}
-      <LeadSourceManagementModal 
-        isOpen={showSourceModal} 
-        onClose={() => setShowSourceModal(false)} 
+      <LeadSourceManagementModal
+        isOpen={showSourceModal}
+        onClose={() => setShowSourceModal(false)}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => { setShowDeleteModal(false); setLeadToDelete(null) }}
+        onConfirm={confirmDeleteLead}
+        title="Delete Lead"
+        message={`Are you sure you want to delete lead "${leadToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete Lead"
+        loading={deleting}
       />
     </div>
   )

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { useModulePermissions } from '../hooks/usePermission'
@@ -7,6 +7,7 @@ import {
   Plus, RefreshCw, FileText, CheckCircle, AlertCircle,
   Clock, Banknote, Wallet, BarChart3, Edit2, History,
   X, Eye, Loader2, DollarSign, LogIn, LogOut, Timer, ArrowRight,
+  MoreVertical,
 } from 'lucide-react'
 import {
   fetchAllEmployeeSalaries,
@@ -169,6 +170,8 @@ function AdminSalaryView({ user }) {
   const [employeesPage, setEmployeesPage] = useState(1)
   const [slipsPage, setSlipsPage]         = useState(1)
   const perPage = 10
+  const [openMenuEmpId, setOpenMenuEmpId] = useState(null)
+  const menuRef = useRef(null)
 
   // Set Salary modal
   const [setSalaryModal, setSetSalaryModal] = useState(false)
@@ -242,6 +245,18 @@ function AdminSalaryView({ user }) {
       }
     }
   }, [actionSuccess, dispatch, filterMonth, filterYear, slipsPage, employeesPage, perPage])
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuEmpId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   const openSetSalary = (emp) => {
     setSalaryTargetE(emp)
@@ -425,7 +440,7 @@ function AdminSalaryView({ user }) {
 
       {/* ── TAB: Employees & Salaries ────────────────────────────────────────── */}
       {tab === 'employees' && (
-        <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
           {loading.employees ? (
             <div className="flex items-center justify-center h-40 text-gray-400">
               <Loader2 size={24} className="animate-spin" />
@@ -471,59 +486,71 @@ function AdminSalaryView({ user }) {
                         {emp.effective_from ? new Date(emp.effective_from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500">{emp.set_by_name || '—'}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 justify-end">
-                          <button
-                            onClick={() => navigate(`/salary/${emp.id}`)}
-                            title="View Day-wise Salary"
-                            className="p-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 dark:text-purple-400 transition-colors"
-                          >
-                            <Eye size={14} />
-                          </button>
-                          {/* Show Set Salary button if salary not set, otherwise Appraisal button */}
-                          {perms.edit && (!emp.salary_set ? (
+                      <td className="px-4 py-3" ref={openMenuEmpId === emp.id ? menuRef : null}>
+                        <div className="flex items-center justify-end">
+                          <div className="relative">
                             <button
-                              onClick={() => openSetSalary(emp)}
-                              title="Set Salary"
-                              className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
+                              onClick={() => setOpenMenuEmpId(openMenuEmpId === emp.id ? null : emp.id)}
+                              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors"
                             >
-                              <IndianRupee size={14} />
+                              <MoreVertical size={14} />
                             </button>
-                          ) : (
-                            <button
-                              onClick={() => openAppraisal(emp)}
-                              title="Appraisal"
-                              className="p-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 transition-colors"
-                            >
-                              <TrendingUp size={14} />
-                            </button>
-                          ))}
-                          {perms.create && (
-                            <button
-                              onClick={() => openGenerate(emp)}
-                              title="Generate Slip"
-                              disabled={!emp.salary_set}
-                              className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 transition-colors disabled:opacity-30"
-                            >
-                              <FileText size={14} />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => openHistory(emp)}
-                            title="Salary History"
-                            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors"
-                          >
-                            <History size={14} />
-                          </button>
-                          {perms.create && (
-                            <button
-                              onClick={() => openIncentive(emp)}
-                              title="Add Incentive"
-                              className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 transition-colors"
-                            >
-                              <Banknote size={14} />
-                            </button>
-                          )}
+                            {openMenuEmpId === emp.id && (
+                              <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${i >= (employees.data?.length || 0) - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                                <button
+                                  onClick={() => { navigate(`/salary/${emp.id}`); setOpenMenuEmpId(null) }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                  <Eye size={14} />
+                                  View Day-wise Salary
+                                </button>
+                                {/* Show Set Salary button if salary not set, otherwise Appraisal button */}
+                                {perms.edit && (!emp.salary_set ? (
+                                  <button
+                                    onClick={() => { openSetSalary(emp); setOpenMenuEmpId(null) }}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                  >
+                                    <IndianRupee size={14} />
+                                    Set Salary
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => { openAppraisal(emp); setOpenMenuEmpId(null) }}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                  >
+                                    <TrendingUp size={14} />
+                                    Appraisal
+                                  </button>
+                                ))}
+                                {perms.create && (
+                                  <button
+                                    onClick={() => { openGenerate(emp); setOpenMenuEmpId(null) }}
+                                    disabled={!emp.salary_set}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-30"
+                                  >
+                                    <FileText size={14} />
+                                    Generate Slip
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => { openHistory(emp); setOpenMenuEmpId(null) }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                  <History size={14} />
+                                  Salary History
+                                </button>
+                                {perms.create && (
+                                  <button
+                                    onClick={() => { openIncentive(emp); setOpenMenuEmpId(null) }}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                  >
+                                    <Banknote size={14} />
+                                    Add Incentive
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>

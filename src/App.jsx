@@ -31,6 +31,7 @@ import RevisitDetail  from './pages/RevisitDetail'
 import Closures       from './pages/Closures'
 import ClosureDetail  from './pages/ClosureDetail'
 import AccessControl  from './pages/AccessControl'
+import Targets        from './pages/Targets'
 
 
 function AppRoutes() {
@@ -95,6 +96,7 @@ function AppRoutes() {
         <Route path="/users"              element={<PermissionProtectedRoute module="users"><Layout><UserManagement /></Layout></PermissionProtectedRoute>} />
         <Route path="/phone-requests"     element={<PermissionProtectedRoute module="phone_requests"><Layout><PhoneRequests /></Layout></PermissionProtectedRoute>} />
         <Route path="/access-control"     element={<PermissionProtectedRoute module="users"><Layout><AccessControl /></Layout></PermissionProtectedRoute>} />
+        <Route path="/targets"            element={<PermissionProtectedRoute module="targets"><Layout><Targets /></Layout></PermissionProtectedRoute>} />
 
         <Route path="*" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
       </Routes>

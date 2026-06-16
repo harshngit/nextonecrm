@@ -598,6 +598,7 @@ export default function Projects() {
   const [localError, setLocalError] = useState('')
   const [exporting,  setExporting]  = useState(false)
   const [downloading, setDownloading] = useState({}) // { [projectId]: { unit_plan: bool, creative: false, payment_plan: bool, video: false } }
+  const [creatingProject, setCreatingProject] = useState(false)
 
   useEffect(() => {
     const params = { page, per_page: 10 }
@@ -626,10 +627,12 @@ export default function Projects() {
   const canManage = ['super_admin', 'admin'].includes(currentUser?.role)
   const isViewOnly = !canManage  // sales roles have view-only access
   const perms = useModulePermissions('projects')
+  const canShareProject = ['sales_manager', 'sales_executive', 'external_caller'].includes(currentUser?.role)
 
   const handleAdd = async (e) => {
     e.preventDefault()
     dispatch(clearProjectError())
+    setCreatingProject(true)
     
     try {
       // 1. Upload Unit Plans first
@@ -709,6 +712,8 @@ export default function Projects() {
     } catch (err) {
       console.error('Project creation failed:', err)
       // error is handled by projectSlice actionError
+    } finally {
+      setCreatingProject(false)
     }
   }
 
@@ -945,20 +950,24 @@ export default function Projects() {
                       {project.status}
                     </span>
                   </div>
-                  {perms.edit && (
+                  {(perms.edit || canShareProject) && (
                     <div className="absolute top-3 left-3 flex gap-1">
-                      <button onClick={() => openEdit(project)}
-                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-blue-600 transition-colors" title="Edit">
-                        <Edit2 size={11} />
-                      </button>
+                      {perms.edit && (
+                        <button onClick={() => openEdit(project)}
+                          className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-blue-600 transition-colors" title="Edit">
+                          <Edit2 size={11} />
+                        </button>
+                      )}
                       <button onClick={() => setShareProject(project)}
                         className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-brand transition-colors" title="Share via email">
                         <Share2 size={11} />
                       </button>
-                      <button onClick={() => handleDelete(project)}
-                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-red-500 transition-colors" title="Delete">
-                        <Trash2 size={11} />
-                      </button>
+                      {perms.edit && (
+                        <button onClick={() => handleDelete(project)}
+                          className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-red-500 transition-colors" title="Delete">
+                          <Trash2 size={11} />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1057,8 +1066,8 @@ export default function Projects() {
         <form onSubmit={handleAdd} className="space-y-4">
           <ProjectForm formData={addForm} setFormData={setAddForm} uploadFiles={uploadFiles} setUploadFiles={setUploadFiles} />
           <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowAddModal(false)}>Cancel</Button>
-            <Button type="submit" className="flex-1" loading={actionLoading}>Add Project</Button>
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowAddModal(false)} disabled={creatingProject}>Cancel</Button>
+            <Button type="submit" className="flex-1" loading={creatingProject}>Add Project</Button>
           </div>
         </form>
       </Modal>

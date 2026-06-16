@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useModulePermissions } from '../hooks/usePermission'
-import { Edit2, Trash2, Shield, UserPlus, Mail, Phone, Lock, RefreshCw, Eye, EyeOff, Download, UserCheck } from 'lucide-react'
+import { Edit2, Trash2, Shield, UserPlus, Mail, Phone, Lock, RefreshCw, Eye, EyeOff, Download, UserCheck, MoreVertical } from 'lucide-react'
 import { fetchUsers, createUser, updateUser, deleteUser, updateUserRole, assignManager, clearUserError, fetchRoles } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
@@ -63,15 +63,17 @@ function UserForm({ form, setForm, editMode, showPassword, setShowPassword, role
           <label className={labelClass}>Phone Number *</label>
           <div className="relative">
             <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input required={!editMode} value={form.phone_number} onChange={e => setForm({ ...form, phone_number: e.target.value })} placeholder="+919123456789" className={inputClass + " pl-9"} />
+            <input required={!editMode} value={form.phone_number} onChange={e => setForm({ ...form, phone_number: e.target.value })} placeholder="9123456789" className={inputClass + " pl-9"} />
           </div>
+          <p className="text-[10px] text-gray-400 mt-1">Enter 10-digit number only, without +91</p>
         </div>
         <div>
           <label className={labelClass}>Emergency Contact</label>
           <div className="relative">
             <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={form.emergency_contact_number} onChange={e => setForm({ ...form, emergency_contact_number: e.target.value })} placeholder="+919876543211" className={inputClass + " pl-9"} />
+            <input value={form.emergency_contact_number} onChange={e => setForm({ ...form, emergency_contact_number: e.target.value })} placeholder="9876543211" className={inputClass + " pl-9"} />
           </div>
+          <p className="text-[10px] text-gray-400 mt-1">Enter 10-digit number only, without +91</p>
         </div>
       </div>
       <div>
@@ -191,6 +193,8 @@ export default function UserManagement() {
   const [exporting,       setExporting]       = useState(false)
   const [form,            setForm]            = useState(defaultForm)
   const [page,            setPage]            = useState(1)
+  const [openMenuUserId,  setOpenMenuUserId]  = useState(null)
+  const menuRef = useRef(null)
 
   useEffect(() => {
     dispatch(fetchRoles())
@@ -209,17 +213,27 @@ export default function UserManagement() {
     if (!showAssignModal) { dispatch(clearUserError()); setAssignSuccess('') }
   }, [showAssignModal, dispatch])
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuUserId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   // Active sales managers — for assign dropdown
   const salesManagers = list.filter(u => u.role === 'sales_manager' && u.is_active)
 
   // For sales_manager: only show sales_executive and external_caller
-  // For admin/super_admin: show all, split active/inactive
   const visibleList = isSalesManager
     ? list.filter(u => ['sales_executive', 'external_caller'].includes(u.role))
     : list
 
-  const activeUsers   = visibleList.filter(u => u.is_active)
-  const inactiveUsers = visibleList.filter(u => !u.is_active)
+  const activeUsers = visibleList.filter(u => u.is_active)
 
   // Role filter options — sales_manager doesn't need the filter (always scoped)
   const roleFilterOptions = [
@@ -325,7 +339,7 @@ export default function UserManagement() {
     'Actions',
   ]
 
-  const renderRows = (users) => users.map(user => {
+  const renderRows = (users) => users.map((user, userIdx) => {
     const manager = list.find(m => m.id === user.manager_id)
     return (
       <tr key={user.id} className={`transition-colors hover:bg-gray-50 dark:hover:bg-[#0f0f0f] ${!user.is_active ? 'opacity-60' : ''}`}>
@@ -386,30 +400,42 @@ export default function UserManagement() {
         </td>
 
         {/* Actions */}
-        <td className="py-3 px-4">
-          <div className="flex items-center gap-1">
-            {/* Assign — admin/super_admin: always show for exec/caller
-                 sales_manager: only show if NOT already assigned (no manager_id) */}
-            {canAssign && isAssignable(user) && (!isSalesManager || !user.manager_id) && (
-              <button onClick={() => handleOpenAssignModal(user)} title="Assign Manager"
+        <td className="py-3 px-4" ref={openMenuUserId === user.id ? menuRef : null}>
+          <div className="flex items-center justify-end">
+            <div className="relative">
+              <button onClick={() => setOpenMenuUserId(openMenuUserId === user.id ? null : user.id)}
                 className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">
-                <UserCheck size={13} />
+                <MoreVertical size={13} />
               </button>
-            )}
-            {/* Edit — admin/super_admin only */}
-            {perms.edit && (
-              <button onClick={() => handleOpenModal(user)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
-                <Edit2 size={13} />
-              </button>
-            )}
-            {/* Deactivate — admin/super_admin only */}
-            {perms.delete && user.id !== currentUser?.id && user.role !== 'super_admin' && user.is_active && (
-              <button onClick={() => confirmDelete(user)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                <Trash2 size={13} />
-              </button>
-            )}
+              {openMenuUserId === user.id && (
+                <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${userIdx >= users.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                  {/* Assign — admin/super_admin: always show for exec/caller, sales_manager: only if not already assigned */}
+                  {canAssign && isAssignable(user) && (!isSalesManager || !user.manager_id) && (
+                    <button onClick={() => { handleOpenAssignModal(user); setOpenMenuUserId(null)}}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <UserCheck size={14} />
+                      Assign Manager
+                    </button>
+                  )}
+                  {/* Edit — admin/super_admin only */}
+                  {perms.edit && (
+                    <button onClick={() => { handleOpenModal(user); setOpenMenuUserId(null)}}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <Edit2 size={14} />
+                      Edit
+                    </button>
+                  )}
+                  {/* Deactivate — admin/super_admin only */}
+                  {perms.delete && user.id !== currentUser?.id && user.role !== 'super_admin' && user.is_active && (
+                    <button onClick={() => { confirmDelete(user); setOpenMenuUserId(null)}}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                      <Trash2 size={14} />
+                      Deactivate
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </td>
       </tr>
@@ -417,7 +443,7 @@ export default function UserManagement() {
   })
 
   const TableSection = ({ users, label, dot }) => (
-    <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
+    <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-2xl shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
       <div className="flex items-center gap-2.5 px-5 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-[#0f0f0f]">
         <div className={`w-2 h-2 rounded-full ${dot}`} />
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</span>
@@ -499,12 +525,7 @@ export default function UserManagement() {
           <p className="font-medium">No users found</p>
         </div>
       ) : (
-        <>
-          <TableSection users={activeUsers}   label="Active"   dot="bg-green-500" />
-          {inactiveUsers.length > 0 && (
-            <TableSection users={inactiveUsers} label="Inactive" dot="bg-gray-400" />
-          )}
-        </>
+        <TableSection users={activeUsers} label="Active" dot="bg-green-500" />
       )}
 
       {/* Pagination */}

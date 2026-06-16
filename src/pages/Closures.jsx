@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { useModulePermissions } from '../hooks/usePermission'
@@ -6,7 +6,7 @@ import {
   Plus, RefreshCw, Edit2, X, CheckCircle2, TrendingUp,
   Loader2, AlertCircle, IndianRupee, Building2, Calendar,
   Star, Banknote, Home, Search, Users, CircleDot,
-  BadgeCheck, ChevronRight, Percent, CreditCard, Clock, Eye,
+  BadgeCheck, ChevronRight, Percent, CreditCard, Clock, Eye, MoreVertical,
 } from 'lucide-react'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
@@ -420,9 +420,7 @@ function ClosureDrawer({ closure, onClose }) {
             <X size={15} />
           </button>
         </div>
-
         <div className="p-6 space-y-6">
-
           {/* Status + Lead */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -555,10 +553,22 @@ export default function Closures() {
   const [showStatus,  setShowStatus]  = useState(false)
   const [showDrawer,  setShowDrawer]  = useState(false)
   const [selected,    setSelected]    = useState(null)
+  const [openMenuId,  setOpenMenuId]  = useState(null)
+  const menuRef = useRef(null)
 
   const canManage = ['super_admin','admin','sales_manager'].includes(user?.role)
   const isAdmin   = ['super_admin','admin'].includes(user?.role)
   const perms = useModulePermissions('closures')
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const fetchClosures = async () => {
     setLoading(true)
@@ -667,8 +677,16 @@ export default function Closures() {
         )}
       </div>
 
+      {/* Summary */}
+      {!loading && (
+        <div className="text-sm text-gray-500 dark:text-[#888]">
+          Showing <span className="font-semibold text-gray-900 dark:text-white">{displayed.length}</span>
+          {pagination?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span></>} closures
+        </div>
+      )}
+
       {/* Table */}
-      <div className="bg-card border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden shadow-sm">
+      <div className="bg-card border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm">
         {loading ? (
           <div className="p-4"><ListSkeleton rows={5} /></div>
         ) : displayed.length === 0 ? (
@@ -694,7 +712,7 @@ export default function Closures() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {displayed.map(c => (
+                {displayed.map((c, cIdx) => (
                   <tr key={c.id} className="hover:bg-gray-50/60 dark:hover:bg-[#0f0f0f]/60 transition-colors group cursor-pointer"
                       onClick={() => { setSelected(c); setShowDrawer(true) }}>
 
@@ -764,28 +782,53 @@ export default function Closures() {
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => navigate(`/closures/${c.id}`)} title="View Details"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">
-                          <Eye size={13} />
-                        </button>
-                        <button onClick={() => { setSelected(c); setShowDrawer(true) }} title="Quick View"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">
-                          <ChevronRight size={13} />
-                        </button>
-                        {perms.edit && (
-                          <>
-                            <button onClick={() => { setSelected(c); setShowEdit(true) }} title="Edit"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
-                              <Edit2 size={13} />
-                            </button>
-                            <button onClick={() => { setSelected(c); setShowStatus(true) }} title="Change status"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
-                              <CircleDot size={13} />
-                            </button>
-                          </>
-                        )}
+                    <td className="py-3 px-4" onClick={e => e.stopPropagation()} ref={openMenuId === c.id ? menuRef : null}>
+                      <div className="flex items-center justify-end">
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+
+                          {openMenuId === c.id && (
+                            <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${cIdx >= displayed.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                              <button
+                                onClick={() => { navigate(`/closures/${c.id}`); setOpenMenuId(null); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                              >
+                                <Eye size={14} />
+                                View Details
+                              </button>
+                              <button
+                                onClick={() => { setSelected(c); setShowDrawer(true); setOpenMenuId(null); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                              >
+                                <ChevronRight size={14} />
+                                Quick View
+                              </button>
+                              {perms.edit && (
+                                <>
+                                  <button
+                                    onClick={() => { setSelected(c); setShowEdit(true); setOpenMenuId(null); }}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                  >
+                                    <Edit2 size={14} />
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => { setSelected(c); setShowStatus(true); setOpenMenuId(null); }}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                  >
+                                    <CircleDot size={14} />
+                                    Change Status
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>

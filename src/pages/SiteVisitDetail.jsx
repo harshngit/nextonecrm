@@ -105,21 +105,21 @@ export default function SiteVisitDetail() {
   return (
     <div className="max-w-[1400px] mx-auto space-y-4 pb-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <button
           onClick={() => navigate('/site-visits')}
-          className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-brand transition-colors group"
+          className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-brand transition-colors group flex-shrink-0"
         >
           <div className="w-8 h-8 rounded-full bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 flex items-center justify-center group-hover:border-brand/30 transition-all">
             <ArrowLeft size={16} />
           </div>
           Back to Site Visits
         </button>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="rounded-xl" onClick={() => navigate(`/leads/${visit.lead_id}`)}>
+        <div className="flex gap-2 overflow-x-auto whitespace-nowrap pb-1 -mb-1 sm:pb-0 sm:-mb-0">
+          <Button variant="outline" size="sm" className="rounded-xl flex-shrink-0" onClick={() => navigate(`/leads/${visit.lead_id}`)}>
             View Lead
           </Button>
-          <Button size="sm" className="rounded-xl px-5 font-bold shadow-lg shadow-blue-100/50">
+          <Button size="sm" className="rounded-xl px-5 font-bold shadow-lg shadow-blue-100/50 flex-shrink-0">
             Edit Visit
           </Button>
         </div>

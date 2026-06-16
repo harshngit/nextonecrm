@@ -20,6 +20,7 @@ import {
   checkIn, checkOut, uploadAttendancePhoto,
   fetchAttendanceToday, manualAttendanceEntry,
 } from '../store/attendanceSlice'
+import { fetchMyTarget } from '../store/targetSlice'
 import api from '../api/axios'
 import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
@@ -509,12 +510,72 @@ function CommissionCard() {
   )
 }
 
+// ─── My Target card — shown first on the personal dashboard, blue shades ──────
+function MyTargetCard({ target, loading, navigate }) {
+  if (loading || !target) {
+    return <div className="h-[124px] bg-gradient-to-br from-[#0082f3] to-blue-600 rounded-2xl animate-pulse" />
+  }
+  const svTarget = target.site_visit_target ?? 15
+  const svDone   = target.site_visits_done ?? 0
+  const svLeft   = target.site_visits_remaining ?? Math.max(svTarget - svDone, 0)
+  const clTarget = target.closure_target ?? 1
+  const clDone   = target.closures_done ?? 0
+  const clLeft   = target.closures_remaining ?? Math.max(clTarget - clDone, 0)
+  const svPct = svTarget > 0 ? Math.min(100, Math.round((svDone / svTarget) * 100)) : 0
+  const clPct = clTarget > 0 ? Math.min(100, Math.round((clDone / clTarget) * 100)) : 0
+  const monthLabel = target.target_month
+    ? new Date(`${target.target_month}-01`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+    : ''
+
+  return (
+    <div onClick={() => navigate('/targets')}
+      className="relative bg-gradient-to-br from-[#0082f3] to-blue-600 rounded-2xl p-4 shadow-lg shadow-blue-500/20 text-white overflow-hidden cursor-pointer hover:shadow-xl transition-shadow">
+      <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/10 -translate-y-10 translate-x-10" />
+      <div className="flex items-center justify-between mb-3 relative z-10">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+            <Target size={17} className="text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">My Target</p>
+            <p className="text-[11px] text-blue-100">{monthLabel}{target.is_custom ? ' · Custom' : ''}</p>
+          </div>
+        </div>
+        <ChevronRight size={16} className="text-blue-100" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 relative z-10">
+        <div className="bg-white/10 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-medium text-blue-100">Site Visits</span>
+            <span className="text-xs font-bold">{svDone} / {svTarget}</span>
+          </div>
+          <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+            <div className="h-full bg-white rounded-full transition-all" style={{ width: `${svPct}%` }} />
+          </div>
+          <p className="text-[10px] text-blue-100 mt-1">{svLeft} remaining</p>
+        </div>
+        <div className="bg-white/10 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-medium text-blue-100">Closures</span>
+            <span className="text-xs font-bold">{clDone} / {clTarget}</span>
+          </div>
+          <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+            <div className="h-full bg-white rounded-full transition-all" style={{ width: `${clPct}%` }} />
+          </div>
+          <p className="text-[10px] text-blue-100 mt-1">{clLeft} remaining</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // PERSONAL DASHBOARD (sales_manager / sales_executive / external_caller)
 // ══════════════════════════════════════════════════════════════════════════════
 function PersonalDashboard({ user, onAttendance }) {
   const navigate  = useNavigate()
   const dispatch  = useDispatch()
+  const { myTarget, detailLoading: targetLoading } = useSelector(s => s.targets)
   const [summary, setSummary]  = useState(null)
   const [activities, setActivities] = useState([])
   const [mySiteVisits, setMySiteVisits] = useState([])
@@ -542,6 +603,10 @@ function PersonalDashboard({ user, onAttendance }) {
     }
     load()
   }, [])
+
+  useEffect(() => {
+    dispatch(fetchMyTarget())
+  }, [dispatch])
 
   const L  = summary?.leads        || {}
   const V  = summary?.site_visits  || {}
@@ -627,6 +692,7 @@ function PersonalDashboard({ user, onAttendance }) {
 
   if (loading) return (
     <div className="space-y-3">
+      <MyTargetCard target={myTarget} loading={targetLoading} navigate={navigate} />
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">{[1,2,3,4,5].map(i=><div key={i} className="h-[108px] bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 animate-pulse"/>)}</div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">{[1,2,3].map(i=><div key={i} className="h-64 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 animate-pulse"/>)}</div>
     </div>
@@ -634,6 +700,9 @@ function PersonalDashboard({ user, onAttendance }) {
 
   return (
     <div className="space-y-3">
+
+      {/* My Target — always shown first for non-admin roles */}
+      <MyTargetCard target={myTarget} loading={targetLoading} navigate={navigate} />
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
