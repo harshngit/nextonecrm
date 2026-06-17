@@ -1424,7 +1424,8 @@ export default function Leads() {
   const [pendingRecordings,  setPendingRecordings]  = useState([])   // add mode — recordings to attach on create
   const [existingRecordings, setExistingRecordings] = useState([])   // edit mode — recordings from API
   const [visiblePhoneLeadId, setVisiblePhoneLeadId] = useState(null) // track which lead's phone is visible
-  const [openMenuLeadId, setOpenMenuLeadId] = useState(null) // track which three-dot menu is open
+  const [openMenuLeadId, setOpenMenuLeadId] = useState(null)
+  const [menuPos,        setMenuPos]        = useState(null)
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -1871,14 +1872,14 @@ export default function Leads() {
                       <div className="flex items-center justify-end">
                         <div className="relative">
                           <button
-                            onClick={() => setOpenMenuLeadId(openMenuLeadId === lead.id ? null : lead.id)}
+                            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const below = window.innerHeight - r.bottom; setMenuPos({ right: window.innerWidth - r.right, ...(below > 200 ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) }); setOpenMenuLeadId(openMenuLeadId === lead.id ? null : lead.id) }}
                             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all"
                           >
                             <MoreVertical size={16} />
                           </button>
-                          
+
                           {openMenuLeadId === lead.id && (
-                            <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${leadIdx >= activeList.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                            <div style={{ top: menuPos?.top, bottom: menuPos?.bottom, right: menuPos?.right }} className="fixed w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[9999] py-1">
                               <button
                                 onClick={() => { navigate(`/leads/${lead.id}`); setOpenMenuLeadId(null); }}
                                 className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"

@@ -152,6 +152,7 @@ export default function Targets() {
   const [selectedYear,  setSelectedYear]  = useState(thisYear)
   const [page,          setPage]          = useState(1)
   const [openMenuId,    setOpenMenuId]    = useState(null)
+  const [menuPos,       setMenuPos]       = useState(null)
   const [showFormModal, setShowFormModal] = useState(false)
   const [formTarget,    setFormTarget]    = useState(null)
   const [formIsEdit,    setFormIsEdit]    = useState(false)
@@ -373,13 +374,13 @@ export default function Targets() {
                           <div className="flex items-center justify-end">
                             <div className="relative">
                               <button
-                                onClick={() => setOpenMenuId(openMenuId === userId ? null : userId)}
+                                onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const below = window.innerHeight - r.bottom; setMenuPos({ right: window.innerWidth - r.right, ...(below > 200 ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) }); setOpenMenuId(openMenuId === userId ? null : userId) }}
                                 className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all"
                               >
                                 <MoreVertical size={16} />
                               </button>
                               {openMenuId === userId && (
-                                <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${tIdx >= paginatedList.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                                <div style={{ top: menuPos?.top, bottom: menuPos?.bottom, right: menuPos?.right }} className="fixed w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[9999] py-1">
                                   <button
                                     onClick={() => { openSetTarget(t); setOpenMenuId(null) }}
                                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"

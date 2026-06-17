@@ -195,6 +195,7 @@ export default function UserManagement() {
   const [form,            setForm]            = useState(defaultForm)
   const [page,            setPage]            = useState(1)
   const [openMenuUserId,  setOpenMenuUserId]  = useState(null)
+  const [menuPos,         setMenuPos]         = useState(null)
   const [statusToast,     setStatusToast]     = useState({ show: false, message: '', isError: false })
   const [search,          setSearch]          = useState('')
   const menuRef = useRef(null)
@@ -438,12 +439,12 @@ export default function UserManagement() {
         <td className="py-3 px-4" ref={openMenuUserId === user.id ? menuRef : null}>
           <div className="flex items-center justify-end">
             <div className="relative">
-              <button onClick={() => setOpenMenuUserId(openMenuUserId === user.id ? null : user.id)}
+              <button onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const below = window.innerHeight - r.bottom; setMenuPos({ right: window.innerWidth - r.right, ...(below > 200 ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) }); setOpenMenuUserId(openMenuUserId === user.id ? null : user.id) }}
                 className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">
                 <MoreVertical size={13} />
               </button>
               {openMenuUserId === user.id && (
-                <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${userIdx >= users.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                <div style={{ top: menuPos?.top, bottom: menuPos?.bottom, right: menuPos?.right }} className="fixed w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[9999] py-1">
                   {/* Assign — admin/super_admin: always show for exec/caller, sales_manager: only if not already assigned */}
                   {canAssign && isAssignable(user) && (!isSalesManager || !user.manager_id) && (
                     <button onClick={() => { handleOpenAssignModal(user); setOpenMenuUserId(null)}}

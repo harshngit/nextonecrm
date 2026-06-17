@@ -127,6 +127,7 @@ export default function Team() {
   const [assignSuccess,   setAssignSuccess]   = useState('')
   const [page,            setPage]            = useState(1)
   const [openMenuMemberId, setOpenMenuMemberId] = useState(null)
+  const [menuPos,          setMenuPos]          = useState(null)
   const menuRef = useRef(null)
 
   // For sales_manager: API already scopes to their team via manager_id on server
@@ -375,12 +376,12 @@ export default function Team() {
                         <div className="flex items-center justify-end">
                           <div className="relative">
                             <button
-                              onClick={() => setOpenMenuMemberId(openMenuMemberId === member.id ? null : member.id)}
+                              onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const below = window.innerHeight - r.bottom; setMenuPos({ right: window.innerWidth - r.right, ...(below > 200 ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) }); setOpenMenuMemberId(openMenuMemberId === member.id ? null : member.id) }}
                               className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all">
                               <MoreVertical size={15} />
                             </button>
                             {openMenuMemberId === member.id && (
-                              <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${memberIdx >= filtered.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                              <div style={{ top: menuPos?.top, bottom: menuPos?.bottom, right: menuPos?.right }} className="fixed w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[9999] py-1">
                                 {/* Assign — only for admin/super_admin, only for assignable roles */}
                                 {showAssignBtn && isAssignable(member) && (
                                   <button

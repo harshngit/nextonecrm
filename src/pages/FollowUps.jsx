@@ -581,8 +581,9 @@ function BulkConvertFUModal({ taskIds, tasks, onClose, onSuccess }) {
 }
 
 
-function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, isSelected, onSelect, editLoading, openMenuTaskId, setOpenMenuTaskId, openUpward }) {
+function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, isSelected, onSelect, editLoading, openMenuTaskId, setOpenMenuTaskId }) {
   const navigate = useNavigate()
+  const [menuPos, setMenuPos] = useState(null)
   const category = classifyTask(task)
 
   const cardStyle = {
@@ -660,13 +661,13 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, is
           {canManage && (
             <div className="flex gap-1 justify-end">
               <div className="relative">
-                <button onClick={() => setOpenMenuTaskId(openMenuTaskId === task.id ? null : task.id)}
+                <button onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const below = window.innerHeight - r.bottom; setMenuPos({ right: window.innerWidth - r.right, ...(below > 200 ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) }); setOpenMenuTaskId(openMenuTaskId === task.id ? null : task.id) }}
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors" title="Actions">
                   <MoreVertical size={13} />
                 </button>
 
                 {openMenuTaskId === task.id && (
-                  <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                  <div style={{ top: menuPos?.top, bottom: menuPos?.bottom, right: menuPos?.right }} className="fixed w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[9999] py-1">
                     <button
                       onClick={() => { navigate(`/follow-ups/${task.id}`); setOpenMenuTaskId(null)}}
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
@@ -740,6 +741,7 @@ export default function FollowUps() {
   const [convertSuccess,    setConvertSuccess]    = useState('')
   const [editLoading,       setEditLoading]       = useState(null) // Track which task is loading
   const [openMenuTaskId,    setOpenMenuTaskId]    = useState(null)
+  const [menuPos,           setMenuPos]           = useState(null)
   const menuRef = useRef(null)
 
   const salesExecs = sortByRole(userList.filter(u => u.is_active))
@@ -987,7 +989,6 @@ export default function FollowUps() {
               editLoading={editLoading}
               openMenuTaskId={openMenuTaskId}
               setOpenMenuTaskId={setOpenMenuTaskId}
-              openUpward={taskIdx >= tasks.length - 2}
             />
           ))}
         </div>
@@ -1253,12 +1254,12 @@ export default function FollowUps() {
                             </button>
                           )}
                           <div className="relative">
-                            <button onClick={() => setOpenMenuTaskId(openMenuTaskId === task.id ? null : task.id)}
+                            <button onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const below = window.innerHeight - r.bottom; setMenuPos({ right: window.innerWidth - r.right, ...(below > 200 ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) }); setOpenMenuTaskId(openMenuTaskId === task.id ? null : task.id) }}
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors" title="Actions">
                               <MoreVertical size={13} />
                             </button>
                             {openMenuTaskId === task.id && (
-                              <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${taskIdx >= list.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                              <div style={{ top: menuPos?.top, bottom: menuPos?.bottom, right: menuPos?.right }} className="fixed w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[9999] py-1">
                                 <button
                                   onClick={() => { navigate(`/follow-ups/${task.id}`); setOpenMenuTaskId(null)}}
                                   className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">

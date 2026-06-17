@@ -539,6 +539,7 @@ export default function SiteVisits() {
   const [success,      setSuccess]      = useState('')
   const [exporting,    setExporting]    = useState(false)
   const [openMenuVisitId, setOpenMenuVisitId] = useState(null)
+  const [menuPos,         setMenuPos]         = useState(null)
   const menuRef = useRef(null)
 
   const loadVisits = () => {
@@ -855,13 +856,13 @@ export default function SiteVisits() {
                     <div className="flex items-center gap-2" ref={openMenuVisitId === visit.id ? menuRef : null}>
                       <div className="relative">
                         <button
-                          onClick={() => setOpenMenuVisitId(openMenuVisitId === visit.id ? null : visit.id)}
+                          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const below = window.innerHeight - r.bottom; setMenuPos({ right: window.innerWidth - r.right, ...(below > 200 ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) }); setOpenMenuVisitId(openMenuVisitId === visit.id ? null : visit.id) }}
                           className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-brand hover:bg-brand/10 transition-all">
                           <MoreVertical size={16} />
                         </button>
-                        
+
                         {openMenuVisitId === visit.id && (
-                          <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${visitIdx >= dayVisits.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                          <div style={{ top: menuPos?.top, bottom: menuPos?.bottom, right: menuPos?.right }} className="fixed w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[9999] py-1">
                             <button
                               onClick={() => { navigate(`/site-visits/${visit.id}`); setOpenMenuVisitId(null); }}
                               className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
@@ -1005,13 +1006,13 @@ export default function SiteVisits() {
                         <div className="flex items-center justify-end">
                           <div className="relative">
                             <button
-                              onClick={() => setOpenMenuVisitId(openMenuVisitId === visit.id ? null : visit.id)}
+                              onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const below = window.innerHeight - r.bottom; setMenuPos({ right: window.innerWidth - r.right, ...(below > 200 ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) }); setOpenMenuVisitId(openMenuVisitId === visit.id ? null : visit.id) }}
                               className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-all">
                               <MoreVertical size={16} />
                             </button>
-                            
+
                             {openMenuVisitId === visit.id && (
-                              <div className={`absolute right-0 w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-50 py-1 ${visitIdx >= list.length - 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                              <div style={{ top: menuPos?.top, bottom: menuPos?.bottom, right: menuPos?.right }} className="fixed w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[9999] py-1">
                                 <button
                                   onClick={() => { navigate(`/site-visits/${visit.id}`); setOpenMenuVisitId(null); }}
                                   className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
