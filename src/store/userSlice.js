@@ -170,6 +170,14 @@ const userSlice = createSlice({
         }
       })
 
+      // updateUserRole — patch role in-place so the list reflects the new role immediately
+      .addCase(updateUserRole.fulfilled, (state, action) => {
+        const updated = action.payload?.data
+        if (updated?.id) {
+          state.list = state.list.map(u => u.id === updated.id ? { ...u, role: updated.role } : u)
+        }
+      })
+
       // Action matchers for create / update / delete / role / assignManager
       .addMatcher(
         (action) => action.type.endsWith('/pending') && action.type.startsWith('users/') && action.type !== 'users/fetchAll/pending',
