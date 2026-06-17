@@ -13,6 +13,18 @@ export const fetchFollowUps = createAsyncThunk(
   }
 )
 
+export const fetchMyFollowUps = createAsyncThunk(
+  'followUps/fetchMine',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/me/tasks', { params })
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch my follow-ups')
+    }
+  }
+)
+
 export const createFollowUp = createAsyncThunk(
   'followUps/create',
   async (data, { rejectWithValue }) => {
@@ -114,7 +126,17 @@ const followUpSlice = createSlice({
       .addCase(fetchFollowUps.rejected,  (state, action) => {
         state.loading = false; state.error = action.payload
       })
-      
+
+      .addCase(fetchMyFollowUps.pending,   (state) => { state.loading = true; state.error = null })
+      .addCase(fetchMyFollowUps.fulfilled, (state, action) => {
+        state.loading = false
+        state.list = action.payload.data || []
+        state.pagination = action.payload.pagination || state.pagination
+      })
+      .addCase(fetchMyFollowUps.rejected,  (state, action) => {
+        state.loading = false; state.error = action.payload
+      })
+
       .addCase(fetchFollowUpById.pending, (state) => { state.detailLoading = true })
       .addCase(fetchFollowUpById.fulfilled, (state, action) => { state.detailLoading = false; state.currentTask = action.payload })
       .addCase(fetchFollowUpById.rejected, (state, action) => { state.detailLoading = false; state.error = action.payload })

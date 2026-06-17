@@ -13,6 +13,18 @@ export const fetchSiteVisits = createAsyncThunk(
   }
 )
 
+export const fetchMySiteVisits = createAsyncThunk(
+  'siteVisits/fetchMine',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/me/site-visits', { params })
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch my site visits')
+    }
+  }
+)
+
 export const createSiteVisit = createAsyncThunk(
   'siteVisits/create',
   async (data, { rejectWithValue }) => {
@@ -115,7 +127,15 @@ const siteVisitSlice = createSlice({
         state.pagination = action.payload.pagination || state.pagination
       })
       .addCase(fetchSiteVisits.rejected, (state, action) => { state.loading = false; state.error = action.payload })
-      
+
+      .addCase(fetchMySiteVisits.pending,   (state) => { state.loading = true; state.error = null })
+      .addCase(fetchMySiteVisits.fulfilled, (state, action) => {
+        state.loading = false
+        state.list = action.payload.data || []
+        state.pagination = action.payload.pagination || state.pagination
+      })
+      .addCase(fetchMySiteVisits.rejected,  (state, action) => { state.loading = false; state.error = action.payload })
+
       .addCase(fetchSiteVisitById.pending, (state) => { state.detailLoading = true })
       .addCase(fetchSiteVisitById.fulfilled, (state, action) => { state.detailLoading = false; state.currentVisit = action.payload })
       .addCase(fetchSiteVisitById.rejected, (state, action) => { state.detailLoading = false; state.error = action.payload })

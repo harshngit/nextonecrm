@@ -1,9 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown, X } from 'lucide-react'
+import { ChevronDown, X, Search } from 'lucide-react'
 
-export default function CustomSelect({ value, onChange, options, placeholder = 'Select option...', label, required, multiple = false }) {
+export default function CustomSelect({ value, onChange, options, placeholder = 'Select option...', label, required, multiple = false, searchable = false }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState('')
   const containerRef = useRef(null)
+  const searchRef = useRef(null)
+
+  const filteredOptions = searchable && search.trim()
+    ? options.filter(opt => opt.label.toLowerCase().includes(search.toLowerCase()))
+    : options
 
   const isValueSelected = (optValue) => {
     if (multiple) {
@@ -33,6 +39,7 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
     } else {
       onChange(optValue)
       setIsOpen(false)
+      setSearch('')
     }
   }
 
@@ -47,11 +54,19 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
     const handleClickOutside = (event) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
         setIsOpen(false)
+        setSearch('')
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (isOpen && searchable) {
+      setTimeout(() => searchRef.current?.focus(), 50)
+    }
+    if (!isOpen) setSearch('')
+  }, [isOpen, searchable])
 
   return (
     <div className="relative" ref={containerRef}>
@@ -92,17 +107,42 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
         </div>
         <ChevronDown
           size={16}
-          className={`text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180 text-brand' : ''}`}
+          className={`text-gray-400 transition-transform duration-200 flex-shrink-0 ${isOpen ? 'rotate-180 text-brand' : ''}`}
         />
       </div>
 
       {isOpen && (
         <div className="absolute z-[100] w-full mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
+          {searchable && (
+            <div className="px-2 pt-2 pb-1 border-b border-gray-100 dark:border-gray-800">
+              <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  ref={searchRef}
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  onClick={e => e.stopPropagation()}
+                  placeholder="Search..."
+                  className="w-full pl-7 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:border-brand text-gray-700 dark:text-gray-300 placeholder-gray-400"
+                />
+                {search && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setSearch('') }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
           <div className="max-h-60 overflow-y-auto py-1">
-            {options.length === 0 ? (
-              <div className="px-4 py-2 text-sm text-gray-400 text-center">No options available</div>
+            {filteredOptions.length === 0 ? (
+              <div className="px-4 py-3 text-xs text-gray-400 text-center">
+                {search ? `No results for "${search}"` : 'No options available'}
+              </div>
             ) : (
-              options.map((opt) => (
+              filteredOptions.map((opt) => (
                 <div
                   key={opt.value}
                   onClick={() => handleOptionClick(opt.value)}
@@ -113,7 +153,7 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
                   }`}
                 >
                   {multiple && (
-                    <div className={`w-4 h-4 border rounded flex items-center justify-center ${isValueSelected(opt.value) ? 'bg-brand border-brand' : 'border-gray-300 dark:border-gray-600'}`}>
+                    <div className={`w-4 h-4 border rounded flex items-center justify-center flex-shrink-0 ${isValueSelected(opt.value) ? 'bg-brand border-brand' : 'border-gray-300 dark:border-gray-600'}`}>
                       {isValueSelected(opt.value) && <span className="text-white text-xs">✓</span>}
                     </div>
                   )}

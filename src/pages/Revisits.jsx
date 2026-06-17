@@ -16,6 +16,10 @@ import ConfirmModal from '../components/ui/ConfirmModal'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+const ROLE_ORDER_MAP = { super_admin: 0, admin: 1, associate_partner: 2, cluster_head: 3, partner: 4, team_leader: 5, sales_manager: 6, sales_executive: 7, external_caller: 8 }
+const ROLE_LABEL_MAP = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
+const sortByRole = users => [...users].sort((a, b) => (ROLE_ORDER_MAP[a.role] ?? 99) - (ROLE_ORDER_MAP[b.role] ?? 99))
+
 const STATUS_VALUES = ['scheduled', 'done', 'cancelled', 'rescheduled', 'no_show']
 const STATUS_LABEL  = { scheduled: 'Scheduled', done: 'Completed', cancelled: 'Cancelled', rescheduled: 'Rescheduled', no_show: 'No Show' }
 const STATUS_COLOR  = {
@@ -48,7 +52,7 @@ function StatusBadge({ status }) {
 }
 
 // ── Schedule Revisit Modal ────────────────────────────────────────────────────
-function ScheduleModal({ siteVisits, salesExecs, onClose, onSuccess }) {
+function ScheduleModal({ siteVisits, salesExecs, currentUser, onClose, onSuccess }) {
   const [form, setForm] = useState({
     original_visit_id: '', visit_date: '', visit_time: '',
     assigned_to: '', reason: '', notes: '', transport_arranged: false,
@@ -60,7 +64,10 @@ function ScheduleModal({ siteVisits, salesExecs, onClose, onSuccess }) {
     value: sv.id,
     label: `${sv.lead_name} — ${sv.project_name} (${sv.visit_date?.split('T')[0] || '—'})`,
   }))
-  const execOptions = salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
+  const execOptions = [
+    ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL_MAP[currentUser.role] || currentUser.role}` }] : []),
+    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL_MAP[u.role] || u.role}` }))
+  ]
 
   const handleSubmit = async e => {
     e.preventDefault()
@@ -98,7 +105,7 @@ function ScheduleModal({ siteVisits, salesExecs, onClose, onSuccess }) {
 
         <CustomSelect label="Assign To" value={form.assigned_to}
           onChange={v => setForm(p => ({ ...p, assigned_to: v }))}
-          options={execOptions} placeholder="Default: original visit's assignee" />
+          options={execOptions} placeholder="Default: original visit's assignee" searchable />
 
         <div>
           <label className={lc}>Reason for Re-visit</label>
@@ -130,7 +137,7 @@ function ScheduleModal({ siteVisits, salesExecs, onClose, onSuccess }) {
 }
 
 // ── Edit Revisit Modal ────────────────────────────────────────────────────────
-function EditModal({ revisit, salesExecs, onClose, onSuccess }) {
+function EditModal({ revisit, salesExecs, currentUser, onClose, onSuccess }) {
   const [form, setForm] = useState({
     visit_date:          revisit.visit_date?.split('T')[0] || '',
     visit_time:          revisit.visit_time || '',
@@ -143,7 +150,10 @@ function EditModal({ revisit, salesExecs, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
 
-  const execOptions = salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
+  const execOptions = [
+    ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL_MAP[currentUser.role] || currentUser.role}` }] : []),
+    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL_MAP[u.role] || u.role}` }))
+  ]
 
   const handleSubmit = async e => {
     e.preventDefault()
@@ -173,7 +183,7 @@ function EditModal({ revisit, salesExecs, onClose, onSuccess }) {
 
         <CustomSelect label="Assign To" value={form.assigned_to}
           onChange={v => setForm(p => ({ ...p, assigned_to: v }))}
-          options={execOptions} placeholder="Select team member" />
+          options={execOptions} placeholder="Select team member" searchable />
 
         <div>
           <label className={lc}>Reason</label>
@@ -357,6 +367,7 @@ export default function Revisits() {
   const [page,       setPage]       = useState(1)
 
   // Filters
+  const [filterView,   setFilterView]   = useState('team') // 'mine' | 'team'
   const [filterStatus, setFilterStatus] = useState('')
   const [search,       setSearch]       = useState('')
 
@@ -380,7 +391,8 @@ export default function Revisits() {
     try {
       const params = { page, per_page: 20 }
       if (filterStatus) params.status = filterStatus
-      const res = await api.get('/site-revisits', { params })
+      const endpoint = filterView === 'mine' ? '/me/revisits' : '/site-revisits'
+      const res = await api.get(endpoint, { params })
       setRevisits(res.data.data || [])
       setPagination(res.data.pagination || {})
     } catch { setRevisits([]) }
@@ -394,13 +406,11 @@ export default function Revisits() {
         api.get('/users', { params: { per_page: 100 } }),
       ])
       setSiteVisits(svRes.data.data || [])
-      setSalesExecs((userRes.data.data || []).filter(u =>
-        ['sales_executive','sales_manager','external_caller'].includes(u.role) && u.is_active
-      ))
+      setSalesExecs(sortByRole((userRes.data.data || []).filter(u => u.is_active)))
     } catch {}
   }
 
-  useEffect(() => { fetchRevisits() }, [page, filterStatus])
+  useEffect(() => { fetchRevisits() }, [page, filterView, filterStatus])
   useEffect(() => { fetchSideData() }, [])
 
   const handleDelete = async () => {
@@ -465,6 +475,24 @@ export default function Revisits() {
 
       {/* Filters bar */}
       <div className="flex items-center gap-2 flex-wrap">
+        {/* My / Team toggle — hidden for super_admin and admin */}
+        {!['super_admin', 'admin'].includes(user?.role) && (
+          <div className="flex bg-card border border-gray-200 dark:border-gray-700 rounded-xl p-1 gap-1">
+            {[
+              { key: 'mine', label: 'My Re-visits' },
+              { key: 'team', label: 'Team' },
+            ].map(tab => (
+              <button key={tab.key}
+                onClick={() => { setFilterView(tab.key); setPage(1) }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                  ${filterView === tab.key
+                    ? 'bg-brand text-white'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
@@ -511,7 +539,7 @@ export default function Revisits() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-[#0f0f0f] border-b border-gray-200 dark:border-gray-800">
-                  {['Lead', 'Project', 'Date & Time', 'Assigned To', 'Reason', 'Transport', 'Status', 'Feedback', 'Actions'].map(h => (
+                  {['Lead', 'Project', 'Date & Time', ...(filterView !== 'mine' ? ['Assigned To'] : []), 'Reason', 'Transport', 'Status', 'Feedback', 'Actions'].map(h => (
                     <th key={h} className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -546,12 +574,14 @@ export default function Revisits() {
                     </td>
 
                     {/* Assigned To */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5">
-                        <Avatar name={rv.assigned_to_name || '?'} size="xs" />
-                        <span className="text-xs text-gray-600 dark:text-gray-400">{rv.assigned_to_name || '—'}</span>
-                      </div>
-                    </td>
+                    {filterView !== 'mine' && (
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5">
+                          <Avatar name={rv.assigned_to_name || '?'} size="xs" />
+                          <span className="text-xs text-gray-600 dark:text-gray-400">{rv.assigned_to_name || '—'}</span>
+                        </div>
+                      </td>
+                    )}
 
                     {/* Reason */}
                     <td className="py-3 px-4 max-w-[140px]">
@@ -661,11 +691,11 @@ export default function Revisits() {
 
       {/* Modals */}
       {showSchedule && (
-        <ScheduleModal siteVisits={siteVisits} salesExecs={salesExecs}
+        <ScheduleModal siteVisits={siteVisits} salesExecs={salesExecs} currentUser={user}
           onClose={() => setShowSchedule(false)} onSuccess={fetchRevisits} />
       )}
       {showEdit && selected && (
-        <EditModal revisit={selected} salesExecs={salesExecs}
+        <EditModal revisit={selected} salesExecs={salesExecs} currentUser={user}
           onClose={() => setShowEdit(false)} onSuccess={fetchRevisits} />
       )}
       {showStatus && selected && (

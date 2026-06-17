@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useModulePermissions } from '../hooks/usePermission'
 import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw, StarIcon, MoreVertical } from 'lucide-react'
 import {
-  fetchSiteVisits, createSiteVisit, updateSiteVisit,
+  fetchSiteVisits, fetchMySiteVisits, createSiteVisit, updateSiteVisit,
   updateSiteVisitStatus, cancelSiteVisit, clearSiteVisitError,
 } from '../store/siteVisitSlice'
 import { fetchLeads } from '../store/leadSlice'
@@ -19,6 +19,10 @@ import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
+
+const ROLE_ORDER = { super_admin: 0, admin: 1, associate_partner: 2, cluster_head: 3, partner: 4, team_leader: 5, sales_manager: 6, sales_executive: 7, external_caller: 8 }
+const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
+const sortByRole = users => [...users].sort((a, b) => (ROLE_ORDER[a.role] ?? 99) - (ROLE_ORDER[b.role] ?? 99))
 
 const visitStatuses = ['scheduled', 'done', 'cancelled', 'rescheduled', 'no_show']
 const statusLabel = { scheduled: 'Scheduled', done: 'Completed', cancelled: 'Cancelled', rescheduled: 'Rescheduled', no_show: 'No Show' }
@@ -275,7 +279,7 @@ function ClockPicker({ value, onChange, label, icon: Icon, iconColor = 'text-gra
 
 // ── Forms defined OUTSIDE to prevent typing/focus loss bug ───────────────────
 
-function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit }) {
+function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit, currentUser }) {
   const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
@@ -289,10 +293,13 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit 
     label: `${p.name} ${p.locality ? `— ${p.locality}` : p.location ? `— ${p.location}` : ''}`
   }))
 
-  const execOptions = salesExecs.map(u => ({
-    value: u.id,
-    label: `${u.first_name} ${u.last_name}`
-  }))
+  const execOptions = [
+    ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
+    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({
+      value: u.id,
+      label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}`
+    }))
+  ]
 
   return (
     <div className="space-y-4">
@@ -341,6 +348,7 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit 
         onChange={val => setFormData(p => ({ ...p, assigned_to: val }))}
         options={execOptions}
         placeholder="Select team member"
+        searchable
       />
 
       {/* Status (edit only) */}
@@ -405,7 +413,7 @@ function FeedbackForm({ formData, setFormData }) {
   )
 }
 
-function RevisitModal({ visit, salesExecs, onClose, onSuccess }) {
+function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
   const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
@@ -421,7 +429,10 @@ function RevisitModal({ visit, salesExecs, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
 
-  const execOptions = salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
+  const execOptions = [
+    ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
+    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
+  ]
 
   const handleSubmit = async e => {
     e.preventDefault()
@@ -465,7 +476,7 @@ function RevisitModal({ visit, salesExecs, onClose, onSuccess }) {
 
         <CustomSelect label="Assign To" value={form.assigned_to}
           onChange={v => setForm(p => ({ ...p, assigned_to: v }))}
-          options={execOptions} placeholder="Select team member" />
+          options={execOptions} placeholder="Select team member" searchable />
 
         <div>
           <label className={lc}>Reason for Re-visit</label>
@@ -508,6 +519,7 @@ export default function SiteVisits() {
   const { user: currentUser } = useSelector(s => s.auth)
 
   const [viewMode,      setViewMode]      = useState('list')
+  const [filterView,    setFilterView]    = useState('team') // 'mine' | 'team'
   const [filterStatus,  setFilterStatus]  = useState('')
   const [selectedDate,  setSelectedDate]  = useState(new Date().toISOString().split('T')[0])
   const [page,          setPage]          = useState(1)
@@ -529,11 +541,17 @@ export default function SiteVisits() {
   const [openMenuVisitId, setOpenMenuVisitId] = useState(null)
   const menuRef = useRef(null)
 
-  useEffect(() => {
+  const loadVisits = () => {
     const params = { page, per_page: 20 }
     if (filterStatus) params.status = filterStatus
-    dispatch(fetchSiteVisits(params))
-  }, [dispatch, filterStatus, page])
+    if (filterView === 'mine') {
+      dispatch(fetchMySiteVisits(params))
+    } else {
+      dispatch(fetchSiteVisits(params))
+    }
+  }
+
+  useEffect(() => { loadVisits() }, [dispatch, filterView, filterStatus, page])
 
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
@@ -541,9 +559,7 @@ export default function SiteVisits() {
     dispatch(fetchUsers())
   }, [dispatch])
 
-  const salesExecs = userList.filter(u =>
-    ['sales_executive', 'sales_manager'].includes(u.role) && u.is_active
-  )
+  const salesExecs = sortByRole(userList.filter(u => u.is_active))
   const canManage = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
   const perms = useModulePermissions('site_visits')
 
@@ -555,7 +571,7 @@ export default function SiteVisits() {
     const result = await dispatch(createSiteVisit(addForm))
     if (createSiteVisit.fulfilled.match(result)) {
       setSuccess('Visit scheduled!')
-      dispatch(fetchSiteVisits({ page, per_page: 20 }))
+      loadVisits()
       setTimeout(() => { setShowAddModal(false); setSuccess(''); setAddForm(defaultForm) }, 800)
     }
   }
@@ -566,7 +582,7 @@ export default function SiteVisits() {
     const result = await dispatch(updateSiteVisit({ id: selectedVisit.id, data: editForm }))
     if (updateSiteVisit.fulfilled.match(result)) {
       setSuccess('Visit updated!')
-      dispatch(fetchSiteVisits({ page, per_page: 20 }))
+      loadVisits()
       setTimeout(() => { setShowEditModal(false); setSuccess('') }, 800)
     }
   }
@@ -582,7 +598,7 @@ export default function SiteVisits() {
     }))
     if (updateSiteVisitStatus.fulfilled.match(result)) {
       setSuccess('Feedback saved!')
-      dispatch(fetchSiteVisits({ page, per_page: 20 }))
+      loadVisits()
       setTimeout(() => { 
         setShowFeedbackModal(false)
         setSuccess('')
@@ -597,7 +613,7 @@ export default function SiteVisits() {
     if (!visitToCancel) return
     const result = await dispatch(cancelSiteVisit(visitToCancel.id))
     if (cancelSiteVisit.fulfilled.match(result)) {
-      dispatch(fetchSiteVisits({ page, per_page: 20 }))
+      loadVisits()
     }
     setShowCancelModal(false)
     setVisitToCancel(null)
@@ -688,6 +704,25 @@ export default function SiteVisits() {
             </button>
           </div>
 
+          {/* My / Team toggle — hidden for super_admin and admin */}
+          {!['super_admin', 'admin'].includes(currentUser?.role) && (
+            <div className="flex bg-card border border-gray-200 dark:border-gray-700 rounded-xl p-1 gap-1">
+              {[
+                { key: 'mine', label: 'My Visits' },
+                { key: 'team', label: 'Team' },
+              ].map(tab => (
+                <button key={tab.key}
+                  onClick={() => { setFilterView(tab.key); setPage(1) }}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+                    ${filterView === tab.key
+                      ? 'bg-brand text-white'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-900'}`}>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Status filter */}
           <div className="w-44">
             <CustomSelect
@@ -698,7 +733,7 @@ export default function SiteVisits() {
             />
           </div>
 
-          <button onClick={() => dispatch(fetchSiteVisits({ page, per_page: 20 }))}
+          <button onClick={() => loadVisits()}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors">
             <RefreshCw size={14} />
           </button>
@@ -895,7 +930,7 @@ export default function SiteVisits() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-[#0f0f0f]">
-                    {['Lead', 'Project', 'Date & Time', 'Assigned To', 'Transport', 'Status', 'Feedback', 'Actions'].map(h => (
+                    {['Lead', 'Project', 'Date & Time', ...(filterView !== 'mine' ? ['Assigned To'] : []), 'Transport', 'Status', 'Feedback', 'Actions'].map(h => (
                       <th key={h} className="py-3 px-4 text-left text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -926,17 +961,19 @@ export default function SiteVisits() {
                         </div>
                         <div className="text-xs text-gray-400">{visit.visit_time || ''}</div>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5">
-                          <Avatar 
-                            name={visit.assigned_to_name || '?'} 
-                            size="xs" 
-                          />
-                          <span className="text-xs text-gray-600 dark:text-gray-400">
-                            {visit.assigned_to_name || '—'}
-                          </span>
-                        </div>
-                      </td>
+                      {filterView !== 'mine' && (
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <Avatar
+                              name={visit.assigned_to_name || '?'}
+                              size="xs"
+                            />
+                            <span className="text-xs text-gray-600 dark:text-gray-400">
+                              {visit.assigned_to_name || '—'}
+                            </span>
+                          </div>
+                        </td>
+                      )}
                       <td className="py-3 px-4">
                         <span className={`text-xs px-2 py-0.5 rounded-lg font-medium ${visit.transport_arranged ? 'bg-green-100 dark:bg-green-900/20 text-green-600' : 'bg-gray-100 dark:bg-gray-800 text-gray-400'}`}>
                           {visit.transport_arranged ? 'Yes' : 'No'}
@@ -1047,7 +1084,7 @@ export default function SiteVisits() {
       {/* Schedule Modal */}
       <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setSuccess('') }} title="Schedule Site Visit">
         <form onSubmit={handleAdd} className="space-y-4">
-          <VisitForm formData={addForm} setFormData={setAddForm} leads={leadList} projects={projectList} salesExecs={salesExecs} isEdit={false} />
+          <VisitForm formData={addForm} setFormData={setAddForm} leads={leadList} projects={projectList} salesExecs={salesExecs} isEdit={false} currentUser={currentUser} />
           {success && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -1059,13 +1096,14 @@ export default function SiteVisits() {
 
       {/* Re-visit Modal */}
       {showRevisitModal && selectedVisit && (
-        <RevisitModal 
-          visit={selectedVisit} 
-          salesExecs={salesExecs} 
+        <RevisitModal
+          visit={selectedVisit}
+          salesExecs={salesExecs}
+          currentUser={currentUser}
           onClose={() => setShowRevisitModal(false)}
           onSuccess={() => {
             setSuccess('Re-visit scheduled!')
-            dispatch(fetchSiteVisits({ page, per_page: 20 }))
+            loadVisits()
             setTimeout(() => setSuccess(''), 3000)
           }}
         />
@@ -1074,7 +1112,7 @@ export default function SiteVisits() {
       {/* Edit Modal */}
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSuccess('') }} title="Edit Site Visit">
         <form onSubmit={handleEdit} className="space-y-4">
-          <VisitForm formData={editForm} setFormData={setEditForm} leads={leadList} projects={projectList} salesExecs={salesExecs} isEdit={true} />
+          <VisitForm formData={editForm} setFormData={setEditForm} leads={leadList} projects={projectList} salesExecs={salesExecs} isEdit={true} currentUser={currentUser} />
           {success && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">

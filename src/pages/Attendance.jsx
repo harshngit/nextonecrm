@@ -24,6 +24,7 @@ import {
   approveAttendanceStatus,
   clearError,
   manualAttendanceEntry,
+  updateAttendanceStatus,
 } from '../store/attendanceSlice'
 import {
   fetchMySummary,
@@ -142,7 +143,7 @@ function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
 
 // ─── Check-In / Out Card ──────────────────────────────────────────────────────
 
-function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin }) {
+function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showStatusChange = false }) {
   const [showCam,       setShowCam]       = useState(false)
   const [photoType,     setPhotoType]     = useState('checkin')
   const [capturedPhoto, setCapturedPhoto] = useState(null)
@@ -150,6 +151,7 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin }) {
   const [geoLoading,    setGeoLoading]    = useState(false)
   const [location,      setLocation]      = useState({ latitude: null, longitude: null, address: null })
   const [photoUrl,      setPhotoUrl]      = useState(null)
+  const [statusChanging, setStatusChanging] = useState(null)
   const videoRef  = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
@@ -226,6 +228,14 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin }) {
     setPhotoUrl(null)
   }
 
+  const changeStatus = async (status) => {
+    if (!todayData?.id || statusChanging) return
+    setStatusChanging(status)
+    await dispatch(updateAttendanceStatus({ id: todayData.id, status }))
+    dispatch(fetchAttendanceToday())
+    setStatusChanging(null)
+  }
+
   return (
     <>
       <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
@@ -290,24 +300,63 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin }) {
             </div>
           )}
 
-          {/* Action button */}
-          {perms.create && (!isCheckedIn ? (
-            <button onClick={() => openCamera('checkin')} disabled={loading.checkin}
-              className="w-full py-3 bg-gradient-to-r from-[#0082f3] to-blue-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.98] transition-all disabled:opacity-60">
-              {loading.checkin ? <Loader2 size={17} className="animate-spin" /> : <LogIn size={17} />}
+          {/* Action buttons — always show both, disabled based on state */}
+          <div className="flex gap-2">
+            <button onClick={() => openCamera('checkin')} disabled={loading.checkin || isCheckedIn}
+              className={`flex-1 py-3 font-semibold rounded-xl flex items-center justify-center gap-2 transition-all ${
+                isCheckedIn
+                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-[#0082f3] to-blue-600 text-white hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.98]'
+              } disabled:opacity-60`}>
+              {loading.checkin ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
               Check In
             </button>
-          ) : !isCheckedOut ? (
-            <button onClick={() => openCamera('checkout')} disabled={loading.checkout}
-              className="w-full py-3 bg-gradient-to-r from-rose-500 to-red-500 text-white font-semibold rounded-xl flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-rose-500/25 active:scale-[0.98] transition-all disabled:opacity-60">
-              {loading.checkout ? <Loader2 size={17} className="animate-spin" /> : <LogOut size={17} />}
+            <button onClick={() => openCamera('checkout')} disabled={loading.checkout || !isCheckedIn || isCheckedOut}
+              className={`flex-1 py-3 font-semibold rounded-xl flex items-center justify-center gap-2 transition-all ${
+                isCheckedOut
+                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                  : !isCheckedIn
+                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-rose-500 to-red-500 text-white hover:shadow-lg hover:shadow-rose-500/25 active:scale-[0.98]'
+              } disabled:opacity-60`}>
+              {loading.checkout ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
               Check Out
             </button>
-          ) : (
-            <div className="w-full py-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 font-semibold rounded-xl flex items-center justify-center gap-2">
-              <CheckCircle2 size={17} /> Attendance Complete
+          </div>
+
+          {/* Change Status — admin/super_admin only */}
+          {showStatusChange && (
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-2.5">Change Today's Status</p>
+              {todayData?.id ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    ['present',  'Present',  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'],
+                    ['late',     'Late',     'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-800'],
+                    ['on_leave', 'On Leave', 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'],
+                    ['half_day', 'Half Day', 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300 border-pink-200 dark:border-pink-800'],
+                    ['absent',   'Absent',   'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-red-200 dark:border-red-800'],
+                  ].map(([status, label, cls]) => (
+                    <button
+                      key={status}
+                      disabled={statusChanging === status}
+                      onClick={() => changeStatus(status)}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                        todayData?.status === status
+                          ? `${cls} ring-1 ring-current ring-offset-1`
+                          : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      } disabled:opacity-50`}
+                    >
+                      {statusChanging === status && <Loader2 size={9} className="animate-spin" />}
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">No record for today. Use "Log My Attendance" to create one first.</p>
+              )}
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -1968,14 +2017,14 @@ export default function Attendance() {
     { id: 'team-month',label: 'Team Month',    icon: Users,       show: isSalesMgr },
     { id: 'summary',   label: 'Team Summary',  icon: TrendingUp,  show: isSalesMgr },
     // admin tabs
-    { id: 'monthly',   label: 'Month Grid',    icon: Users,       show: isAdmin },
-    { id: 'daily',     label: 'Daily View',    icon: UserCheck,   show: isAdmin },
-    { id: 'admin-sum', label: 'Summary',       icon: TrendingUp,  show: isAdmin },
-    { id: 'late-recs', label: 'Late Report',   icon: AlertCircle, show: isAdmin },
-    { id: 'approvals', label: 'Approvals',     icon: CheckCircle2,show: isAdmin },
+    { id: 'monthly',   label: 'Month Grid',         icon: Users,        show: isAdmin },
+    { id: 'daily',     label: "Today's Attendance",  icon: UserCheck,    show: isAdmin },
+    { id: 'admin-sum', label: 'Summary',             icon: TrendingUp,   show: isAdmin },
+    { id: 'late-recs', label: 'Late Reports',        icon: AlertCircle,  show: isAdmin },
+    { id: 'approvals', label: 'Approvals',           icon: CheckCircle2, show: isAdmin },
   ].filter(t => t.show)
 
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'daily' : 'overview')
 
   useEffect(() => { dispatch(fetchAttendanceToday()) }, [dispatch])
 
@@ -2052,38 +2101,7 @@ export default function Attendance() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1">
-              {!isAdmin ? (
-                /* Regular users: selfie check-in card */
-                <CheckInCard todayData={todayData} loading={loading} dispatch={dispatch} user={user} isSuperAdmin={isSuperAdmin} />
-              ) : (
-                /* Admin / Super Admin: manual entry prompt */
-                <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-2xl p-6 flex flex-col items-center justify-center gap-4 h-full min-h-[220px]">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0082f3] to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-                    <UserCheck size={24} className="text-white" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Admin Account</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
-                      Selfie check-in is not required.<br />Use the button below to log your attendance.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowManualEntry(true)}
-                    className="w-full py-2.5 rounded-xl bg-[#0082f3] hover:bg-[#0070d4] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm shadow-blue-500/20"
-                  >
-                    <Pencil size={14} /> Log My Attendance
-                  </button>
-                  {todayData?.is_checked_in && (
-                    <div className="w-full flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl">
-                      <CheckCircle2 size={13} className="text-emerald-500 flex-shrink-0" />
-                      <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
-                        Checked in at {fmtTime(todayData.check_in_time)}
-                        {todayData.is_checked_out ? ` · Out at ${fmtTime(todayData.check_out_time)}` : ''}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
+              <CheckInCard todayData={todayData} loading={loading} dispatch={dispatch} user={user} isSuperAdmin={isSuperAdmin} />
             </div>
             <div className="lg:col-span-2 grid grid-cols-1 gap-6">
                 <div className="grid grid-cols-2 gap-4 content-start">
@@ -2127,7 +2145,16 @@ export default function Attendance() {
 
       {/* admin / super_admin — all users */}
       {activeTab === 'monthly'   && isAdmin && <AdminMonthGrid dispatch={dispatch} />}
-      {activeTab === 'daily'     && isAdmin && <DailyView      dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}
+      {activeTab === 'daily'     && isAdmin && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1">
+              <CheckInCard todayData={todayData} loading={loading} dispatch={dispatch} user={user} isSuperAdmin={isSuperAdmin} showStatusChange={true} />
+            </div>
+          </div>
+          <DailyView dispatch={dispatch} isSuperAdmin={isSuperAdmin} />
+        </div>
+      )}
       {activeTab === 'late-recs' && isAdmin && <LateArrivalsReport dispatch={dispatch} />}
       {activeTab === 'admin-sum' && isAdmin && <SummaryTable   dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}
       {activeTab === 'approvals' && isAdmin && <ApprovalPanel  dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}

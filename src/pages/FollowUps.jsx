@@ -8,7 +8,7 @@ import {
   ArrowRightCircle, CheckCircle2, CalendarPlus, Loader2, MoreVertical,
 } from 'lucide-react'
 import {
-  fetchFollowUps, createFollowUp, updateFollowUp,
+  fetchFollowUps, fetchMyFollowUps, createFollowUp, updateFollowUp,
   completeFollowUp, deleteFollowUp, clearFollowUpError, markCompleted,
 } from '../store/followUpSlice'
 import { fetchLeads } from '../store/leadSlice'
@@ -30,6 +30,10 @@ const priorityStyle = {
   medium: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
   low:    'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
 }
+
+const ROLE_ORDER = { super_admin: 0, admin: 1, associate_partner: 2, cluster_head: 3, partner: 4, team_leader: 5, sales_manager: 6, sales_executive: 7, external_caller: 8 }
+const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
+const sortByRole = users => [...users].sort((a, b) => (ROLE_ORDER[a.role] ?? 99) - (ROLE_ORDER[b.role] ?? 99))
 
 // ─── Circular Clock Picker ───────────────────────────────────────────────────
 
@@ -217,7 +221,7 @@ function formatDue(task) {
 }
 
 // ── Form — defined OUTSIDE to prevent typing/focus bug ────────────────────────
-function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit, selectedTask }) {
+function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit, selectedTask, currentUser }) {
   const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
@@ -235,9 +239,10 @@ function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit, select
 
   // Create exec options with fallback if needed
   const execOptions = [
-    ...salesExecs.map(u => ({
+    ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
+    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({
       value: u.id,
-      label: `${u.first_name} ${u.last_name}`
+      label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}`
     })),
     // Add fallback if assigned from task isn't in list
     ...(isEdit && selectedTask?.assigned_to && !salesExecs.find(u => u.id === selectedTask.assigned_to) && selectedTask?.assigned_name
@@ -304,6 +309,7 @@ function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit, select
           onChange={val => setFormData(p => ({ ...p, assigned_to: val }))}
           options={execOptions}
           placeholder="Default (lead's executive)"
+          searchable
         />
       </div>
 
@@ -338,7 +344,8 @@ function ConvertFollowUpModal({ task, onClose, onSuccess }) {
 
   const { list: projectList } = useSelector(s => s.projects)
   const { list: userList }    = useSelector(s => s.users)
-  const salesExecs = userList.filter(u => ['sales_executive','sales_manager'].includes(u.role) && u.is_active)
+  const { user: currentUser } = useSelector(s => s.auth)
+  const salesExecs = sortByRole(userList.filter(u => u.is_active))
 
   useEffect(() => {
     api.get(`/convert/follow-up/${task.id}/options`)
@@ -360,7 +367,11 @@ function ConvertFollowUpModal({ task, onClose, onSuccess }) {
   const labelCls = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5"
 
   const projectOpts = (options?.projects || projectList || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
-  const userOpts    = (options?.users    || salesExecs    || []).map(u => ({ value: u.id, label: u.name || `${u.first_name} ${u.last_name}` }))
+  const _baseUsers  = options?.users || salesExecs || []
+  const userOpts    = [
+    ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
+    ..._baseUsers.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: u.name || `${u.first_name} ${u.last_name}${u.role ? ` · ${ROLE_LABEL[u.role] || u.role}` : ''}` }))
+  ]
 
   const svAvailable = options?.conversions?.to_site_visit?.available !== false
 
@@ -426,7 +437,7 @@ function ConvertFollowUpModal({ task, onClose, onSuccess }) {
               <ClockPicker label="Visit Time *" value={form.visit_time} onChange={v => setForm(f => ({...f, visit_time: v}))} required />
             </div>
           </div>
-          <CustomSelect label="Assign To" value={form.assigned_to} onChange={v => setForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" />
+          <CustomSelect label="Assign To" value={form.assigned_to} onChange={v => setForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" searchable />
           <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 cursor-pointer"
             onClick={() => setForm(f => ({...f, transport_arranged: !f.transport_arranged}))}>
             <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors flex-shrink-0 ${form.transport_arranged ? 'bg-[#0082f3] border-[#0082f3]' : 'border-gray-300 dark:border-gray-600'}`}>
@@ -471,12 +482,16 @@ function BulkConvertFUModal({ taskIds, tasks, onClose, onSuccess }) {
 
   const { list: projectList } = useSelector(s => s.projects)
   const { list: userList }    = useSelector(s => s.users)
-  const salesExecs = userList.filter(u => ['sales_executive','sales_manager'].includes(u.role) && u.is_active)
+  const { user: currentUser } = useSelector(s => s.auth)
+  const salesExecs = sortByRole(userList.filter(u => u.is_active))
 
   const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300 transition-colors placeholder-gray-400"
   const labelCls = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5"
   const projectOpts = projectList.map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
-  const userOpts    = salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
+  const userOpts    = [
+    ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
+    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
+  ]
 
   const handleConvert = async () => {
     setError('')
@@ -539,7 +554,7 @@ function BulkConvertFUModal({ taskIds, tasks, onClose, onSuccess }) {
             <ClockPicker label="Visit Time" value={form.visit_time} onChange={v => setForm(f => ({...f, visit_time: v}))} />
           </div>
         </div>
-        <CustomSelect label="Assign To" value={form.assigned_to} onChange={v => setForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" />
+        <CustomSelect label="Assign To" value={form.assigned_to} onChange={v => setForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" searchable />
         <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 cursor-pointer"
           onClick={() => setForm(f => ({...f, transport_arranged: !f.transport_arranged}))}>
           <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${form.transport_arranged ? 'bg-[#0082f3] border-[#0082f3]' : 'border-gray-300 dark:border-gray-600'}`}>
@@ -699,6 +714,7 @@ export default function FollowUps() {
   const { list: userList } = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
 
+  const [filterView,     setFilterView]     = useState('team') // 'mine' | 'team'
   const [filterStatus,   setFilterStatus]   = useState('all') // pending | overdue | all | completed
   const [filterAssigned, setFilterAssigned] = useState('')
   const [page, setPage] = useState(1)
@@ -726,9 +742,7 @@ export default function FollowUps() {
   const [openMenuTaskId,    setOpenMenuTaskId]    = useState(null)
   const menuRef = useRef(null)
 
-  const salesExecs = userList.filter(u =>
-    ['sales_executive', 'sales_manager'].includes(u.role) && u.is_active
-  )
+  const salesExecs = sortByRole(userList.filter(u => u.is_active))
   const canManage = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
   const perms = useModulePermissions('follow_ups')
 
@@ -742,11 +756,15 @@ export default function FollowUps() {
     if (filterStatus === 'pending')   { params.is_completed = false }
     if (filterStatus === 'completed') { params.is_completed = true }
     if (filterStatus === 'overdue')   { params.overdue = true; params.is_completed = false }
-    if (filterAssigned) params.assigned_to = filterAssigned
-    dispatch(fetchFollowUps(params))
+    if (filterView === 'mine') {
+      dispatch(fetchMyFollowUps(params))
+    } else {
+      if (filterAssigned) params.assigned_to = filterAssigned
+      dispatch(fetchFollowUps(params))
+    }
   }
 
-  useEffect(() => { loadTasks() }, [dispatch, filterStatus, filterAssigned, page])
+  useEffect(() => { loadTasks() }, [dispatch, filterView, filterStatus, filterAssigned, page])
 
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
@@ -1003,6 +1021,26 @@ export default function FollowUps() {
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex flex-wrap gap-2">
 
+          {/* My / Team toggle — hidden for super_admin and admin */}
+          {!['super_admin', 'admin'].includes(currentUser?.role) && (
+            <div className="flex bg-white dark:bg-[#1a1a1a] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl p-1 gap-1">
+              {[
+                { key: 'mine', label: 'My Follow-ups' },
+                { key: 'team', label: 'Team' },
+              ].map(tab => (
+                <button key={tab.key}
+                  onClick={() => { setFilterView(tab.key); setFilterAssigned(''); setPage(1) }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                    ${filterView === tab.key
+                      ? 'bg-brand text-white'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    }`}>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Status tabs */}
           <div className="flex bg-white dark:bg-[#1a1a1a] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl p-1 gap-1">
             {[
@@ -1023,14 +1061,15 @@ export default function FollowUps() {
             ))}
           </div>
 
-          {/* Assign filter */}
-          {canManage && (
-            <div className="w-44">
+          {/* Assign filter — only visible in Team view for managers */}
+          {canManage && filterView === 'team' && (
+            <div className="w-48">
               <CustomSelect
                 value={filterAssigned}
                 onChange={val => { setFilterAssigned(val); setPage(1) }}
-                options={[{ value: '', label: 'All Team' }, ...salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))]}
+                options={[{ value: '', label: 'All Team' }, ...salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))]}
                 placeholder="All Team"
+                searchable
               />
             </div>
           )}
@@ -1127,9 +1166,9 @@ export default function FollowUps() {
                       checked={selectedTasks.length === list.length && list.length > 0}
                       onChange={toggleAll} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
                   </th>
-                  {['Lead', 'Task', 'Due', 'Priority', 'Assigned', 'Status', 'Actions'].map((h, i) => (
+                  {['Lead', 'Task', 'Due', 'Priority', ...(filterView !== 'mine' ? ['Assigned'] : []), 'Status', 'Actions'].map((h, i) => (
                     <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wide whitespace-nowrap
-                      ${['Priority', 'Assigned'].includes(h) ? 'hidden md:table-cell' : ''}
+                      ${h === 'Priority' ? 'hidden md:table-cell' : ''}
                       ${h === 'Actions' ? 'text-right' : ''}`}>
                       {h}
                     </th>
@@ -1178,14 +1217,16 @@ export default function FollowUps() {
                           {task.priority || 'Medium'}
                         </span>
                       </td>
-                      <td className="py-3 px-3 hidden md:table-cell">
-                        {task.assigned_to ? (
-                          <div className="flex items-center gap-1.5">
-                            <Avatar name={task.assigned_to_name || task.assigned_to} size="xs" />
-                            <span className="text-xs text-gray-600 dark:text-gray-400">{task.assigned_to_name || task.assigned_to}</span> 
-                          </div>
-                        ) : <span className="text-xs text-gray-400">Unassigned</span>}
-                      </td>
+                      {filterView !== 'mine' && (
+                        <td className="py-3 px-3 hidden md:table-cell">
+                          {task.assigned_to ? (
+                            <div className="flex items-center gap-1.5">
+                              <Avatar name={task.assigned_to_name || task.assigned_to} size="xs" />
+                              <span className="text-xs text-gray-600 dark:text-gray-400">{task.assigned_to_name || task.assigned_to}</span>
+                            </div>
+                          ) : <span className="text-xs text-gray-400">Unassigned</span>}
+                        </td>
+                      )}
                       <td className="py-3 px-3">
                         <span className={`text-xs px-2 py-1 rounded-lg
                           ${category === 'completed' ? 'bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400' :
@@ -1279,7 +1320,7 @@ export default function FollowUps() {
       {/* Add Modal */}
       <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setSuccess('') }} title="Add Follow-up Task">
         <form onSubmit={handleAdd} className="space-y-4">
-          <FollowUpForm formData={addForm} setFormData={setAddForm} leads={leadList} salesExecs={salesExecs} isEdit={false} />
+          <FollowUpForm formData={addForm} setFormData={setAddForm} leads={leadList} salesExecs={salesExecs} isEdit={false} currentUser={currentUser} />
           {success    && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -1292,7 +1333,7 @@ export default function FollowUps() {
       {/* Edit Modal */}
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSuccess('') }} title="Edit Follow-up Task">
         <form onSubmit={handleEdit} className="space-y-4">
-          <FollowUpForm formData={editForm} setFormData={setEditForm} leads={leadList} salesExecs={salesExecs} isEdit={true} selectedTask={selectedTask} />
+          <FollowUpForm formData={editForm} setFormData={setEditForm} leads={leadList} salesExecs={salesExecs} isEdit={true} selectedTask={selectedTask} currentUser={currentUser} />
           {success    && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">

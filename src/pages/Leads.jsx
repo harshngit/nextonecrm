@@ -271,7 +271,11 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, sal
   const labelClass = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1'
   const isRestricted = ['sales_executive', 'external_caller'].includes(currentUser?.role)
   const sourceOptions = sourceList.map(s => ({ value: s.id, label: s.name }))
-  const execOptions   = salesExecs.map(u => ({ value: u.id, label: u.id === currentUser?.id ? 'Self' : `${u.first_name} ${u.last_name}` }))
+  const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
+  const execOptions   = [
+    ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
+    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
+  ]
   const projectOptions = projects.map(p => ({ value: p.id, label: p.name || p.project_name }))
 
   useEffect(() => {
@@ -382,7 +386,7 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, sal
             <input readOnly value={`${currentUser?.first_name ?? ''} ${currentUser?.last_name ?? ''}`.trim()} className={inputClass + ' cursor-not-allowed opacity-60 bg-gray-50 dark:bg-gray-800/40'} />
           </div>
         ) : (
-          <CustomSelect label="Assign To" value={formData.assigned_to} onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))} options={execOptions} placeholder="Select team member" />
+          <CustomSelect label="Assign To" value={formData.assigned_to} onChange={val => setFormData(prev => ({ ...prev, assigned_to: val }))} options={execOptions} placeholder="Select team member" searchable />
         )}
       </div>
 
@@ -791,7 +795,7 @@ function BulkUploadModal({ onClose, onSuccess, salesExecs = [], currentUser = nu
 
 
 // ─── Single Reassign Modal (uses /leads/:id/reassign) ─────────────────────────
-function ReassignModal({ lead, salesExecs, onClose, onSuccess }) {
+function ReassignModal({ lead, salesExecs, currentUser, onClose, onSuccess }) {
   const [assignTo,setAssignTo]=useState(lead?.assigned_to?.id||(typeof lead?.assigned_to==='string'?lead.assigned_to:''))
   const [reason,setReason]=useState('')
   const [loading,setLoading]=useState(false)
@@ -811,7 +815,10 @@ function ReassignModal({ lead, salesExecs, onClose, onSuccess }) {
           <div><p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{lead?.name}</p><p className="text-xs text-gray-400">{lead?.phone}</p></div>
           <div className="ml-auto text-right"><p className="text-[10px] text-gray-400">Currently assigned to</p><p className="text-xs font-medium text-gray-600 dark:text-gray-300">{curName}</p></div>
         </div>
-        <CustomSelect label="Assign To *" value={assignTo} onChange={setAssignTo} options={salesExecs.map(u=>({value:u.id,label:`${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}`}))} placeholder="Select team member"/>
+        <CustomSelect label="Assign To *" value={assignTo} onChange={setAssignTo} options={[
+          ...(currentUser ? [{ value: currentUser.id, label: `Self · ${currentUser.role.replace(/_/g,' ')}` }] : []),
+          ...salesExecs.filter(u => u.id !== currentUser?.id).map(u=>({value:u.id,label:`${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}`}))
+        ]} placeholder="Select team member" searchable />
         <div><label className={LC}>Reason <span className="font-normal text-gray-400">(optional)</span></label><input value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. Better territorial alignment" className={IC}/></div>
         {error&&<div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"><AlertCircle size={13} className="text-red-500"/><p className="text-xs text-red-600">{error}</p></div>}
         {success&&<div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5"><CheckCircle2 size={13} className="text-green-500"/><p className="text-xs text-green-600">{success}</p></div>}
@@ -825,7 +832,7 @@ function ReassignModal({ lead, salesExecs, onClose, onSuccess }) {
 }
 
 // ─── Bulk Reassign Modal (uses /leads/bulk-reassign) ──────────────────────────
-function BulkReassignModal({ leadIds, leads, salesExecs, onClose, onSuccess }) {
+function BulkReassignModal({ leadIds, leads, salesExecs, currentUser, onClose, onSuccess }) {
   const [assignTo,setAssignTo]=useState('')
   const [reason,setReason]=useState('')
   const [loading,setLoading]=useState(false)
@@ -864,7 +871,10 @@ function BulkReassignModal({ leadIds, leads, salesExecs, onClose, onSuccess }) {
             {sel.length>8&&<span className="text-[10px] text-gray-400 px-2 py-1">+{sel.length-8} more</span>}
           </div>
         </div>
-        <CustomSelect label="Assign To *" value={assignTo} onChange={setAssignTo} options={salesExecs.map(u=>({value:u.id,label:`${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}`}))} placeholder="Select team member"/>
+        <CustomSelect label="Assign To *" value={assignTo} onChange={setAssignTo} options={[
+          ...(currentUser ? [{ value: currentUser.id, label: `Self · ${currentUser.role.replace(/_/g,' ')}` }] : []),
+          ...salesExecs.filter(u => u.id !== currentUser?.id).map(u=>({value:u.id,label:`${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}`}))
+        ]} placeholder="Select team member" searchable />
         <div><label className={LC}>Reason <span className="font-normal text-gray-400">(optional)</span></label><input value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. Workload balancing" className={IC}/></div>
         {error&&<div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"><AlertCircle size={13} className="text-red-500"/><p className="text-xs text-red-600">{error}</p></div>}
         <div className="flex gap-3 pt-1">
@@ -886,7 +896,10 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess }) {
 
   const { list: projectList }   = useSelector(s => s.projects)
   const { list: userList }      = useSelector(s => s.users)
-  const salesExecs = userList.filter(u => ['sales_executive','sales_manager'].includes(u.role) && u.is_active)
+  const { user: currentUser }   = useSelector(s => s.auth)
+  const _roleOrder = { super_admin: 0, admin: 1, associate_partner: 2, cluster_head: 3, partner: 4, team_leader: 5, sales_manager: 6, sales_executive: 7, external_caller: 8 }
+  const _roleLabel = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
+  const salesExecs = [...userList.filter(u => u.is_active)].sort((a, b) => (_roleOrder[a.role] ?? 99) - (_roleOrder[b.role] ?? 99))
 
   const [fuForm, setFuForm] = useState({ title_suffix: 'Follow-up', due_date: '', due_time: '10:00', priority: 'medium', assigned_to: '', notes: '' })
   const [svForm, setSvForm] = useState({ project_id: '', visit_date: '', visit_time: '10:00', assigned_to: '', transport_arranged: false, notes: '' })
@@ -894,7 +907,10 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess }) {
   const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300 transition-colors placeholder-gray-400"
   const labelCls = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5"
   const projectOpts = projectList.map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
-  const userOpts    = salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
+  const userOpts    = [
+    ...(currentUser ? [{ value: currentUser.id, label: `Self · ${_roleLabel[currentUser.role] || currentUser.role}` }] : []),
+    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${_roleLabel[u.role] || u.role}` }))
+  ]
   const priorityOpts = [{ value:'low', label:'Low' }, { value:'medium', label:'Medium' }, { value:'high', label:'High' }]
 
   const selectedLeadNames = leads.filter(l => leadIds.includes(l.id))
@@ -1028,7 +1044,7 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <CustomSelect label="Priority" value={fuForm.priority} onChange={v => setFuForm(f => ({...f, priority: v}))} options={priorityOpts} />
-            <CustomSelect label="Assign To" value={fuForm.assigned_to} onChange={v => setFuForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" />
+            <CustomSelect label="Assign To" value={fuForm.assigned_to} onChange={v => setFuForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" searchable />
           </div>
           <div>
             <label className={labelCls}>Notes <span className="font-normal text-gray-400">(optional)</span></label>
@@ -1057,7 +1073,7 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess }) {
               <ClockPicker label="Visit Time *" value={svForm.visit_time} onChange={v => setSvForm(f => ({...f, visit_time: v}))} required />
             </div>
           </div>
-          <CustomSelect label="Assign To" value={svForm.assigned_to} onChange={v => setSvForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" />
+          <CustomSelect label="Assign To" value={svForm.assigned_to} onChange={v => setSvForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" searchable />
           <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 cursor-pointer"
             onClick={() => setSvForm(f => ({...f, transport_arranged: !f.transport_arranged}))}>
             <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors flex-shrink-0 ${svForm.transport_arranged ? 'bg-[#0082f3] border-[#0082f3]' : 'border-gray-300 dark:border-gray-600'}`}>
@@ -1439,9 +1455,8 @@ export default function Leads() {
   }, [dispatch])
 
   const sourceList = sources?.length > 0 ? sources : defaultSources
-  const salesExecs = userList.filter(u =>
-    ['sales_executive', 'sales_manager', 'external_caller'].includes(u.role) && u.is_active
-  )
+  const ROLE_ORDER = { super_admin: 0, admin: 1, associate_partner: 2, cluster_head: 3, partner: 4, team_leader: 5, sales_manager: 6, sales_executive: 7, external_caller: 8 }
+  const salesExecs = [...userList.filter(u => u.is_active)].sort((a, b) => (ROLE_ORDER[a.role] ?? 99) - (ROLE_ORDER[b.role] ?? 99))
 
   const handleAddLead = async (e) => {
     e.preventDefault()
@@ -1668,8 +1683,9 @@ export default function Leads() {
             <CustomSelect
               value={filterAssigned}
               onChange={val => { setFilterAssigned(val); setPage(1) }}
-              options={[{ value: '', label: 'All Team' }, ...salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))]}
+              options={[{ value: '', label: 'All Team' }, ...salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}` }))]}
               placeholder="All Team"
+              searchable
             />
           </div>
           <button
@@ -1783,7 +1799,7 @@ export default function Leads() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[780px] text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-800 bg-blue-50/50 dark:bg-blue-900/10">
                   <th className="py-3 pl-4 pr-2 w-8">
@@ -1795,8 +1811,6 @@ export default function Leads() {
                     .filter(h => !(h === 'Assigned' && isSalesManager && leadsTab === 'my'))
                     .map(h => (
                     <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wide whitespace-nowrap
-                      ${['Phone', 'Source', 'Assigned'].includes(h) ? 'hidden md:table-cell' : ''}
-                      ${['Project'].includes(h) ? 'hidden xl:table-cell' : ''}
                       ${h === 'Actions' ? 'text-right' : ''}`}>
                       {h}
                     </th>
@@ -1824,16 +1838,16 @@ export default function Leads() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-3 text-gray-600 dark:text-gray-400 hidden md:table-cell">
+                    <td className="py-3 px-3 text-gray-600 dark:text-gray-400">
                       <PhoneCell lead={lead} canSeePhone={canSeePhone} visiblePhoneLeadId={visiblePhoneLeadId} setVisiblePhoneLeadId={setVisiblePhoneLeadId}/>
                     </td>
-                    <td className="py-3 px-3 hidden md:table-cell">
+                    <td className="py-3 px-3">
                       <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-400">
                         {lead.source_name || lead.source || '—'}
                       </span>
                     </td>
                     {!(isSalesManager && leadsTab === 'my') && (
-                      <td className="py-3 px-3 hidden md:table-cell">
+                      <td className="py-3 px-3">
                         {(lead.assigned_name || lead.assigned_to_name || (typeof lead.assigned_to === 'object' && lead.assigned_to?.full_name)) ? (
                           <div className="flex items-center gap-1.5">
                             <Avatar name={lead.assigned_name || lead.assigned_to_name || lead.assigned_to?.full_name} size="xs" />
@@ -1850,7 +1864,7 @@ export default function Leads() {
                         color={statusMap[lead.status?.toLowerCase()]?.color} 
                       />
                     </td>
-                    <td className="py-3 px-3 text-xs text-gray-400 hidden xl:table-cell">
+                    <td className="py-3 px-3 text-xs text-gray-400">
                       {lead.project_name || '—'}
                     </td>
                     <td className="py-3 px-3" ref={openMenuLeadId === lead.id ? menuRef : null}>
@@ -1988,6 +2002,7 @@ export default function Leads() {
         <ReassignModal
           lead={selectedLead}
           salesExecs={salesExecs}
+          currentUser={currentUser}
           onClose={() => { setShowReassignModal(false); setSelectedLead(null) }}
           onSuccess={() => dispatch(fetchLeads({ page, per_page: 10 }))}
         />
@@ -1999,6 +2014,7 @@ export default function Leads() {
           leadIds={selectedLeads}
           leads={list}
           salesExecs={salesExecs}
+          currentUser={currentUser}
           onClose={() => setShowBulkReassignModal(false)}
           onSuccess={() => { setSelectedLeads([]); dispatch(fetchLeads({ page, per_page: 10 })) }}
         />

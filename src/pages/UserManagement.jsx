@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useModulePermissions } from '../hooks/usePermission'
-import { Edit2, Trash2, Shield, UserPlus, Mail, Phone, Lock, RefreshCw, Eye, EyeOff, Download, UserCheck, MoreVertical, CheckCircle, AlertCircle } from 'lucide-react'
+import { Edit2, Trash2, Shield, UserPlus, Mail, Phone, Lock, RefreshCw, Eye, EyeOff, Download, UserCheck, MoreVertical, CheckCircle, AlertCircle, Search } from 'lucide-react'
 import { fetchUsers, createUser, updateUser, updateUserRole, assignManager, toggleUserStatus, clearUserError, fetchRoles } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
@@ -196,6 +196,7 @@ export default function UserManagement() {
   const [page,            setPage]            = useState(1)
   const [openMenuUserId,  setOpenMenuUserId]  = useState(null)
   const [statusToast,     setStatusToast]     = useState({ show: false, message: '', isError: false })
+  const [search,          setSearch]          = useState('')
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -235,8 +236,20 @@ export default function UserManagement() {
     ? list.filter(u => ['sales_executive', 'external_caller'].includes(u.role))
     : list
 
-  const activeUsers   = visibleList.filter(u => u.is_active)
-  const inactiveUsers = visibleList.filter(u => !u.is_active)
+  const searchedList = search
+    ? visibleList.filter(u => {
+        const q = search.toLowerCase()
+        return (
+          u.first_name?.toLowerCase().includes(q) ||
+          u.last_name?.toLowerCase().includes(q) ||
+          u.email?.toLowerCase().includes(q) ||
+          u.phone_number?.includes(q)
+        )
+      })
+    : visibleList
+
+  const activeUsers   = searchedList.filter(u => u.is_active)
+  const inactiveUsers = searchedList.filter(u => !u.is_active)
 
   // Role filter options — sales_manager doesn't need the filter (always scoped)
   const roleFilterOptions = [
@@ -510,6 +523,15 @@ export default function UserManagement() {
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <div className="flex flex-wrap gap-2 flex-1">
           {/* Role filter — only for admin/super_admin */}
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name, email, phone..."
+              className="pl-9 pr-4 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand w-64 text-gray-900 dark:text-white placeholder-gray-400"
+            />
+          </div>
           {!isSalesManager && (
             <div className="w-48">
               <CustomSelect
