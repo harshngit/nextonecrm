@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useModulePermissions } from '../hooks/usePermission'
-import { Edit2, Trash2, Shield, UserPlus, Mail, Phone, Lock, RefreshCw, Eye, EyeOff, Download, UserCheck, MoreVertical } from 'lucide-react'
-import { fetchUsers, createUser, updateUser, deleteUser, updateUserRole, assignManager, clearUserError, fetchRoles } from '../store/userSlice'
+import { Edit2, Trash2, Shield, UserPlus, Mail, Phone, Lock, RefreshCw, Eye, EyeOff, Download, UserCheck, MoreVertical, CheckCircle, AlertCircle } from 'lucide-react'
+import { fetchUsers, createUser, updateUser, updateUserRole, assignManager, toggleUserStatus, clearUserError, fetchRoles } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -36,7 +36,7 @@ const defaultForm = {
 }
 
 // ── User Form (admin/super_admin only) ────────────────────────────────────────
-function UserForm({ form, setForm, editMode, showPassword, setShowPassword, roles }) {
+function UserForm({ form, setForm, editMode, showPassword, setShowPassword, roles, canEditEmail, emailError }) {
   const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200 disabled:opacity-50"
   const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
   return (
@@ -55,8 +55,9 @@ function UserForm({ form, setForm, editMode, showPassword, setShowPassword, role
         <label className={labelClass}>Email *</label>
         <div className="relative">
           <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input required type="email" disabled={editMode} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="priya@nextonerealty.com" className={inputClass + " pl-9"} />
+          <input required type="email" disabled={editMode && !canEditEmail} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="priya@nextonerealty.com" className={`${inputClass} pl-9 ${emailError ? 'border-red-400 dark:border-red-500' : ''}`} />
         </div>
+        {emailError && <p className="text-xs text-red-500 mt-1">{emailError}</p>}
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -194,6 +195,7 @@ export default function UserManagement() {
   const [form,            setForm]            = useState(defaultForm)
   const [page,            setPage]            = useState(1)
   const [openMenuUserId,  setOpenMenuUserId]  = useState(null)
+  const [statusToast,     setStatusToast]     = useState({ show: false, message: '', isError: false })
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -233,7 +235,8 @@ export default function UserManagement() {
     ? list.filter(u => ['sales_executive', 'external_caller'].includes(u.role))
     : list
 
-  const activeUsers = visibleList.filter(u => u.is_active)
+  const activeUsers   = visibleList.filter(u => u.is_active)
+  const inactiveUsers = visibleList.filter(u => !u.is_active)
 
   // Role filter options — sales_manager doesn't need the filter (always scoped)
   const roleFilterOptions = [
@@ -260,6 +263,11 @@ export default function UserManagement() {
     setShowModal(true)
   }
 
+  const showStatusToast = (message, isError = false) => {
+    setStatusToast({ show: true, message, isError })
+    setTimeout(() => setStatusToast({ show: false, message: '', isError: false }), 3000)
+  }
+
   const handleOpenAssignModal = (user) => {
     setAssignTarget(user)
     setAssignSuccess('')
@@ -270,12 +278,11 @@ export default function UserManagement() {
   const handleSubmit = async (e) => {
     e.preventDefault(); dispatch(clearUserError())
     if (editMode) {
-      const { email, password, ...updateData } = form
+      const { password, ...updateData } = form
       const result = await dispatch(updateUser({ id: selectedUser.id, userData: updateData }))
       if (updateUser.fulfilled.match(result)) {
         if (form.role !== selectedUser.role) await dispatch(updateUserRole({ id: selectedUser.id, role: form.role }))
         setSuccess('User updated successfully!')
-        dispatch(fetchUsers({ role: filterRole }))
         setTimeout(() => setShowModal(false), 800)
       }
     } else {
@@ -300,12 +307,25 @@ export default function UserManagement() {
 
   const handleDelete = async () => {
     if (!userToDelete) return
-    const result = await dispatch(deleteUser(userToDelete.id))
-    if (deleteUser.fulfilled.match(result)) {
-      dispatch(fetchUsers({ role: filterRole }))
+    const result = await dispatch(toggleUserStatus({ id: userToDelete.id, is_active: false }))
+    if (toggleUserStatus.fulfilled.match(result)) {
+      showStatusToast(`${userToDelete.first_name} ${userToDelete.last_name} has been deactivated`)
+      dispatch(fetchUsers({ role: filterRole, page, per_page: 10 }))
+    } else {
+      showStatusToast(result.payload || 'Failed to deactivate user', true)
     }
     setShowDeleteModal(false)
     setUserToDelete(null)
+  }
+
+  const handleActivate = async (user) => {
+    const result = await dispatch(toggleUserStatus({ id: user.id, is_active: true }))
+    if (toggleUserStatus.fulfilled.match(result)) {
+      showStatusToast(`${user.first_name} ${user.last_name} has been activated`)
+      dispatch(fetchUsers({ role: filterRole, page, per_page: 10 }))
+    } else {
+      showStatusToast(result.payload || 'Failed to activate user', true)
+    }
   }
 
   const confirmDelete = (user) => {
@@ -339,7 +359,7 @@ export default function UserManagement() {
     'Actions',
   ]
 
-  const renderRows = (users) => users.map((user, userIdx) => {
+  const renderRows = (users, showStatus = true) => users.map((user, userIdx) => {
     const manager = list.find(m => m.id === user.manager_id)
     return (
       <tr key={user.id} className={`transition-colors hover:bg-gray-50 dark:hover:bg-[#0f0f0f] ${!user.is_active ? 'opacity-60' : ''}`}>
@@ -395,9 +415,11 @@ export default function UserManagement() {
         )}
 
         {/* Status */}
-        <td className="py-3 px-4">
-          <Badge label={user.is_active ? 'Active' : 'Inactive'} />
-        </td>
+        {showStatus && (
+          <td className="py-3 px-4">
+            <Badge label={user.is_active ? 'Active' : 'Inactive'} />
+          </td>
+        )}
 
         {/* Actions */}
         <td className="py-3 px-4" ref={openMenuUserId === user.id ? menuRef : null}>
@@ -425,13 +447,21 @@ export default function UserManagement() {
                       Edit
                     </button>
                   )}
-                  {/* Deactivate — admin/super_admin only */}
-                  {perms.delete && user.id !== currentUser?.id && user.role !== 'super_admin' && user.is_active && (
-                    <button onClick={() => { confirmDelete(user); setOpenMenuUserId(null)}}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                      <Trash2 size={14} />
-                      Deactivate
-                    </button>
+                  {/* Activate / Deactivate — admin/super_admin only, not self, not super_admin */}
+                  {perms.delete && user.id !== currentUser?.id && user.role !== 'super_admin' && (
+                    user.is_active ? (
+                      <button onClick={() => { confirmDelete(user); setOpenMenuUserId(null) }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                        <Trash2 size={14} />
+                        Deactivate
+                      </button>
+                    ) : (
+                      <button onClick={() => { handleActivate(user); setOpenMenuUserId(null) }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
+                        <UserCheck size={14} />
+                        Activate
+                      </button>
+                    )
                   )}
                 </div>
               )}
@@ -442,33 +472,36 @@ export default function UserManagement() {
     )
   })
 
-  const TableSection = ({ users, label, dot }) => (
-    <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-2xl shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
-      <div className="flex items-center gap-2.5 px-5 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-[#0f0f0f]">
-        <div className={`w-2 h-2 rounded-full ${dot}`} />
-        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</span>
-        <span className="ml-auto text-xs font-bold tabular-nums text-gray-400 bg-gray-200 dark:bg-gray-800 px-2 py-0.5 rounded-full">{users.length}</span>
-      </div>
-      {users.length === 0 ? (
-        <div className="py-8 text-center text-sm text-gray-400">No {label.toLowerCase()} users</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-800">
-                {tableHeaders.map(h => (
-                  <th key={h} className="py-3 px-4 text-left text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wide whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-              {renderRows(users)}
-            </tbody>
-          </table>
+  const TableSection = ({ users, label, dot, showStatus = true }) => {
+    const headers = showStatus ? tableHeaders : tableHeaders.filter(h => h !== 'Status')
+    return (
+      <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-2xl shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
+        <div className="flex items-center gap-2.5 px-5 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-[#0f0f0f]">
+          <div className={`w-2 h-2 rounded-full ${dot}`} />
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</span>
+          <span className="ml-auto text-xs font-bold tabular-nums text-gray-400 bg-gray-200 dark:bg-gray-800 px-2 py-0.5 rounded-full">{users.length}</span>
         </div>
-      )}
-    </div>
-  )
+        {users.length === 0 ? (
+          <div className="py-8 text-center text-sm text-gray-400">No {label.toLowerCase()} users</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-800">
+                  {headers.map(h => (
+                    <th key={h} className="py-3 px-4 text-left text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                {renderRows(users, showStatus)}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">
@@ -514,6 +547,14 @@ export default function UserManagement() {
         </div>
       )}
 
+      {/* Status toast */}
+      {statusToast.show && (
+        <div className={`fixed top-5 right-5 z-50 flex items-center gap-2 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg ${statusToast.isError ? 'bg-red-500' : 'bg-emerald-600'}`}>
+          {statusToast.isError ? <AlertCircle size={15} /> : <CheckCircle size={15} />}
+          {statusToast.message}
+        </div>
+      )}
+
       {/* Tables */}
       {loading ? (
         <div className="bg-card border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50">
@@ -525,7 +566,12 @@ export default function UserManagement() {
           <p className="font-medium">No users found</p>
         </div>
       ) : (
-        <TableSection users={activeUsers} label="Active" dot="bg-green-500" />
+        <>
+          <TableSection users={activeUsers} label="Active" dot="bg-green-500" />
+          {inactiveUsers.length > 0 && (
+            <TableSection users={inactiveUsers} label="Inactive" dot="bg-gray-400" showStatus={false} />
+          )}
+        </>
       )}
 
       {/* Pagination */}
@@ -542,9 +588,9 @@ export default function UserManagement() {
       {/* Register / Edit Modal — admin/super_admin only */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editMode ? 'Edit User' : 'Register New User'}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <UserForm form={form} setForm={setForm} editMode={editMode} showPassword={showPassword} setShowPassword={setShowPassword} roles={roles} />
-          {success     && <p className="text-center text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 py-2 rounded-xl">{success}</p>}
-          {actionError && <p className="text-center text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 rounded-xl">{actionError}</p>}
+          <UserForm form={form} setForm={setForm} editMode={editMode} showPassword={showPassword} setShowPassword={setShowPassword} roles={roles} canEditEmail={isAdminUser} emailError={actionError?.toLowerCase().includes('email') ? actionError : null} />
+          {success && <p className="text-center text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 py-2 rounded-xl">{success}</p>}
+          {actionError && !actionError.toLowerCase().includes('email') && <p className="text-center text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 rounded-xl">{actionError}</p>}
           <div className="pt-2 flex gap-3">
             <Button type="button" variant="outline" className="flex-1" onClick={() => setShowModal(false)}>Cancel</Button>
             <Button type="submit" className="flex-1" loading={actionLoading}>{editMode ? 'Update User' : 'Register User'}</Button>

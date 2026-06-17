@@ -94,6 +94,18 @@ export const assignManager = createAsyncThunk(
   }
 )
 
+export const toggleUserStatus = createAsyncThunk(
+  'users/toggleStatus',
+  async ({ id, is_active }, { rejectWithValue }) => {
+    try {
+      const response = await api.patch(`/users/${id}/status`, { is_active })
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update user status')
+    }
+  }
+)
+
 export const fetchRoles = createAsyncThunk(
   'users/fetchRoles',
   async (_, { rejectWithValue }) => {
@@ -148,6 +160,14 @@ const userSlice = createSlice({
       // fetchRoles
       .addCase(fetchRoles.fulfilled, (state, action) => {
         state.roles = action.payload.data || []
+      })
+
+      // updateUser — patch the updated row directly in list so email shows immediately
+      .addCase(updateUser.fulfilled, (state, action) => {
+        const updated = action.payload?.data
+        if (updated?.id) {
+          state.list = state.list.map(u => u.id === updated.id ? { ...u, ...updated } : u)
+        }
       })
 
       // Action matchers for create / update / delete / role / assignManager
