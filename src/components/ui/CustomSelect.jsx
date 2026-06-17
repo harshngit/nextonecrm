@@ -8,7 +8,10 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
   const searchRef = useRef(null)
 
   const filteredOptions = searchable && search.trim()
-    ? options.filter(opt => opt.label.toLowerCase().includes(search.toLowerCase()))
+    ? options.filter(opt =>
+        opt.label.toLowerCase().includes(search.toLowerCase()) ||
+        opt.sublabel?.toLowerCase().includes(search.toLowerCase())
+      )
     : options
 
   const isValueSelected = (optValue) => {
@@ -160,7 +163,16 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
                   {opt.color && (
                     <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: opt.color }} />
                   )}
-                  <span className="truncate">{opt.label}</span>
+                  {opt.sublabel ? (
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="truncate text-sm">{opt.label}</span>
+                      <span className="flex-shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                        {opt.sublabel}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="truncate">{opt.label}</span>
+                  )}
                 </div>
               ))
             )}

@@ -104,6 +104,36 @@ function UserForm({ form, setForm, editMode, showPassword, setShowPassword, role
   )
 }
 
+// ── Role hierarchy — lower number = higher in org ─────────────────────────────
+const ROLE_RANK = {
+  super_admin:       0,
+  admin:             0,
+  associate_partner: 1,
+  associate:         1,
+  cluster_head:      1,
+  cluster:           1,
+  partner:           2,
+  team_leader:       3,
+  sales_manager:     4,
+  sales_executive:   5,
+  external_caller:   5,
+}
+
+// Display names exactly as stored in DB — no aliasing
+const ROLE_DISPLAY_NAME = {
+  admin:             'Admin',
+  super_admin:       'Super Admin',
+  associate_partner: 'Associate Partner',
+  associate:         'Associate',
+  cluster_head:      'Cluster Head',
+  cluster:           'Cluster',
+  partner:           'Partner',
+  team_leader:       'Team Leader',
+  sales_manager:     'Sales Manager',
+  sales_executive:   'Sales Executive',
+  external_caller:   'External Caller',
+}
+
 // ── Assign Manager Modal ───────────────────────────────────────────────────────
 function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, loading, error, success, defaultManagerId }) {
   const [selectedManager, setSelectedManager] = useState('')
@@ -117,7 +147,11 @@ function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, l
 
   if (!isOpen || !targetUser) return null
 
-  const managerOptions = managers.map(m => ({ value: m.id, label: `${m.first_name} ${m.last_name}` }))
+  const managerOptions = managers.map(m => ({
+    value: m.id,
+    label: `${m.first_name} ${m.last_name}`,
+    sublabel: ROLE_DISPLAY_NAME[m.role] || m.role?.replace(/_/g, ' '),
+  }))
   const currentMgr = managers.find(m => m.id === targetUser.manager_id)
 
   const handleSubmit = (e) => {
@@ -148,11 +182,12 @@ function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, l
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <CustomSelect
-            label="Assign to Sales Manager *"
+            label="Assign Manager *"
             value={selectedManager}
             onChange={setSelectedManager}
             options={managerOptions}
-            placeholder="Select a sales manager"
+            placeholder="Select a manager"
+            searchable
           />
           {success && <p className="text-center text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 py-2 rounded-xl">{success}</p>}
           {error   && <p className="text-center text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 rounded-xl">{error}</p>}
@@ -196,6 +231,7 @@ export default function UserManagement() {
   const [page,            setPage]            = useState(1)
   const [openMenuUserId,  setOpenMenuUserId]  = useState(null)
   const [menuPos,         setMenuPos]         = useState(null)
+  const [availableManagers, setAvailableManagers] = useState([])
   const [statusToast,     setStatusToast]     = useState({ show: false, message: '', isError: false })
   const [search,          setSearch]          = useState('')
   const menuRef = useRef(null)
@@ -229,8 +265,6 @@ export default function UserManagement() {
     }
   }, [])
 
-  // Active sales managers — for assign dropdown
-  const salesManagers = list.filter(u => u.role === 'sales_manager' && u.is_active)
 
   // For sales_manager: only show sales_executive and external_caller
   const visibleList = isSalesManager
@@ -282,10 +316,25 @@ export default function UserManagement() {
     setTimeout(() => setStatusToast({ show: false, message: '', isError: false }), 3000)
   }
 
-  const handleOpenAssignModal = (user) => {
+  const handleOpenAssignModal = async (user) => {
     setAssignTarget(user)
     setAssignSuccess('')
     dispatch(clearUserError())
+    const targetRank = ROLE_RANK[user.role]
+    try {
+      const res = await api.get('/users', { params: { is_active: true, per_page: 500 } })
+      const all = res.data?.data || []
+      setAvailableManagers(
+        targetRank !== undefined
+          ? all.filter(u => {
+              const r = ROLE_RANK[u.role]
+              return r !== undefined && r < targetRank && u.id !== user.id
+            })
+          : []
+      )
+    } catch {
+      setAvailableManagers([])
+    }
     setShowAssignModal(true)
   }
 
@@ -362,7 +411,7 @@ export default function UserManagement() {
 
   // Table helpers
   const isAssignable = (user) =>
-    ['sales_executive', 'external_caller'].includes(user.role) && user.is_active
+    !['admin', 'super_admin', 'superadmin'].includes(user.role) && user.is_active
 
   // Columns: sales_manager does NOT see the Manager column
   const showManagerCol = !isSalesManager
@@ -445,7 +494,7 @@ export default function UserManagement() {
               </button>
               {openMenuUserId === user.id && (
                 <div style={{ top: menuPos?.top, bottom: menuPos?.bottom, right: menuPos?.right }} className="fixed w-48 max-h-64 overflow-y-auto bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[9999] py-1">
-                  {/* Assign — admin/super_admin: always show for exec/caller, sales_manager: only if not already assigned */}
+                  {/* Assign — show for all assignable roles */}
                   {canAssign && isAssignable(user) && (!isSalesManager || !user.manager_id) && (
                     <button onClick={() => { handleOpenAssignModal(user); setOpenMenuUserId(null)}}
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
@@ -626,7 +675,7 @@ export default function UserManagement() {
         isOpen={showAssignModal}
         onClose={() => setShowAssignModal(false)}
         targetUser={assignTarget}
-        managers={salesManagers}
+        managers={availableManagers}
         onAssign={handleAssign}
         loading={actionLoading}
         error={actionError}
