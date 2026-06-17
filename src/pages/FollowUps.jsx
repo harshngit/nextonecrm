@@ -13,7 +13,6 @@ import {
 } from '../store/followUpSlice'
 import { fetchLeads } from '../store/leadSlice'
 import { fetchProjects } from '../store/projectSlice'
-import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
@@ -31,9 +30,7 @@ const priorityStyle = {
   low:    'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
 }
 
-const ROLE_ORDER = { super_admin: 0, admin: 1, associate_partner: 2, cluster_head: 3, partner: 4, team_leader: 5, sales_manager: 6, sales_executive: 7, external_caller: 8 }
 const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
-const sortByRole = users => [...users].sort((a, b) => (ROLE_ORDER[a.role] ?? 99) - (ROLE_ORDER[b.role] ?? 99))
 
 // ─── Circular Clock Picker ───────────────────────────────────────────────────
 
@@ -221,7 +218,7 @@ function formatDue(task) {
 }
 
 // ── Form — defined OUTSIDE to prevent typing/focus bug ────────────────────────
-function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit, selectedTask, currentUser }) {
+function FollowUpForm({ formData, setFormData, leads, teamMembers = [], isEdit, selectedTask, currentUser }) {
   const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
@@ -240,12 +237,11 @@ function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit, select
   // Create exec options with fallback if needed
   const execOptions = [
     ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
-    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({
+    ...teamMembers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u => ({
       value: u.id,
       label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}`
     })),
-    // Add fallback if assigned from task isn't in list
-    ...(isEdit && selectedTask?.assigned_to && !salesExecs.find(u => u.id === selectedTask.assigned_to) && selectedTask?.assigned_name
+    ...(isEdit && selectedTask?.assigned_to && !teamMembers.find(u => u.id === selectedTask.assigned_to) && selectedTask?.assigned_name
       ? [{ value: selectedTask.assigned_to, label: selectedTask.assigned_name }]
       : [])
   ]
@@ -332,7 +328,7 @@ function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit, select
 
 // ─── Convert Follow-Up to Site Visit Modal ────────────────────────────────────
 
-function ConvertFollowUpModal({ task, onClose, onSuccess }) {
+function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
   const [converting, setConverting] = useState(false)
   const [error, setError] = useState('')
   const [options, setOptions] = useState(null)
@@ -343,9 +339,7 @@ function ConvertFollowUpModal({ task, onClose, onSuccess }) {
   })
 
   const { list: projectList } = useSelector(s => s.projects)
-  const { list: userList }    = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
-  const salesExecs = sortByRole(userList.filter(u => u.is_active))
 
   useEffect(() => {
     api.get(`/convert/follow-up/${task.id}/options`)
@@ -367,10 +361,10 @@ function ConvertFollowUpModal({ task, onClose, onSuccess }) {
   const labelCls = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5"
 
   const projectOpts = (options?.projects || projectList || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
-  const _baseUsers  = options?.users || salesExecs || []
+  const _baseUsers  = options?.users || teamMembers || []
   const userOpts    = [
     ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
-    ..._baseUsers.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: u.name || `${u.first_name} ${u.last_name}${u.role ? ` · ${ROLE_LABEL[u.role] || u.role}` : ''}` }))
+    ..._baseUsers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u => ({ value: u.id, label: u.name || `${u.first_name} ${u.last_name}${u.role ? ` · ${ROLE_LABEL[u.role] || u.role}` : ''}` }))
   ]
 
   const svAvailable = options?.conversions?.to_site_visit?.available !== false
@@ -474,23 +468,21 @@ function ConvertFollowUpModal({ task, onClose, onSuccess }) {
 
 // ─── Bulk Convert Follow-Ups to Site Visit ───────────────────────────────────
 
-function BulkConvertFUModal({ taskIds, tasks, onClose, onSuccess }) {
+function BulkConvertFUModal({ taskIds, tasks, onClose, onSuccess, teamMembers = [] }) {
   const [converting, setConverting] = useState(false)
   const [error, setError]     = useState('')
   const [results, setResults] = useState(null)
   const [form, setForm] = useState({ project_id: '', visit_date: '', visit_time: '10:00', assigned_to: '', transport_arranged: false, notes: '' })
 
   const { list: projectList } = useSelector(s => s.projects)
-  const { list: userList }    = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
-  const salesExecs = sortByRole(userList.filter(u => u.is_active))
 
   const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300 transition-colors placeholder-gray-400"
   const labelCls = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5"
   const projectOpts = projectList.map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
   const userOpts    = [
     ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
-    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
+    ...teamMembers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
   ]
 
   const handleConvert = async () => {
@@ -712,7 +704,6 @@ export default function FollowUps() {
   const navigate = useNavigate()
   const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.followUps)
   const { list: leadList } = useSelector(s => s.leads)
-  const { list: userList } = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
 
   const [filterView,     setFilterView]     = useState('team') // 'mine' | 'team'
@@ -743,8 +734,8 @@ export default function FollowUps() {
   const [openMenuTaskId,    setOpenMenuTaskId]    = useState(null)
   const [menuPos,           setMenuPos]           = useState(null)
   const menuRef = useRef(null)
+  const [teamMembers, setTeamMembers] = useState([])
 
-  const salesExecs = sortByRole(userList.filter(u => u.is_active))
   const canManage = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
   const perms = useModulePermissions('follow_ups')
 
@@ -770,9 +761,15 @@ export default function FollowUps() {
 
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
-    dispatch(fetchUsers())
     dispatch(fetchProjects())
   }, [dispatch])
+
+  useEffect(() => {
+    if (!currentUser?.id) return
+    api.get(`/users/${currentUser.id}/team-tree`)
+      .then(res => setTeamMembers(res.data?.data || []))
+      .catch(() => setTeamMembers([]))
+  }, [currentUser?.id])
 
   // ── Classify tasks into buckets ─────────────────────────────────────────────
   const overdueTasks   = list.filter(t => classifyTask(t) === 'overdue')

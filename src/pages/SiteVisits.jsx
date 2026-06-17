@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
@@ -9,7 +10,6 @@ import {
 } from '../store/siteVisitSlice'
 import { fetchLeads } from '../store/leadSlice'
 import { fetchProjects } from '../store/projectSlice'
-import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -20,9 +20,7 @@ import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
 
-const ROLE_ORDER = { super_admin: 0, admin: 1, associate_partner: 2, cluster_head: 3, partner: 4, team_leader: 5, sales_manager: 6, sales_executive: 7, external_caller: 8 }
 const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
-const sortByRole = users => [...users].sort((a, b) => (ROLE_ORDER[a.role] ?? 99) - (ROLE_ORDER[b.role] ?? 99))
 
 const visitStatuses = ['scheduled', 'done', 'cancelled', 'rescheduled', 'no_show']
 const statusLabel = { scheduled: 'Scheduled', done: 'Completed', cancelled: 'Cancelled', rescheduled: 'Rescheduled', no_show: 'No Show' }
@@ -515,7 +513,6 @@ export default function SiteVisits() {
   const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.siteVisits)
   const { list: leadList }    = useSelector(s => s.leads)
   const { list: projectList } = useSelector(s => s.projects)
-  const { list: userList }    = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
 
   const [viewMode,      setViewMode]      = useState('list')
@@ -540,6 +537,7 @@ export default function SiteVisits() {
   const [exporting,    setExporting]    = useState(false)
   const [openMenuVisitId, setOpenMenuVisitId] = useState(null)
   const [menuPos,         setMenuPos]         = useState(null)
+  const [teamMembers,     setTeamMembers]     = useState([])
   const menuRef = useRef(null)
 
   const loadVisits = () => {
@@ -557,10 +555,16 @@ export default function SiteVisits() {
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
     dispatch(fetchProjects({ per_page: 100, status: 'active' }))
-    dispatch(fetchUsers())
   }, [dispatch])
 
-  const salesExecs = sortByRole(userList.filter(u => u.is_active))
+  useEffect(() => {
+    if (!currentUser?.id) return
+    api.get(`/users/${currentUser.id}/team-tree`)
+      .then(res => setTeamMembers(res.data?.data || []))
+      .catch(() => setTeamMembers([]))
+  }, [currentUser?.id])
+
+  const salesExecs = teamMembers
   const canManage = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
   const perms = useModulePermissions('site_visits')
 

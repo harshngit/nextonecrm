@@ -104,21 +104,6 @@ function UserForm({ form, setForm, editMode, showPassword, setShowPassword, role
   )
 }
 
-// ── Role hierarchy — lower number = higher in org ─────────────────────────────
-const ROLE_RANK = {
-  super_admin:       0,
-  admin:             0,
-  associate_partner: 1,
-  associate:         1,
-  cluster_head:      1,
-  cluster:           1,
-  partner:           2,
-  team_leader:       3,
-  sales_manager:     4,
-  sales_executive:   5,
-  external_caller:   5,
-}
-
 // Display names exactly as stored in DB — no aliasing
 const ROLE_DISPLAY_NAME = {
   admin:             'Admin',
@@ -320,18 +305,9 @@ export default function UserManagement() {
     setAssignTarget(user)
     setAssignSuccess('')
     dispatch(clearUserError())
-    const targetRank = ROLE_RANK[user.role]
     try {
-      const res = await api.get('/users', { params: { is_active: true, per_page: 500 } })
-      const all = res.data?.data || []
-      setAvailableManagers(
-        targetRank !== undefined
-          ? all.filter(u => {
-              const r = ROLE_RANK[u.role]
-              return r !== undefined && r < targetRank && u.id !== user.id
-            })
-          : []
-      )
+      const res = await api.get('/users/eligible-managers', { params: { for_role: user.role } })
+      setAvailableManagers(res.data?.data || [])
     } catch {
       setAvailableManagers([])
     }
