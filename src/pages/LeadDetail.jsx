@@ -15,7 +15,7 @@ import {
   fetchLeadById, fetchLeadActivities, addLeadNote, updateLeadStatus, clearCurrentLead,
   fetchLeadStatuses, addLeadStatus, updateLeadStatusConfig, deleteLeadStatus, reorderLeadStatuses
 } from '../store/leadSlice'
-import { fetchUsers } from '../store/userSlice'
+import { fetchTeamTree } from '../store/userSlice'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
@@ -284,7 +284,7 @@ export default function LeadDetail() {
   const dispatch = useDispatch()
 
   const { currentLead: lead, activities, detailLoading, actionLoading, statuses } = useSelector(s => s.leads)
-  const { list: userList } = useSelector(s => s.users)
+  const { teamTree: teamMembers = [] } = useSelector(s => s.users)
 
   const { user: currentUser } = useSelector(s => s.auth)
   const [note, setNote] = useState('')
@@ -454,12 +454,12 @@ export default function LeadDetail() {
   useEffect(() => {
     dispatch(fetchLeadById(id))
     dispatch(fetchLeadActivities(id))
-    dispatch(fetchUsers())
+    if (currentUser?.id) dispatch(fetchTeamTree(currentUser.id))
     dispatch(fetchLeadStatuses())
     fetchReassignHistory(1)
     fetchRecordings()
     return () => dispatch(clearCurrentLead())
-  }, [dispatch, id])
+  }, [dispatch, id, currentUser?.id])
 
 
 
@@ -491,9 +491,7 @@ export default function LeadDetail() {
     ? lead.assigned_to
     : null
 
-  const salesExecs = userList.filter(u =>
-    ['sales_executive', 'sales_manager', 'external_caller'].includes(u.role) && u.is_active
-  )
+  const salesExecs = teamMembers.filter(u => !u.is_self)
 
 
 

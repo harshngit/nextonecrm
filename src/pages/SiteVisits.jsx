@@ -324,7 +324,7 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit,
       />
 
       {/* Date + Time */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={lc}>Visit Date *</label>
           <input required type="date" value={formData.visit_date}
@@ -458,7 +458,7 @@ function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className={lc}>Visit Date *</label>
             <input type="date" required value={form.visit_date}

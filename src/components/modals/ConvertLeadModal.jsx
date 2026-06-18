@@ -19,8 +19,8 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
   const [svForm, setSvForm] = useState({ project_id: '', visit_date: '', visit_time: '10:00', assigned_to: '', transport_arranged: false, notes: '' })
 
   const { list: projectList } = useSelector(s => s.projects)
-  const { list: userList }    = useSelector(s => s.users)
-  const salesExecs = userList.filter(u => ['sales_executive','sales_manager'].includes(u.role) && u.is_active)
+  const { teamTree: teamMembers = [] } = useSelector(s => s.users)
+  const salesExecs = teamMembers.filter(u => !u.is_self)
 
   useEffect(() => {
     // Fetch conversion options to pre-fill
@@ -122,7 +122,7 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
             </div>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400">Choose what you want to convert this lead into:</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button onClick={() => { setStep('follow_up'); setError('') }}
               className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-gray-100 dark:border-gray-800 hover:border-[#0082f3] hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all group">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-green-400 to-teal-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm shadow-green-500/30">
@@ -159,7 +159,7 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
             <input type="text" value={fuForm.title} onChange={e => setFuForm(f => ({...f, title: e.target.value}))}
               placeholder="e.g. Call back about 2BHK pricing" className={inputCls} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Due Date *</label>
               <input type="date" value={fuForm.due_date} onChange={e => setFuForm(f => ({...f, due_date: e.target.value}))}
@@ -169,7 +169,7 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
               <ClockPicker label="Due Time" value={fuForm.due_time} onChange={v => setFuForm(f => ({...f, due_time: v}))} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <CustomSelect label="Priority" value={fuForm.priority} onChange={v => setFuForm(f => ({...f, priority: v}))} options={priorityOpts} />
             <CustomSelect label="Assign To" value={fuForm.assigned_to} onChange={v => setFuForm(f => ({...f, assigned_to: v}))} options={userOptions} placeholder="Keep current" />
           </div>
@@ -190,7 +190,7 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
       ) : (
         <div className="space-y-4">
           <CustomSelect label="Project *" value={svForm.project_id} onChange={v => setSvForm(f => ({...f, project_id: v}))} options={projectOptions} placeholder="Select project" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Visit Date *</label>
               <input type="date" value={svForm.visit_date} onChange={e => setSvForm(f => ({...f, visit_date: e.target.value}))}

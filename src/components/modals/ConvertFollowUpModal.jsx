@@ -17,8 +17,8 @@ export default function ConvertFollowUpModal({ task, onClose, onSuccess }) {
   })
 
   const { list: projectList } = useSelector(s => s.projects)
-  const { list: userList }    = useSelector(s => s.users)
-  const salesExecs = userList.filter(u => ['sales_executive','sales_manager'].includes(u.role) && u.is_active)
+  const { teamTree: teamMembers = [] } = useSelector(s => s.users)
+  const salesExecs = teamMembers.filter(u => !u.is_self)
 
   useEffect(() => {
     api.get(`/convert/follow-up/${task.id}/options`)
@@ -95,7 +95,7 @@ export default function ConvertFollowUpModal({ task, onClose, onSuccess }) {
           </div>
 
           <CustomSelect label="Project *" value={form.project_id} onChange={v => setForm(f => ({...f, project_id: v}))} options={projectOpts} placeholder="Select project" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Visit Date *</label>
               <input type="date" value={form.visit_date} onChange={e => setForm(f => ({...f, visit_date: e.target.value}))}

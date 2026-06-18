@@ -91,7 +91,7 @@ function ScheduleModal({ siteVisits, salesExecs, currentUser, onClose, onSuccess
           onChange={v => setForm(p => ({ ...p, original_visit_id: v }))}
           options={svOptions} placeholder="Select original visit..." />
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className={lc}>Visit Date *</label>
             <input type="date" required value={form.visit_date}
@@ -169,7 +169,7 @@ function EditModal({ revisit, salesExecs, currentUser, onClose, onSuccess }) {
   return (
     <Modal isOpen onClose={onClose} title="Edit Re-visit" size="md">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className={lc}>Visit Date</label>
             <input type="date" value={form.visit_date}

@@ -287,7 +287,7 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
   return (
     <div className="space-y-4">
       {/* Name + Phone */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Full Name *</label>
           <input required value={formData.name} onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))} placeholder="Suresh Patel" className={inputClass} />
@@ -299,7 +299,7 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
       </div>
 
       {/* Alt Phone + Email */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Alternate Phone</label>
           <input value={formData.alternate_phone_number} onChange={e => setFormData(prev => ({ ...prev, alternate_phone_number: e.target.value }))} placeholder="+919876543211" className={inputClass} />
@@ -311,7 +311,7 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
       </div>
 
       {/* Budget + Location */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Budget</label>
           <input value={formData.budget} onChange={e => setFormData(prev => ({ ...prev, budget: e.target.value }))} placeholder="80-100L" className={inputClass} />
@@ -337,7 +337,7 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
       </div>
 
       {/* Callback + Follow-up */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={labelClass}><span className="flex items-center gap-1"><Clock size={11} /> Callback Time</span></label>
           <input type="datetime-local" value={formData.callback_time ? formData.callback_time.slice(0, 16) : ''}
@@ -351,7 +351,7 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
       </div>
 
       {/* Source + Status */}
-      <div className={`grid gap-3 ${isEdit ? 'grid-cols-2' : 'grid-cols-1'}`}>
+      <div className={`grid gap-3 ${isEdit ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
         <CustomSelect 
           label="Lead Source" 
           value={(() => {
@@ -992,7 +992,7 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess, teamMembers 
             </div>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400">Choose what to convert these leads into:</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button onClick={() => { setStep('follow_up'); setError('') }}
               className="flex flex-col items-center gap-3 p-5 rounded-2xl border-2 border-gray-100 dark:border-gray-800 hover:border-[#0082f3] hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all group">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-green-400 to-teal-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm shadow-green-500/30">
@@ -1022,7 +1022,7 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess, teamMembers 
             <input type="text" value={fuForm.title_suffix} onChange={e => setFuForm(f => ({...f, title_suffix: e.target.value}))}
               placeholder="Follow-up" className={inputCls} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Due Date *</label>
               <input type="date" value={fuForm.due_date} onChange={e => setFuForm(f => ({...f, due_date: e.target.value}))}
@@ -1032,7 +1032,7 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess, teamMembers 
               <ClockPicker label="Due Time" value={fuForm.due_time} onChange={v => setFuForm(f => ({...f, due_time: v}))} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <CustomSelect label="Priority" value={fuForm.priority} onChange={v => setFuForm(f => ({...f, priority: v}))} options={priorityOpts} />
             <CustomSelect label="Assign To" value={fuForm.assigned_to} onChange={v => setFuForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" searchable />
           </div>
@@ -1053,7 +1053,7 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess, teamMembers 
       ) : (
         <div className="space-y-4">
           <CustomSelect label="Project *" value={svForm.project_id} onChange={v => setSvForm(f => ({...f, project_id: v}))} options={projectOpts} placeholder="Select project" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Visit Date *</label>
               <input type="date" value={svForm.visit_date} onChange={e => setSvForm(f => ({...f, visit_date: e.target.value}))}
@@ -1451,6 +1451,11 @@ export default function Leads() {
 
   const sourceList = sources?.length > 0 ? sources : defaultSources
 
+  const reloadLeads = () => {
+    dispatch(fetchLeads({ page, per_page: 10 }))
+    if (showLeadsTabs) dispatch(fetchMyLeads({ page: myPage, per_page: 10 }))
+  }
+
   const handleAddLead = async (e) => {
     e.preventDefault()
     dispatch(clearLeadError())
@@ -1464,7 +1469,7 @@ export default function Leads() {
     if (createLead.fulfilled.match(result)) {
       setAddSuccess('Lead created successfully!')
       setPendingRecordings([])
-      dispatch(fetchLeads({ page, per_page: 10 }))
+      reloadLeads()
       setTimeout(() => { setShowAddModal(false); setAddSuccess(''); setAddForm(defaultForm) }, 800)
     }
   }
@@ -1475,7 +1480,7 @@ export default function Leads() {
     const result = await dispatch(updateLead({ id: selectedLead.id, leadData: editForm }))
     if (updateLead.fulfilled.match(result)) {
       setEditSuccess('Lead updated!')
-      dispatch(fetchLeads({ page, per_page: 10 }))
+      reloadLeads()
       setTimeout(() => { setShowEditModal(false); setEditSuccess('') }, 800)
     }
   }
@@ -1491,7 +1496,7 @@ export default function Leads() {
     const result = await dispatch(deleteLead(leadToDelete.id))
     setDeleting(false)
     if (deleteLead.fulfilled.match(result)) {
-      dispatch(fetchLeads({ page, per_page: 10 }))
+      reloadLeads()
       setShowDeleteModal(false)
       setLeadToDelete(null)
     }
@@ -1581,7 +1586,7 @@ export default function Leads() {
     // Uses new /leads/:id/reassign API for audit trail
     const result = await dispatch(updateLead({ id: selectedLead.id, leadData: { assigned_to: reassignTo } }))
     if (updateLead.fulfilled.match(result)) {
-      dispatch(fetchLeads({ page, per_page: 10 }))
+      reloadLeads()
       setShowReassignModal(false)
     }
   }
@@ -1617,7 +1622,7 @@ export default function Leads() {
     setShowBulkConvertModal(false)
     setSelectedLeads([])
     setConvertSuccess(type === 'follow_up' ? `${selectedLeads.length} follow-ups created!` : `${selectedLeads.length} site visits scheduled!`)
-    dispatch(fetchLeads({ page, per_page: 10 }))
+    reloadLeads()
     setTimeout(() => setConvertSuccess(''), 3000)
   }
 
@@ -1638,7 +1643,7 @@ export default function Leads() {
     setShowConvertModal(false)
     setConvertLead(null)
     setConvertSuccess(type === 'follow_up' ? 'Lead converted to follow-up!' : 'Site visit scheduled!')
-    dispatch(fetchLeads({ page, per_page: 10 }))
+    reloadLeads()
     setTimeout(() => setConvertSuccess(''), 3000)
   }
 
@@ -1983,7 +1988,7 @@ export default function Leads() {
           teamMembers={teamMembers}
           currentUser={currentUser}
           onClose={() => { setShowReassignModal(false); setSelectedLead(null) }}
-          onSuccess={() => dispatch(fetchLeads({ page, per_page: 10 }))}
+          onSuccess={() => reloadLeads()}
         />
       )}
 
@@ -1995,7 +2000,7 @@ export default function Leads() {
           teamMembers={teamMembers}
           currentUser={currentUser}
           onClose={() => setShowBulkReassignModal(false)}
-          onSuccess={() => { setSelectedLeads([]); dispatch(fetchLeads({ page, per_page: 10 })) }}
+          onSuccess={() => { setSelectedLeads([]); reloadLeads() }}
         />
       )}
 
@@ -2005,7 +2010,7 @@ export default function Leads() {
           leadIds={selectedLeads}
           leads={activeLeadList}
           onClose={() => setShowBulkPhoneReqModal(false)}
-          onSuccess={() => setSelectedLeads([])}
+          onSuccess={() => { setSelectedLeads([]); reloadLeads() }}
         />
       )}
 
@@ -2015,7 +2020,7 @@ export default function Leads() {
           teamMembers={teamMembers}
           currentUser={currentUser}
           onClose={() => setShowBulkUploadModal(false)}
-          onSuccess={() => { dispatch(fetchLeads({ page: 1, per_page: 10 })); if (showLeadsTabs) dispatch(fetchMyLeads({ page: 1, per_page: 10 })); setPage(1) }}
+          onSuccess={() => { reloadLeads(); setPage(1) }}
         />
       )}
 

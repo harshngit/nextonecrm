@@ -151,7 +151,7 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
                 onChange={e => setForm(p => ({ ...p, booking_date: e.target.value }))} className={ic} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={lc}>Unit Number</label>
                 <input value={form.unit_number} onChange={e => setForm(p => ({ ...p, unit_number: e.target.value }))}
@@ -164,7 +164,7 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className={lc}>Floor</label>
                 <input type="number" value={form.floor_number}
@@ -203,7 +203,7 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
         {/* ── Tab: Financials ── */}
         {tab === 'financials' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={lc}>Agreed Price (₹) *</label>
                 <div className="relative">
@@ -279,7 +279,7 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
         {/* ── Tab: Commission ── */}
         {tab === 'commission' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={lc}>Commission % <span className="font-normal text-gray-400">(auto-calcs amount)</span></label>
                 <div className="relative">

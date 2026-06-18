@@ -12,6 +12,7 @@ import {
   completeFollowUp, deleteFollowUp, clearFollowUpError, markCompleted,
 } from '../store/followUpSlice'
 import { fetchLeads } from '../store/leadSlice'
+import { fetchTeamTree } from '../store/userSlice'
 import { fetchProjects } from '../store/projectSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Avatar from '../components/ui/Avatar'
@@ -272,7 +273,7 @@ function FollowUpForm({ formData, setFormData, leads, teamMembers = [], isEdit, 
       />
 
       {/* Due Date + Time */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={lc}>Due Date *</label>
           <input
@@ -292,7 +293,7 @@ function FollowUpForm({ formData, setFormData, leads, teamMembers = [], isEdit, 
       </div>
 
       {/* Priority + Assign To */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <CustomSelect
           label="Priority"
           value={formData.priority}
@@ -421,7 +422,7 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
           </div>
 
           <CustomSelect label="Project *" value={form.project_id} onChange={v => setForm(f => ({...f, project_id: v}))} options={projectOpts} placeholder="Select project" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Visit Date *</label>
               <input type="date" value={form.visit_date} onChange={e => setForm(f => ({...f, visit_date: e.target.value}))}
@@ -536,7 +537,7 @@ function BulkConvertFUModal({ taskIds, tasks, onClose, onSuccess, teamMembers = 
           </div>
         </div>
         <CustomSelect label="Project *" value={form.project_id} onChange={v => setForm(f => ({...f, project_id: v}))} options={projectOpts} placeholder="Select project" />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>Visit Date *</label>
             <input type="date" value={form.visit_date} onChange={e => setForm(f => ({...f, visit_date: e.target.value}))}
@@ -705,6 +706,7 @@ export default function FollowUps() {
   const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.followUps)
   const { list: leadList } = useSelector(s => s.leads)
   const { user: currentUser } = useSelector(s => s.auth)
+  const { teamTree: teamMembers = [] } = useSelector(s => s.users)
 
   const [filterView,     setFilterView]     = useState('team') // 'mine' | 'team'
   const [filterStatus,   setFilterStatus]   = useState('all') // pending | overdue | all | completed
@@ -734,7 +736,6 @@ export default function FollowUps() {
   const [openMenuTaskId,    setOpenMenuTaskId]    = useState(null)
   const [menuPos,           setMenuPos]           = useState(null)
   const menuRef = useRef(null)
-  const [teamMembers, setTeamMembers] = useState([])
 
   const canManage = true // All roles can manage follow-ups and convert to site visits
   const perms = useModulePermissions('follow_ups')
@@ -766,10 +767,8 @@ export default function FollowUps() {
 
   useEffect(() => {
     if (!currentUser?.id) return
-    api.get(`/users/${currentUser.id}/team-tree`)
-      .then(res => { const d = res.data?.data; setTeamMembers(Array.isArray(d) ? d : []) })
-      .catch(() => setTeamMembers([]))
-  }, [currentUser?.id])
+    dispatch(fetchTeamTree(currentUser.id))
+  }, [currentUser?.id, dispatch])
 
   // ── Classify tasks into buckets ─────────────────────────────────────────────
   const overdueTasks   = list.filter(t => classifyTask(t) === 'overdue')
@@ -1214,7 +1213,7 @@ export default function FollowUps() {
                         </span>
                       </td>
                       {filterView !== 'mine' && (
-                        <td className="py-3 px-3 hidden md:table-cell">
+                        <td className="py-3 px-3">
                           {task.assigned_to ? (
                             <div className="flex items-center gap-1.5">
                               <Avatar name={task.assigned_to_name || task.assigned_to} size="xs" />
