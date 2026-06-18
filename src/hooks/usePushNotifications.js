@@ -104,14 +104,14 @@ export const usePushNotifications = () => {
         const unsubscribe = onMessage(messaging, (payload) => {
           console.log('[FCM] Foreground message:', payload)
 
-          const { title, body } = payload.notification || {}
+          const { body } = payload.notification || {}
           const data            = payload.data        || {}
 
           // Push into Redux so the notification bell updates instantly
           dispatch(addNotification({
             id             : data.notification_id || Date.now().toString(),
             type           : data.type            || 'general',
-            title          : title                || 'Next One Realty',
+            title          : 'Next One Realty',
             message        : body                 || '',
             is_read        : false,
             reference_id   : data.reference_id   || null,
@@ -124,9 +124,9 @@ export const usePushNotifications = () => {
 
           // Show native browser notification even when tab is open
           if (document.visibilityState !== 'visible') return
-          new Notification(title || 'Next One Realty', {
+          new Notification('Next One Realty', {
             body : body || 'You have a new notification',
-            icon : '/logo.png',
+            icon : '/pwa-192x192.png',
           })
         })
 

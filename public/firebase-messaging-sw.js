@@ -31,19 +31,37 @@ const messaging = firebase.messaging()
 messaging.onBackgroundMessage((payload) => {
   console.log('[SW] Background push received:', payload)
 
-  const { title, body } = payload.notification || {}
-  const data            = payload.data        || {}
+  const body = payload.notification?.body
+  const data = payload.data || {}
 
-  self.registration.showNotification(title || 'Next One Realty', {
+  self.registration.showNotification('Next One Realty', {
     body   : body || 'You have a new notification',
-    icon   : '/logo.png',    // ← put your logo at public/logo.png
-    badge  : '/logo.png',    // ← small monochrome icon for Android status bar
+    icon   : '/pwa-192x192.png',
+    badge  : '/pwa-192x192.png',
     data   : data,
-    actions: [
-      { action: 'open',    title: 'Open App' },
-      { action: 'dismiss', title: 'Dismiss'  },
-    ],
+    tag    : data.notification_id || undefined,
   })
+})
+
+// ── Intercept push event directly for iOS PWA ────────────────────────────────
+self.addEventListener('push', (event) => {
+  if (!event.data) return
+
+  let payload
+  try { payload = event.data.json() } catch { return }
+
+  const body = payload.notification?.body || payload.data?.body
+  const data = payload.data || {}
+
+  event.waitUntil(
+    self.registration.showNotification('Next One Realty', {
+      body  : body || 'You have a new notification',
+      icon  : '/pwa-192x192.png',
+      badge : '/pwa-192x192.png',
+      data  : data,
+      tag   : data.notification_id || undefined,
+    })
+  )
 })
 
 // ── Notification click → navigate to the right page ──────────────────────────
