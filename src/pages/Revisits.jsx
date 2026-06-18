@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useSelector } from 'react-redux'
+import { useSelector, useDispatch } from 'react-redux'
 import { useModulePermissions } from '../hooks/usePermission'
+import { fetchTeamTree } from '../store/userSlice'
 import {
   Plus, RefreshCw, Eye, Edit2, X, CheckCircle2, Clock, CalendarDays,
   Loader2, AlertCircle, ChevronDown, RotateCcw, Star, MessageSquare,
@@ -359,7 +360,9 @@ function FeedbackModal({ revisit, onClose, onSuccess }) {
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function Revisits() {
   const navigate    = useNavigate()
+  const dispatch    = useDispatch()
   const { user }    = useSelector(s => s.auth)
+  const { teamTree: salesExecs, teamTreeLoading } = useSelector(s => s.users)
 
   const [revisits,   setRevisits]   = useState([])
   const [loading,    setLoading]    = useState(true)
@@ -373,7 +376,6 @@ export default function Revisits() {
 
   // Sidebar data
   const [siteVisits,  setSiteVisits]  = useState([])
-  const [salesExecs,  setSalesExecs]  = useState([])
 
   // Modals
   const [showSchedule,  setShowSchedule]  = useState(false)
@@ -383,7 +385,7 @@ export default function Revisits() {
   const [showDelete,    setShowDelete]    = useState(false)
   const [selected,      setSelected]      = useState(null)
 
-  const canManage = ['super_admin','admin','sales_manager'].includes(user?.role)
+  const canManage = true // All roles can manage re-visits
   const perms = useModulePermissions('revisits')
 
   const fetchRevisits = async () => {
@@ -401,17 +403,14 @@ export default function Revisits() {
 
   const fetchSideData = async () => {
     try {
-      const [svRes, userRes] = await Promise.all([
-        api.get('/site-visits', { params: { per_page: 100 } }),
-        api.get('/users', { params: { per_page: 100 } }),
-      ])
+      const svRes = await api.get('/site-visits', { params: { per_page: 100 } })
       setSiteVisits(svRes.data.data || [])
-      setSalesExecs(sortByRole((userRes.data.data || []).filter(u => u.is_active)))
     } catch {}
   }
 
   useEffect(() => { fetchRevisits() }, [page, filterView, filterStatus])
   useEffect(() => { fetchSideData() }, [])
+  useEffect(() => { if (user?.id) dispatch(fetchTeamTree(user.id)) }, [user?.id, dispatch])
 
   const handleDelete = async () => {
     try {
@@ -446,9 +445,7 @@ export default function Revisits() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Follow-up visits linked to original site visits</p>
         </div>
-        {perms.create && (
-          <Button icon={Plus} onClick={() => setShowSchedule(true)}>Schedule Re-visit</Button>
-        )}
+        <Button icon={Plus} onClick={() => setShowSchedule(true)}>Schedule Re-visit</Button>
       </div>
 
       {/* Stats row */}
@@ -527,12 +524,10 @@ export default function Revisits() {
             </div>
             <p className="text-gray-500 font-medium">No re-visits found</p>
             <p className="text-sm text-gray-400 mt-1">Schedule a re-visit to get started</p>
-            {canManage && (
-              <button onClick={() => setShowSchedule(true)}
-                className="mt-4 flex items-center gap-2 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand text-sm font-semibold rounded-xl mx-auto transition-colors">
-                <Plus size={14} /> Schedule Re-visit
-              </button>
-            )}
+            <button onClick={() => setShowSchedule(true)}
+              className="mt-4 flex items-center gap-2 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand text-sm font-semibold rounded-xl mx-auto transition-colors">
+              <Plus size={14} /> Schedule Re-visit
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -636,19 +631,15 @@ export default function Revisits() {
                           className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">
                           <Eye size={13} />
                         </button>
-                        {perms.edit && (
-                          <>
-                            <button onClick={() => { setSelected(rv); setShowEdit(true) }} title="Edit"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
-                              <Edit2 size={13} />
-                            </button>
-                            {rv.status !== 'done' && (
-                              <button onClick={() => { setSelected(rv); setShowStatus(true) }} title="Update status"
-                                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
-                                <CheckCircle2 size={13} />
-                              </button>
-                            )}
-                          </>
+                        <button onClick={() => { setSelected(rv); setShowEdit(true) }} title="Edit"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                          <Edit2 size={13} />
+                        </button>
+                        {rv.status !== 'done' && (
+                          <button onClick={() => { setSelected(rv); setShowStatus(true) }} title="Update status"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
+                            <CheckCircle2 size={13} />
+                          </button>
                         )}
                         {rv.status === 'done' && !rv.client_reaction && (
                           <button onClick={() => { setSelected(rv); setShowFeedback(true) }} title="Submit feedback"
@@ -656,12 +647,10 @@ export default function Revisits() {
                             <MessageSquare size={13} />
                           </button>
                         )}
-                        {perms.delete && (
-                          <button onClick={() => { setSelected(rv); setShowDelete(true) }} title="Delete"
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                            <Trash2 size={13} />
-                          </button>
-                        )}
+                        <button onClick={() => { setSelected(rv); setShowDelete(true) }} title="Delete"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                          <Trash2 size={13} />
+                        </button>
                         {/* {rv.original_visit_id && (
                           <button onClick={() => navigate(`/site-visits/${rv.original_visit_id}`)} title="View original visit"
                             className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">

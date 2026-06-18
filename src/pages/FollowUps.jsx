@@ -736,7 +736,7 @@ export default function FollowUps() {
   const menuRef = useRef(null)
   const [teamMembers, setTeamMembers] = useState([])
 
-  const canManage = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
+  const canManage = true // All roles can manage follow-ups and convert to site visits
   const perms = useModulePermissions('follow_ups')
 
   const toggleAll = () => {
@@ -767,7 +767,7 @@ export default function FollowUps() {
   useEffect(() => {
     if (!currentUser?.id) return
     api.get(`/users/${currentUser.id}/team-tree`)
-      .then(res => setTeamMembers(res.data?.data || []))
+      .then(res => { const d = res.data?.data; setTeamMembers(Array.isArray(d) ? d : []) })
       .catch(() => setTeamMembers([]))
   }, [currentUser?.id])
 
@@ -1059,13 +1059,13 @@ export default function FollowUps() {
             ))}
           </div>
 
-          {/* Assign filter — only visible in Team view for managers */}
-          {canManage && filterView === 'team' && (
+          {/* Assign filter — visible in Team view for everyone */}
+          {filterView === 'team' && (
             <div className="w-48">
               <CustomSelect
                 value={filterAssigned}
                 onChange={val => { setFilterAssigned(val); setPage(1) }}
-                options={[{ value: '', label: 'All Team' }, ...salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))]}
+                options={[{ value: '', label: 'All Team' }, ...teamMembers.filter(u => !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))]}
                 placeholder="All Team"
                 searchable
               />
@@ -1092,11 +1092,9 @@ export default function FollowUps() {
           {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button> */}
-          {perms.create && (
-            <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearFollowUpError()); setShowAddModal(true) }}>
-              Add Follow-up
-            </Button>
-          )}
+          <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearFollowUpError()); setShowAddModal(true) }}>
+            Add Follow-up
+          </Button>
         </div>
       </div>
 
@@ -1263,7 +1261,7 @@ export default function FollowUps() {
                                   <Eye size={14} />
                                   View Details
                                 </button>
-                                {canManage && task.lead_id && !task.is_completed && (
+                                {task.lead_id && !task.is_completed && (
                                   <button 
                                     onClick={() => { setConvertTask(task); setShowConvertModal(true); setOpenMenuTaskId(null)}}
                                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
@@ -1271,23 +1269,19 @@ export default function FollowUps() {
                                     Convert to Site Visit
                                   </button>
                                 )}
-                                {perms.edit && (
-                                  <>
-                                    <button 
-                                      onClick={() => { openEdit(task); setOpenMenuTaskId(null)}}
-                                      disabled={editLoading === task.id}
-                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
-                                      {editLoading === task.id ? <Loader2 size={14} className="animate-spin" /> : <Edit2 size={14} />}
-                                      Edit
-                                    </button>
-                                    <button 
-                                      onClick={() => { confirmDelete(task); setOpenMenuTaskId(null)}}
-                                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                                      <Trash2 size={14} />
-                                      Delete
-                                    </button>
-                                  </>
-                                )}
+                                <button 
+                                  onClick={() => { openEdit(task); setOpenMenuTaskId(null)}}
+                                  disabled={editLoading === task.id}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
+                                  {editLoading === task.id ? <Loader2 size={14} className="animate-spin" /> : <Edit2 size={14} />}
+                                  Edit
+                                </button>
+                                <button 
+                                  onClick={() => { confirmDelete(task); setOpenMenuTaskId(null)}}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                  <Trash2 size={14} />
+                                  Delete
+                                </button>
                               </div>
                             )}
                           </div>
@@ -1318,7 +1312,7 @@ export default function FollowUps() {
       {/* Add Modal */}
       <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setSuccess('') }} title="Add Follow-up Task">
         <form onSubmit={handleAdd} className="space-y-4">
-          <FollowUpForm formData={addForm} setFormData={setAddForm} leads={leadList} salesExecs={salesExecs} isEdit={false} currentUser={currentUser} />
+          <FollowUpForm formData={addForm} setFormData={setAddForm} leads={leadList} teamMembers={teamMembers} isEdit={false} currentUser={currentUser} />
           {success    && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -1331,7 +1325,7 @@ export default function FollowUps() {
       {/* Edit Modal */}
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSuccess('') }} title="Edit Follow-up Task">
         <form onSubmit={handleEdit} className="space-y-4">
-          <FollowUpForm formData={editForm} setFormData={setEditForm} leads={leadList} salesExecs={salesExecs} isEdit={true} selectedTask={selectedTask} currentUser={currentUser} />
+          <FollowUpForm formData={editForm} setFormData={setEditForm} leads={leadList} teamMembers={teamMembers} isEdit={true} selectedTask={selectedTask} currentUser={currentUser} />
           {success    && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">
@@ -1388,6 +1382,7 @@ export default function FollowUps() {
           tasks={allTasks}
           onClose={() => setShowBulkConvert(false)}
           onSuccess={handleBulkFUConvertSuccess}
+          teamMembers={teamMembers}
         />
       )}
 
@@ -1397,6 +1392,7 @@ export default function FollowUps() {
           task={convertTask}
           onClose={() => { setShowConvertModal(false); setConvertTask(null) }}
           onSuccess={handleConvertTaskSuccess}
+          teamMembers={teamMembers}
         />
       )}
 

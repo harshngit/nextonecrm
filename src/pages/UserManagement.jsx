@@ -120,7 +120,7 @@ const ROLE_DISPLAY_NAME = {
 }
 
 // ── Assign Manager Modal ───────────────────────────────────────────────────────
-function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, loading, error, success, defaultManagerId }) {
+function AssignManagerModal({ isOpen, onClose, targetUser, managers = [], onAssign, loading, error, success, defaultManagerId }) {
   const [selectedManager, setSelectedManager] = useState('')
 
   useEffect(() => {
@@ -134,7 +134,7 @@ function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, l
 
   const managerOptions = managers.map(m => ({
     value: m.id,
-    label: `${m.first_name} ${m.last_name}`,
+    label: `${m.full_name}`,
     sublabel: ROLE_DISPLAY_NAME[m.role] || m.role?.replace(/_/g, ' '),
   }))
   const currentMgr = managers.find(m => m.id === targetUser.manager_id)
@@ -307,7 +307,7 @@ export default function UserManagement() {
     dispatch(clearUserError())
     try {
       const res = await api.get('/users/eligible-managers', { params: { for_role: user.role } })
-      setAvailableManagers(res.data?.data || [])
+      setAvailableManagers(res.data?.data?.managers || [])
     } catch {
       setAvailableManagers([])
     }

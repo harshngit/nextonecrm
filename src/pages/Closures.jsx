@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useSelector } from 'react-redux'
+import { useSelector, useDispatch } from 'react-redux'
 import { useModulePermissions } from '../hooks/usePermission'
+import { fetchTeamTree } from '../store/userSlice'
 import {
   Plus, RefreshCw, Edit2, X, CheckCircle2, TrendingUp,
   Loader2, AlertCircle, IndianRupee, Building2, Calendar,
@@ -531,7 +532,9 @@ function ClosureDrawer({ closure, onClose }) {
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function Closures() {
   const navigate  = useNavigate()
+  const dispatch  = useDispatch()
   const { user }  = useSelector(s => s.auth)
+  const { teamTree } = useSelector(s => s.users)
 
   const [closures,   setClosures]   = useState([])
   const [summary,    setSummary]    = useState(null)
@@ -545,7 +548,6 @@ export default function Closures() {
   // Side data
   const [leads,    setLeads]    = useState([])
   const [projects, setProjects] = useState([])
-  const [managers, setManagers] = useState([])
 
   // Modals
   const [showCreate,  setShowCreate]  = useState(false)
@@ -557,9 +559,12 @@ export default function Closures() {
   const [menuPos,     setMenuPos]     = useState(null)
   const menuRef = useRef(null)
 
-  const canManage = ['super_admin','admin','sales_manager'].includes(user?.role)
+  const canManage = true // All roles can manage closures
   const isAdmin   = ['super_admin','admin'].includes(user?.role)
   const perms = useModulePermissions('closures')
+  
+  // Filter teamTree to get managers for the select
+  const managers = teamTree.filter(u => ['admin','super_admin','sales_manager'].includes(u.role))
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -593,19 +598,18 @@ export default function Closures() {
 
   const fetchSideData = async () => {
     try {
-      const [lRes, pRes, uRes] = await Promise.all([
+      const [lRes, pRes] = await Promise.all([
         api.get('/leads', { params: { per_page: 100 } }),
         api.get('/projects', { params: { per_page: 100, status: 'active' } }),
-        api.get('/users', { params: { per_page: 100 } }),
       ])
       setLeads(lRes.data.data || [])
       setProjects(pRes.data.data || [])
-      setManagers((uRes.data.data || []).filter(u => ['admin','super_admin','sales_manager'].includes(u.role) && u.is_active))
     } catch {}
   }
 
   useEffect(() => { fetchClosures(); fetchSummary() }, [page, filterStatus])
   useEffect(() => { fetchSideData() }, [])
+  useEffect(() => { if (user?.id) dispatch(fetchTeamTree(user.id)) }, [user?.id, dispatch])
 
   const displayed = search
     ? closures.filter(c =>
@@ -626,9 +630,7 @@ export default function Closures() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Booking records when leads are converted</p>
         </div>
-        {perms.create && (
-          <Button icon={Plus} onClick={() => setShowCreate(true)}>Book Lead</Button>
-        )}
+        <Button icon={Plus} onClick={() => setShowCreate(true)}>Book Lead</Button>
       </div>
 
       {/* Summary cards (admin/manager only) */}
@@ -809,24 +811,20 @@ export default function Closures() {
                                 <ChevronRight size={14} />
                                 Quick View
                               </button>
-                              {perms.edit && (
-                                <>
-                                  <button
-                                    onClick={() => { setSelected(c); setShowEdit(true); setOpenMenuId(null); }}
-                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                                  >
-                                    <Edit2 size={14} />
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => { setSelected(c); setShowStatus(true); setOpenMenuId(null); }}
-                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                                  >
-                                    <CircleDot size={14} />
-                                    Change Status
-                                  </button>
-                                </>
-                              )}
+                              <button
+                                onClick={() => { setSelected(c); setShowEdit(true); setOpenMenuId(null); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                              >
+                                <Edit2 size={14} />
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => { setSelected(c); setShowStatus(true); setOpenMenuId(null); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                              >
+                                <CircleDot size={14} />
+                                Change Status
+                              </button>
                             </div>
                           )}
                         </div>

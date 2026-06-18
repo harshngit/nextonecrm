@@ -118,6 +118,18 @@ export const fetchRoles = createAsyncThunk(
   }
 )
 
+export const fetchTeamTree = createAsyncThunk(
+  'users/fetchTeamTree',
+  async (managerId, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/users/${managerId}/team-tree`)
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch team tree')
+    }
+  }
+)
+
 // ── Slice ─────────────────────────────────────────────────────────────────────
 
 const userSlice = createSlice({
@@ -132,6 +144,8 @@ const userSlice = createSlice({
     error: null,
     actionLoading: false,
     actionError: null,
+    teamTree: [],
+    teamTreeLoading: false,
   },
   reducers: {
     clearUserError: (state) => {
@@ -161,6 +175,14 @@ const userSlice = createSlice({
       .addCase(fetchRoles.fulfilled, (state, action) => {
         state.roles = action.payload.data || []
       })
+
+      // fetchTeamTree
+      .addCase(fetchTeamTree.pending, (state) => { state.teamTreeLoading = true; state.error = null })
+      .addCase(fetchTeamTree.fulfilled, (state, action) => {
+        state.teamTreeLoading = false
+        state.teamTree = action.payload.data?.team || []
+      })
+      .addCase(fetchTeamTree.rejected, (state, action) => { state.teamTreeLoading = false; state.error = action.payload })
 
       // updateUser — patch the updated row directly in list so email shows immediately
       .addCase(updateUser.fulfilled, (state, action) => {

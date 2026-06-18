@@ -10,6 +10,7 @@ import {
 } from '../store/siteVisitSlice'
 import { fetchLeads } from '../store/leadSlice'
 import { fetchProjects } from '../store/projectSlice'
+import { fetchTeamTree } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -514,6 +515,7 @@ export default function SiteVisits() {
   const { list: leadList }    = useSelector(s => s.leads)
   const { list: projectList } = useSelector(s => s.projects)
   const { user: currentUser } = useSelector(s => s.auth)
+  const { teamTree: teamMembers, teamTreeLoading } = useSelector(s => s.users)
 
   const [viewMode,      setViewMode]      = useState('list')
   const [filterView,    setFilterView]    = useState('team') // 'mine' | 'team'
@@ -523,7 +525,7 @@ export default function SiteVisits() {
 
   const [showAddModal,      setShowAddModal]      = useState(false)
   const [showRevisitModal,  setShowRevisitModal]  = useState(false)
-  const [showEditModal,     setShowEditModal]      = useState(false)
+  const [showEditModal,     setShowEditModal]     = useState(false)
   const [showFeedbackModal, setShowFeedbackModal]  = useState(false)
   const [showCancelModal,   setShowCancelModal]    = useState(false)
   const [visitToCancel,     setVisitToCancel]      = useState(null)
@@ -537,7 +539,6 @@ export default function SiteVisits() {
   const [exporting,    setExporting]    = useState(false)
   const [openMenuVisitId, setOpenMenuVisitId] = useState(null)
   const [menuPos,         setMenuPos]         = useState(null)
-  const [teamMembers,     setTeamMembers]     = useState([])
   const menuRef = useRef(null)
 
   const loadVisits = () => {
@@ -559,13 +560,11 @@ export default function SiteVisits() {
 
   useEffect(() => {
     if (!currentUser?.id) return
-    api.get(`/users/${currentUser.id}/team-tree`)
-      .then(res => setTeamMembers(res.data?.data || []))
-      .catch(() => setTeamMembers([]))
-  }, [currentUser?.id])
+    dispatch(fetchTeamTree(currentUser.id))
+  }, [currentUser?.id, dispatch])
 
   const salesExecs = teamMembers
-  const canManage = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
+  const canManage = true // All roles can manage site visits
   const perms = useModulePermissions('site_visits')
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -748,11 +747,9 @@ export default function SiteVisits() {
           {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button> */}
-          {perms.create && (
-            <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearSiteVisitError()); setShowAddModal(true) }}>
-              Schedule Visit
-            </Button>
-          )}
+          <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearSiteVisitError()); setShowAddModal(true) }}>
+            Schedule Visit
+          </Button>
         </div>
       </div>
 
@@ -881,7 +878,7 @@ export default function SiteVisits() {
                                 Schedule Revisit
                               </button>
                             )}
-                            {perms.edit && visit.status === 'scheduled' && (
+                            {visit.status === 'scheduled' && (
                               <>
                                 <button 
                                   onClick={() => { openEdit(visit); setOpenMenuVisitId(null); }}
@@ -1031,7 +1028,7 @@ export default function SiteVisits() {
                                     Schedule Revisit
                                   </button>
                                 )}
-                                {perms.edit && visit.status === 'scheduled' && (
+                                {visit.status === 'scheduled' && (
                                   <>
                                     <button 
                                       onClick={() => { openEdit(visit); setOpenMenuVisitId(null); }}

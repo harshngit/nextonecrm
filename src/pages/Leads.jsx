@@ -3,9 +3,9 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Phone, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users, Mic, MicOff, Play, Pause, Trash, Clock, CalendarClock, Settings2, Check, MoreVertical } from 'lucide-react'
 import { fetchLeads, fetchMyLeads, createLead, updateLead, deleteLead, fetchLeadSources, clearLeadError, addLeadSource, updateLeadSource, deleteLeadSource, fetchLeadStatuses } from '../store/leadSlice'
+import { fetchTeamTree } from '../store/userSlice'
 import { useModulePermissions } from '../hooks/usePermission'
 import { fetchProjects } from '../store/projectSlice'
-import { fetchUsers } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -266,7 +266,7 @@ function CallRecordingsManager({ mode, leadId, pending, setPending, existingRecs
 }
 
 // ─── LeadForm ─────────────────────────────────────────────────────────────────
-function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, salesExecs, projects, currentUser, leadId, pendingRecordings, setPendingRecordings, existingRecordings, onExistingChange }) {
+function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, teamMembers = [], projects, currentUser, leadId, pendingRecordings, setPendingRecordings, existingRecordings, onExistingChange }) {
   const inputClass = 'w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200'
   const labelClass = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1'
   const isRestricted = ['sales_executive', 'external_caller'].includes(currentUser?.role)
@@ -274,7 +274,7 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, sal
   const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
   const execOptions   = [
     ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
-    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
+    ...teamMembers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
   ]
   const projectOptions = projects.map(p => ({ value: p.id, label: p.name || p.project_name }))
 
@@ -448,7 +448,7 @@ function PhoneCell({ lead, canSeePhone, visiblePhoneLeadId, setVisiblePhoneLeadI
   )
 }
 
-function BulkUploadModal({ onClose, onSuccess, salesExecs = [], currentUser = null }) {
+function BulkUploadModal({ onClose, onSuccess, teamMembers = [], currentUser = null }) {
   const [step,       setStep]      = useState('upload')  // upload | result
   const [file,       setFile]      = useState(null)
   const [dragging,   setDragging]  = useState(false)
@@ -513,7 +513,7 @@ function BulkUploadModal({ onClose, onSuccess, salesExecs = [], currentUser = nu
     } catch { setError('Failed to download result file') }
   }
 
-  const assignedUser = salesExecs.find(u => u.id === assignTo)
+  const assignedUser = teamMembers.find(u => u.id === assignTo)
 
   return (
     <Modal isOpen={true} onClose={onClose} title="Bulk Upload Leads" size="md">
@@ -627,20 +627,13 @@ function BulkUploadModal({ onClose, onSuccess, salesExecs = [], currentUser = nu
                   </p>
                   {(() => {
                     const isAdminCaller = ['admin', 'super_admin'].includes(currentUser?.role)
-                    const isMgrCaller   = currentUser?.role === 'sales_manager'
-                    let filtered = []
-                    if (isAdminCaller) {
-                      // Admin can assign to any role — all active team members
-                      filtered = salesExecs
-                    } else if (isMgrCaller) {
-                      filtered = salesExecs.filter(u => u.manager_id === currentUser?.id)
-                    }
+                    const filtered = teamMembers.filter(u => !u.is_self)
                     if (filtered.length === 0) {
                       return (
                         <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/30 rounded-xl px-3 py-2.5">
                           <AlertCircle size={13} className="text-amber-500 flex-shrink-0"/>
                           <p className="text-xs text-amber-600 dark:text-amber-400">
-                            {isMgrCaller ? 'No team members assigned to you yet.' : 'No team members found.'}
+                            No team members found.
                           </p>
                         </div>
                       )
@@ -795,7 +788,7 @@ function BulkUploadModal({ onClose, onSuccess, salesExecs = [], currentUser = nu
 
 
 // ─── Single Reassign Modal (uses /leads/:id/reassign) ─────────────────────────
-function ReassignModal({ lead, salesExecs, currentUser, onClose, onSuccess }) {
+function ReassignModal({ lead, teamMembers = [], currentUser, onClose, onSuccess }) {
   const [assignTo,setAssignTo]=useState(lead?.assigned_to?.id||(typeof lead?.assigned_to==='string'?lead.assigned_to:''))
   const [reason,setReason]=useState('')
   const [loading,setLoading]=useState(false)
@@ -803,7 +796,7 @@ function ReassignModal({ lead, salesExecs, currentUser, onClose, onSuccess }) {
   const [success,setSuccess]=useState('')
   const IC="w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm"
   const LC="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
-  const curName=typeof lead?.assigned_to==='object'?lead.assigned_to?.full_name:salesExecs.find(u=>u.id===lead?.assigned_to)?`${salesExecs.find(u=>u.id===lead.assigned_to).first_name} ${salesExecs.find(u=>u.id===lead.assigned_to).last_name}`:'Unassigned'
+  const curName=typeof lead?.assigned_to==='object'?lead.assigned_to?.full_name:teamMembers.find(u=>u.id===lead?.assigned_to)?`${teamMembers.find(u=>u.id===lead.assigned_to).first_name} ${teamMembers.find(u=>u.id===lead.assigned_to).last_name}`:'Unassigned'
   const submit=async(e)=>{e.preventDefault();if(!assignTo){setError('Please select a team member');return}setError('');setLoading(true)
     try{await api.patch(`/leads/${lead.id}/reassign`,{assigned_to:assignTo,reason:reason||undefined});setSuccess('Reassigned!');setTimeout(()=>{onSuccess();onClose()},700)}
     catch(e){setError(e.response?.data?.message||'Reassignment failed')}finally{setLoading(false)}}
@@ -817,7 +810,7 @@ function ReassignModal({ lead, salesExecs, currentUser, onClose, onSuccess }) {
         </div>
         <CustomSelect label="Assign To *" value={assignTo} onChange={setAssignTo} options={[
           ...(currentUser ? [{ value: currentUser.id, label: `Self · ${currentUser.role.replace(/_/g,' ')}` }] : []),
-          ...salesExecs.filter(u => u.id !== currentUser?.id).map(u=>({value:u.id,label:`${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}`}))
+          ...teamMembers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u=>({value:u.id,label:`${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}`}))
         ]} placeholder="Select team member" searchable />
         <div><label className={LC}>Reason <span className="font-normal text-gray-400">(optional)</span></label><input value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. Better territorial alignment" className={IC}/></div>
         {error&&<div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"><AlertCircle size={13} className="text-red-500"/><p className="text-xs text-red-600">{error}</p></div>}
@@ -832,7 +825,7 @@ function ReassignModal({ lead, salesExecs, currentUser, onClose, onSuccess }) {
 }
 
 // ─── Bulk Reassign Modal (uses /leads/bulk-reassign) ──────────────────────────
-function BulkReassignModal({ leadIds, leads, salesExecs, currentUser, onClose, onSuccess }) {
+function BulkReassignModal({ leadIds, leads, teamMembers = [], currentUser, onClose, onSuccess }) {
   const [assignTo,setAssignTo]=useState('')
   const [reason,setReason]=useState('')
   const [loading,setLoading]=useState(false)
@@ -873,7 +866,7 @@ function BulkReassignModal({ leadIds, leads, salesExecs, currentUser, onClose, o
         </div>
         <CustomSelect label="Assign To *" value={assignTo} onChange={setAssignTo} options={[
           ...(currentUser ? [{ value: currentUser.id, label: `Self · ${currentUser.role.replace(/_/g,' ')}` }] : []),
-          ...salesExecs.filter(u => u.id !== currentUser?.id).map(u=>({value:u.id,label:`${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}`}))
+          ...teamMembers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u=>({value:u.id,label:`${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}`}))
         ]} placeholder="Select team member" searchable />
         <div><label className={LC}>Reason <span className="font-normal text-gray-400">(optional)</span></label><input value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. Workload balancing" className={IC}/></div>
         {error&&<div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"><AlertCircle size={13} className="text-red-500"/><p className="text-xs text-red-600">{error}</p></div>}
@@ -888,18 +881,15 @@ function BulkReassignModal({ leadIds, leads, salesExecs, currentUser, onClose, o
 
 // ─── Bulk Convert Modal (for selected leads) ─────────────────────────────────
 
-function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess }) {
+function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess, teamMembers = [] }) {
   const [step, setStep]         = useState('choose')
   const [converting, setConverting] = useState(false)
   const [error, setError]       = useState('')
   const [results, setResults]   = useState(null)
 
   const { list: projectList }   = useSelector(s => s.projects)
-  const { list: userList }      = useSelector(s => s.users)
   const { user: currentUser }   = useSelector(s => s.auth)
-  const _roleOrder = { super_admin: 0, admin: 1, associate_partner: 2, cluster_head: 3, partner: 4, team_leader: 5, sales_manager: 6, sales_executive: 7, external_caller: 8 }
   const _roleLabel = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
-  const salesExecs = [...userList.filter(u => u.is_active)].sort((a, b) => (_roleOrder[a.role] ?? 99) - (_roleOrder[b.role] ?? 99))
 
   const [fuForm, setFuForm] = useState({ title_suffix: 'Follow-up', due_date: '', due_time: '10:00', priority: 'medium', assigned_to: '', notes: '' })
   const [svForm, setSvForm] = useState({ project_id: '', visit_date: '', visit_time: '10:00', assigned_to: '', transport_arranged: false, notes: '' })
@@ -909,7 +899,7 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess }) {
   const projectOpts = projectList.map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
   const userOpts    = [
     ...(currentUser ? [{ value: currentUser.id, label: `Self · ${_roleLabel[currentUser.role] || currentUser.role}` }] : []),
-    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${_roleLabel[u.role] || u.role}` }))
+    ...teamMembers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${_roleLabel[u.role] || u.role}` }))
   ]
   const priorityOpts = [{ value:'low', label:'Low' }, { value:'medium', label:'Medium' }, { value:'high', label:'High' }]
 
@@ -1366,9 +1356,9 @@ export default function Leads() {
   const navigate = useNavigate()
   const { list, loading, pagination, sources, statuses, actionLoading, actionError,
           myList, myLoading, myPagination } = useSelector(s => s.leads)
-  const { list: userList } = useSelector(s => s.users)
   const { list: projectList } = useSelector(s => s.projects)
   const { user: currentUser } = useSelector(s => s.auth)
+  const { teamTree: teamMembers = [], teamTreeLoading } = useSelector(s => s.users)
 
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -1376,11 +1366,11 @@ export default function Leads() {
   const [filterAssigned, setFilterAssigned] = useState('')
   const [page, setPage] = useState(1)
 
-  const isSalesManager = currentUser?.role === 'sales_manager'
   const isAdminOrManager = ['admin', 'super_admin', 'manager'].includes(currentUser?.role)
+  const showLeadsTabs = !['super_admin', 'admin'].includes(currentUser?.role)
   const activeLeadListRef = useRef([])
   const activeLeadList = activeLeadListRef.current
-  const [leadsTab, setLeadsTab] = useState(isSalesManager ? 'my' : 'team') // 'my' | 'team'
+  const [leadsTab, setLeadsTab] = useState(showLeadsTabs ? 'my' : 'team') // 'my' | 'team'
   const [myPage,   setMyPage]   = useState(1)
 
   const stageOptions = useMemo(() => {
@@ -1433,6 +1423,11 @@ export default function Leads() {
   }, [dispatch])
 
   useEffect(() => {
+    if (!currentUser?.id) return
+    dispatch(fetchTeamTree(currentUser.id))
+  }, [currentUser?.id, dispatch])
+
+  useEffect(() => {
     const params = { page, per_page: 10 }
     if (search)         params.search      = search
     if (filterStatus)   params.status      = filterStatus
@@ -1440,24 +1435,21 @@ export default function Leads() {
     if (filterAssigned) params.assigned_to = filterAssigned
     dispatch(fetchLeads(params))
     // sales_manager also sees their OWN assigned leads via /me/leads
-    if (isSalesManager) {
+    if (showLeadsTabs) {
       const myParams = { page: myPage, per_page: 10 }
       if (search)       myParams.search = search
       if (filterStatus) myParams.status = filterStatus
       dispatch(fetchMyLeads(myParams))
     }
-  }, [dispatch, search, filterStatus, filterSource, filterAssigned, page, myPage, isSalesManager])
+  }, [dispatch, search, filterStatus, filterSource, filterAssigned, page, myPage, showLeadsTabs])
 
   useEffect(() => {
     dispatch(fetchLeadSources())
     dispatch(fetchLeadStatuses())
-    dispatch(fetchUsers())
     dispatch(fetchProjects())
   }, [dispatch])
 
   const sourceList = sources?.length > 0 ? sources : defaultSources
-  const ROLE_ORDER = { super_admin: 0, admin: 1, associate_partner: 2, cluster_head: 3, partner: 4, team_leader: 5, sales_manager: 6, sales_executive: 7, external_caller: 8 }
-  const salesExecs = [...userList.filter(u => u.is_active)].sort((a, b) => (ROLE_ORDER[a.role] ?? 99) - (ROLE_ORDER[b.role] ?? 99))
 
   const handleAddLead = async (e) => {
     e.preventDefault()
@@ -1684,7 +1676,7 @@ export default function Leads() {
             <CustomSelect
               value={filterAssigned}
               onChange={val => { setFilterAssigned(val); setPage(1) }}
-              options={[{ value: '', label: 'All Team' }, ...salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}` }))]}
+              options={[{ value: '', label: 'All Team' }, ...teamMembers.filter(u => !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}` }))]}
               placeholder="All Team"
               searchable
             />
@@ -1723,7 +1715,7 @@ export default function Leads() {
       </div>
 
       {/* Sales Manager tab switcher — My Leads vs Team Leads */}
-      {isSalesManager && (
+      {showLeadsTabs && (
         <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-[#111] rounded-xl w-fit">
           <button onClick={() => setLeadsTab('my')}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${leadsTab === 'my' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}>
@@ -1739,12 +1731,12 @@ export default function Leads() {
       )}
 
       {/* Summary row + inline selection actions */}
-      {!(isSalesManager ? (leadsTab === 'my' ? myLoading : loading) : loading) && (
+      {!(showLeadsTabs ? (leadsTab === 'my' ? myLoading : loading) : loading) && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="text-sm text-gray-500 dark:text-[#888] flex-shrink-0">
             {(() => {
-              const activeList = isSalesManager && leadsTab === 'my' ? myList : list
-              const activePag  = isSalesManager && leadsTab === 'my' ? myPagination : pagination
+              const activeList = showLeadsTabs && leadsTab === 'my' ? myList : list
+              const activePag  = showLeadsTabs && leadsTab === 'my' ? myPagination : pagination
               return <>Showing <span className="font-semibold text-gray-900 dark:text-white">{activeList.length}</span>
                 {activePag?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{activePag.total}</span></>} leads</>
             })()}
@@ -1756,24 +1748,18 @@ export default function Leads() {
               <span className="text-xs font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">
                 {selectedLeads.length} selected
               </span>
-              {canEdit && (
-                <button onClick={() => setShowBulkConvertModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97] flex-shrink-0">
-                  <ArrowRightCircle size={13} /> Convert {selectedLeads.length}
-                </button>
-              )}
-              {canReassign && (
-                <button onClick={() => setShowBulkReassignModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97] flex-shrink-0">
-                  <Users size={13} /> Reassign {selectedLeads.length}
-                </button>
-              )}
-              {canRequestPhone && (
-                <button onClick={() => setShowBulkPhoneReqModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97] flex-shrink-0">
-                  <Phone size={13} /> Request Phones {selectedLeads.length}
-                </button>
-              )}
+              <button onClick={() => setShowBulkConvertModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97] flex-shrink-0">
+                <ArrowRightCircle size={13} /> Convert {selectedLeads.length}
+              </button>
+              <button onClick={() => setShowBulkReassignModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97] flex-shrink-0">
+                <Users size={13} /> Reassign {selectedLeads.length}
+              </button>
+              <button onClick={() => setShowBulkPhoneReqModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97] flex-shrink-0">
+                <Phone size={13} /> Request Phones {selectedLeads.length}
+              </button>
               <button onClick={() => setSelectedLeads([])}
                 className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0">
                 <X size={12} />
@@ -1809,7 +1795,7 @@ export default function Leads() {
                       onChange={toggleAll} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
                   </th>
                   {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Project', 'Actions']
-                    .filter(h => !(h === 'Assigned' && isSalesManager && leadsTab === 'my'))
+                    .filter(h => !(h === 'Assigned' && showLeadsTabs && leadsTab === 'my'))
                     .map(h => (
                     <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wide whitespace-nowrap
                       ${h === 'Actions' ? 'text-right' : ''}`}>
@@ -1847,7 +1833,7 @@ export default function Leads() {
                         {lead.source_name || lead.source || '—'}
                       </span>
                     </td>
-                    {!(isSalesManager && leadsTab === 'my') && (
+                    {!(showLeadsTabs && leadsTab === 'my') && (
                       <td className="py-3 px-3">
                         {(lead.assigned_name || lead.assigned_to_name || (typeof lead.assigned_to === 'object' && lead.assigned_to?.full_name)) ? (
                           <div className="flex items-center gap-1.5">
@@ -1887,42 +1873,34 @@ export default function Leads() {
                                 <Eye size={14} />
                                 View Details
                               </button>
-                              {canEdit && (
-                                <button 
-                                  onClick={() => { setConvertLead(lead); setShowConvertModal(true); setOpenMenuLeadId(null); }}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                                >
-                                  <ArrowRightCircle size={14} />
-                                  Convert
-                                </button>
-                              )}
-                              {perms.edit && (
-                                <button 
-                                  onClick={() => { openEdit(lead); setOpenMenuLeadId(null); }}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                                >
-                                  <Edit2 size={14} />
-                                  Edit
-                                </button>
-                              )}
-                              {canEdit && (
-                                <button 
-                                  onClick={() => { setSelectedLead(lead); setReassignTo(lead.assigned_to || ''); setShowReassignModal(true); setOpenMenuLeadId(null); }}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                                >
-                                  <UserCheck size={14} />
-                                  Reassign
-                                </button>
-                              )}
-                              {perms.delete && (
-                                <button 
-                                  onClick={() => { handleDeleteLead(lead); setOpenMenuLeadId(null); }}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                >
-                                  <Trash2 size={14} />
-                                  Delete
-                                </button>
-                              )}
+                              <button 
+                                onClick={() => { setConvertLead(lead); setShowConvertModal(true); setOpenMenuLeadId(null); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                              >
+                                <ArrowRightCircle size={14} />
+                                Convert
+                              </button>
+                              <button 
+                                onClick={() => { openEdit(lead); setOpenMenuLeadId(null); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                              >
+                                <Edit2 size={14} />
+                                Edit
+                              </button>
+                              <button 
+                                onClick={() => { setSelectedLead(lead); setReassignTo(lead.assigned_to || ''); setShowReassignModal(true); setOpenMenuLeadId(null); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                              >
+                                <Users size={14} />
+                                Reassign
+                              </button>
+                              <button 
+                                onClick={() => { handleDeleteLead(lead); setOpenMenuLeadId(null); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              >
+                                <Trash2 size={14} />
+                                Delete
+                              </button>
                             </div>
                           )}
                         </div>
@@ -1947,11 +1925,11 @@ export default function Leads() {
         </div>
       )}
       </>)})({
-        activeList:    isSalesManager && leadsTab === 'my' ? myList     : list,
-        activeLoading: isSalesManager && leadsTab === 'my' ? myLoading  : loading,
-        activePag:     isSalesManager && leadsTab === 'my' ? myPagination : pagination,
-        activePage:    isSalesManager && leadsTab === 'my' ? myPage     : page,
-        setActivePage: isSalesManager && leadsTab === 'my' ? setMyPage  : setPage,
+        activeList:    showLeadsTabs && leadsTab === 'my' ? myList     : list,
+        activeLoading: showLeadsTabs && leadsTab === 'my' ? myLoading  : loading,
+        activePag:     showLeadsTabs && leadsTab === 'my' ? myPagination : pagination,
+        activePage:    showLeadsTabs && leadsTab === 'my' ? myPage     : page,
+        setActivePage: showLeadsTabs && leadsTab === 'my' ? setMyPage  : setPage,
         visiblePhoneLeadId: visiblePhoneLeadId,
         setVisiblePhoneLeadId: setVisiblePhoneLeadId,
       })}
@@ -1962,7 +1940,7 @@ export default function Leads() {
           <LeadForm formData={addForm} setFormData={setAddForm} isEdit={false} 
             sourceList={sourceList.filter(s => s.is_active !== false)} 
             stageOptions={stageOptions}
-            salesExecs={salesExecs} projects={projectList} currentUser={currentUser} leadId={null}
+            teamMembers={teamMembers} projects={projectList} currentUser={currentUser} leadId={null}
             pendingRecordings={pendingRecordings} setPendingRecordings={setPendingRecordings}
           />
           {addSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{addSuccess}</p>}
@@ -1980,7 +1958,7 @@ export default function Leads() {
           <LeadForm formData={editForm} setFormData={setEditForm} isEdit={true} 
             sourceList={sourceList.filter(s => s.is_active !== false || s.id === editForm.source_id)} 
             stageOptions={stageOptions}
-            salesExecs={salesExecs} projects={projectList} currentUser={currentUser} leadId={selectedLead?.id}
+            teamMembers={teamMembers} projects={projectList} currentUser={currentUser} leadId={selectedLead?.id}
             existingRecordings={existingRecordings}
             onExistingChange={async () => {
               try {
@@ -2002,7 +1980,7 @@ export default function Leads() {
       {showReassignModal && selectedLead && (
         <ReassignModal
           lead={selectedLead}
-          salesExecs={salesExecs}
+          teamMembers={teamMembers}
           currentUser={currentUser}
           onClose={() => { setShowReassignModal(false); setSelectedLead(null) }}
           onSuccess={() => dispatch(fetchLeads({ page, per_page: 10 }))}
@@ -2014,7 +1992,7 @@ export default function Leads() {
         <BulkReassignModal
           leadIds={selectedLeads}
           leads={list}
-          salesExecs={salesExecs}
+          teamMembers={teamMembers}
           currentUser={currentUser}
           onClose={() => setShowBulkReassignModal(false)}
           onSuccess={() => { setSelectedLeads([]); dispatch(fetchLeads({ page, per_page: 10 })) }}
@@ -2034,10 +2012,10 @@ export default function Leads() {
       {/* Bulk Upload Modal */}
       {showBulkUploadModal && (
         <BulkUploadModal
-          salesExecs={salesExecs}
+          teamMembers={teamMembers}
           currentUser={currentUser}
           onClose={() => setShowBulkUploadModal(false)}
-          onSuccess={() => { dispatch(fetchLeads({ page: 1, per_page: 10 })); if (isSalesManager) dispatch(fetchMyLeads({ page: 1, per_page: 10 })); setPage(1) }}
+          onSuccess={() => { dispatch(fetchLeads({ page: 1, per_page: 10 })); if (showLeadsTabs) dispatch(fetchMyLeads({ page: 1, per_page: 10 })); setPage(1) }}
         />
       )}
 
@@ -2055,6 +2033,7 @@ export default function Leads() {
           leads={list}
           onClose={() => setShowBulkConvertModal(false)}
           onSuccess={handleBulkConvertSuccess}
+          teamMembers={teamMembers}
         />
       )}
 
