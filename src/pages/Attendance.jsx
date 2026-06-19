@@ -808,14 +808,14 @@ function DailyView({ dispatch, title = 'Daily Attendance View', isSuperAdmin }) 
 
 // ─── Sales Manager: Team Daily View (via /attendance/team) ───────────────────
 
-function TeamDailyView({ dispatch, isSuperAdmin }) {
+function TeamDailyView({ dispatch, isSuperAdmin, managerId }) {
   const { teamHistory, loading } = useSelector(s => s.attendance)
   const [date, setDate] = useState(todayStr())
 
-  // Pass same date as both from and to — returns that day's records for the team
   useEffect(() => {
-    dispatch(fetchTeamAttendance({ from: date, to: date, per_page: 100 }))
-  }, [dispatch, date])
+    if (!managerId) return
+    dispatch(fetchTeamAttendance({ from: date, to: date, per_page: 100, manager_id: managerId }))
+  }, [dispatch, date, managerId])
 
   const records     = teamHistory?.data         || []
   const teamMembers = teamHistory?.team_members || []
@@ -919,19 +919,19 @@ function TeamDailyView({ dispatch, isSuperAdmin }) {
 
 // ─── Sales Manager: Team Month Grid (via /attendance/team) ───────────────────
 
-function TeamMonthGrid({ dispatch }) {
+function TeamMonthGrid({ dispatch, managerId }) {
   const { teamHistory, loading } = useSelector(s => s.attendance)
   const now   = new Date()
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year,  setYear]  = useState(now.getFullYear())
 
-  // Build from/to from selected month
   const from = `${year}-${String(month).padStart(2,'0')}-01`
   const to   = new Date(year, month, 0).toISOString().split('T')[0]
 
   useEffect(() => {
-    dispatch(fetchTeamAttendance({ from, to, per_page: 100 }))
-  }, [dispatch, from, to])
+    if (!managerId) return
+    dispatch(fetchTeamAttendance({ from, to, per_page: 100, manager_id: managerId }))
+  }, [dispatch, from, to, managerId])
 
   const prev = () => { if (month === 1) { setMonth(12); setYear(y => y-1) } else setMonth(m => m-1) }
   const next = () => { if (month === 12) { setMonth(1); setYear(y => y+1) } else setMonth(m => m+1) }
@@ -1057,15 +1057,16 @@ function TeamMonthGrid({ dispatch }) {
 
 // ─── Sales Manager: Team Summary (via /attendance/team) ───────────────────────
 
-function TeamSummaryTable({ dispatch, isSuperAdmin }) {
+function TeamSummaryTable({ dispatch, isSuperAdmin, managerId }) {
   const { teamHistory, loading } = useSelector(s => s.attendance)
   const now = new Date()
   const [from, setFrom] = useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`)
   const [to,   setTo]   = useState(now.toISOString().split('T')[0])
 
   useEffect(() => {
-    dispatch(fetchTeamAttendance({ from, to, per_page: 200 }))
-  }, [dispatch, from, to])
+    if (!managerId) return
+    dispatch(fetchTeamAttendance({ from, to, per_page: 200, manager_id: managerId }))
+  }, [dispatch, from, to, managerId])
 
   const teamMembers = teamHistory?.team_members || []
   const records     = teamHistory?.data         || []
@@ -2006,16 +2007,16 @@ export default function Attendance() {
   const now  = new Date()
   // Role flags
   const isSalesExec   = ['sales_executive', 'external_caller'].includes(user?.role)
-  const isSalesMgr    = user?.role === 'sales_manager'
+  const isTeamLead    = ['associate', 'associate_partner', 'cluster_head', 'cluster', 'partner', 'team_leader', 'sales_manager'].includes(user?.role)
 
   const TABS = [
     { id: 'overview',  label: 'Overview',      icon: BarChart3,   show: true },
     { id: 'calendar',  label: 'Calendar',      icon: Calendar,    show: true },
     { id: 'history',   label: 'My History',    icon: Clock,       show: true },
-    // sales_manager: see their team daily + monthly + summary
-    { id: 'team-daily',label: 'Team Daily',    icon: UserCheck,   show: isSalesMgr },
-    { id: 'team-month',label: 'Team Month',    icon: Users,       show: isSalesMgr },
-    { id: 'summary',   label: 'Team Summary',  icon: TrendingUp,  show: isSalesMgr },
+    // team leads: see their team daily + monthly + summary
+    { id: 'team-daily',label: 'Team Daily',    icon: UserCheck,   show: isTeamLead },
+    { id: 'team-month',label: 'Team Month',    icon: Users,       show: isTeamLead },
+    { id: 'summary',   label: 'Team Summary',  icon: TrendingUp,  show: isTeamLead },
     // admin tabs
     { id: 'monthly',   label: 'Month Grid',         icon: Users,        show: isAdmin },
     { id: 'daily',     label: "Today's Attendance",  icon: UserCheck,    show: isAdmin },
@@ -2133,14 +2134,14 @@ export default function Attendance() {
       {activeTab === 'history'    && <MyHistory dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}
 
       {/* sales_manager — uses /attendance/team API, scoped to their team only */}
-      {activeTab === 'team-daily' && isSalesMgr && (
-        <TeamDailyView dispatch={dispatch} isSuperAdmin={isSuperAdmin} />
+      {activeTab === 'team-daily' && isTeamLead && (
+        <TeamDailyView dispatch={dispatch} isSuperAdmin={isSuperAdmin} managerId={user?.id} />
       )}
-      {activeTab === 'team-month' && isSalesMgr && (
-        <TeamMonthGrid dispatch={dispatch} />
+      {activeTab === 'team-month' && isTeamLead && (
+        <TeamMonthGrid dispatch={dispatch} managerId={user?.id} />
       )}
-      {activeTab === 'summary' && isSalesMgr && (
-        <TeamSummaryTable dispatch={dispatch} isSuperAdmin={isSuperAdmin} />
+      {activeTab === 'summary' && isTeamLead && (
+        <TeamSummaryTable dispatch={dispatch} isSuperAdmin={isSuperAdmin} managerId={user?.id} />
       )}
 
       {/* admin / super_admin — all users */}

@@ -5,6 +5,7 @@ import { authMe } from './store/authSlice'
 import { fetchMyPermissions, selectPermissionsLoaded } from './store/permissionsSlice'
 import { usePushNotifications } from './hooks/usePushNotifications'  // ← NEW
 import Layout from './components/layout/Layout'
+import ReloadPrompt from './components/ReloadPrompt'
 import PageLoader from './components/loaders/PageLoader'
 import PermissionProtectedRoute from './components/auth/PermissionProtectedRoute'
 
@@ -108,6 +109,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AppRoutes />
+      <ReloadPrompt />
     </BrowserRouter>
   )
 }

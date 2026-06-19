@@ -631,13 +631,13 @@ export default function LeadDetail() {
                           </button>
                         </div>
                       )
-                    ) : <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Not provided</p>}
+                    ) : <p className="text-sm font-semibold text-gray-400">--</p>}
                   </div>
 
-                  {/* Email + Location tiles */}
+                  {/* Email + Location + Budget tiles */}
                   {[
-                    { icon: Mail,   label: 'Email Address', color: 'text-purple-600 bg-purple-50', value: lead.email || 'Not provided', href: lead.email ? `mailto:${lead.email}` : null },
-                    { icon: MapPin, label: 'Finding Location', color: 'text-teal-600 bg-teal-50',  value: lead.location_preference || 'Not specified', href: null },
+                    { icon: Mail,   label: 'Email Address',    color: 'text-purple-600 bg-purple-50', value: lead.email, href: lead.email ? `mailto:${lead.email}` : null },
+                    { icon: MapPin, label: 'Finding Location', color: 'text-teal-600 bg-teal-50',     value: lead.location_preference, href: null },
                   ].map(({ icon: Icon, label, value, color, href }) => (
                     <div key={label} className="p-4 rounded-2xl border border-gray-50 dark:border-gray-800/50 bg-gray-50/50 dark:bg-[#0f0f0f]/50">
                       <div className="flex items-center gap-3 mb-2">
@@ -645,7 +645,7 @@ export default function LeadDetail() {
                         <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</span>
                       </div>
                       {href ? <a href={href} className="text-sm font-semibold text-brand hover:underline truncate block">{value}</a>
-                             : <div className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{value}</div>}
+                             : <div className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{value || '--'}</div>}
                     </div>
                   ))}
                 </div>
@@ -659,16 +659,19 @@ export default function LeadDetail() {
                   <MessageSquare size={18} className="text-brand" />
                 </div>
                 <div>
-                  <h3 className="font-display text-lg font-bold text-gray-900 dark:text-white">Configuration</h3>
+                  <h3 className="font-display text-lg font-bold text-gray-900 dark:text-white">Configuration & Notes</h3>
                   <p className="text-xs text-gray-400">Additional lead requirements and notes</p>
                 </div>
               </div>
-              <div className="bg-gray-50 dark:bg-[#0f0f0f] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 min-h-[120px]">
-                {lead.notes ? (
-                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{lead.notes}</p>
-                ) : (
-                  <p className="text-sm text-gray-400 italic">No configuration details provided for this lead.</p>
-                )}
+              <div className="space-y-4">
+                <div className="bg-gray-50 dark:bg-[#0f0f0f] rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Configuration</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{lead.configuration || '--'}</p>
+                </div>
+                <div className="bg-gray-50 dark:bg-[#0f0f0f] rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Notes</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{lead.notes || '--'}</p>
+                </div>
               </div>
             </div>
 
@@ -1034,30 +1037,52 @@ export default function LeadDetail() {
               </div>
             </div>
 
-            {/* 6. Lead Source & Metadata */}
+            {/* 6. Schedule — Callback & Follow-up */}
             <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-6 shadow-sm">
               <h3 className="font-display text-base font-bold text-gray-900 dark:text-white mb-5 flex items-center gap-2">
-                <Info size={18} className="text-teal-500" /> Additional Info
+                <Clock size={18} className="text-amber-500" /> Schedule
               </h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2 px-1">Source</label>
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-teal-50 dark:bg-teal-900/10 text-teal-700 dark:text-teal-400 rounded-xl font-bold text-xs border border-teal-100 dark:border-teal-900/30">
-                    <ExternalLink size={12} />
-                    {lead.source_name || lead.source || 'Direct Entry'}
-                  </div>
-                </div>
-
-                {lead.project_name && (
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2 px-1">Project Interest</label>
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/10 text-[#0082f3] dark:text-blue-400 rounded-xl font-bold text-xs border border-blue-100 dark:border-blue-900/30">
-                      <Building2 size={12} />
-                      {lead.project_name}
+              <div className="space-y-3">
+                {[
+                  { label: 'Callback Time', value: lead.callback_time, icon: PhoneCallIcon, color: 'text-amber-600 bg-amber-50' },
+                  { label: 'Next Follow-up', value: lead.next_followup_time, icon: Calendar, color: 'text-purple-600 bg-purple-50' },
+                ].map(({ label, value, icon: Icon, color }) => (
+                  <div key={label} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50/50 dark:bg-[#0f0f0f]/50 border border-gray-50 dark:border-gray-800">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color} dark:bg-opacity-10 flex-shrink-0`}>
+                      <Icon size={14} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{label}</p>
+                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
+                        {value ? new Date(value).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--'}
+                      </p>
                     </div>
                   </div>
-                )}
+                ))}
+              </div>
+            </div>
+
+            {/* 7. Lead Details — Source, Budget, Project, Conversion */}
+            <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-6 shadow-sm">
+              <h3 className="font-display text-base font-bold text-gray-900 dark:text-white mb-5 flex items-center gap-2">
+                <Info size={18} className="text-teal-500" /> Lead Details
+              </h3>
+
+              <div className="space-y-3">
+                {[
+                  { label: 'Source',    value: lead.source_name || lead.source || '--' },
+                  { label: 'Budget',    value: lead.budget || '--' },
+                  { label: 'Project',   value: lead.project_name || '--' },
+                  { label: 'City',      value: lead.project_city || lead.project?.city || '--' },
+                  { label: 'Locality',  value: lead.project_locality || lead.project?.locality || '--' },
+                  { label: 'Converted', value: lead.is_converted ? `Yes · ${new Date(lead.converted_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : 'No' },
+                  { label: 'Created',   value: lead.created_at ? new Date(lead.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-gray-800 last:border-0">
+                    <span className="text-xs font-medium text-gray-400">{label}</span>
+                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 text-right max-w-[60%] truncate">{value}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
