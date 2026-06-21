@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useModulePermissions } from '../hooks/usePermission'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   Clock, Calendar, ChevronLeft, ChevronRight, Download,
   MapPin, User, Users, CheckCircle2, XCircle, AlertCircle,
   Loader2, Camera, LogIn, LogOut, RefreshCw,
-  TrendingUp, ChevronDown, Pencil, X,
-  Timer, BarChart3, UserCheck,
+  TrendingUp, Pencil, X, Plus, Trash2,
+  Timer, BarChart3, UserCheck, PartyPopper, ZoomIn, Info,
 } from 'lucide-react'
 import {
   fetchAttendanceToday,
@@ -27,39 +26,76 @@ import {
   updateAttendanceStatus,
 } from '../store/attendanceSlice'
 import {
+  fetchHolidays,
+  createHoliday,
+  updateHoliday,
+  deleteHoliday,
+} from '../store/holidaySlice'
+import {
   fetchMySummary,
-  fetchMyLeads,
-  fetchMyTasks,
-  fetchMySiteVisits,
 } from '../store/myDataSlice'
+import { fetchUsers } from '../store/userSlice'
 import api from '../api/axios'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
+import ConfirmModal from '../components/ui/ConfirmModal'
 import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
+import ClockPicker from '../components/ui/ClockPicker'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
+// Matches the backend's real status set: present · late · absent · leave
+// Plus two synthesized/derived display-only statuses:
+//   not_joined — day before the user's account existed (never stored in DB)
+//   holiday    — leave_type === 'holiday' on a 'leave' record (admin-declared holiday)
 const STATUS_CONFIG = {
-  present:  { label: 'Present',  color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20',  border: 'border-emerald-200 dark:border-emerald-800', dot: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
-  late:     { label: 'Late',     color: 'text-amber-600',   bg: 'bg-amber-50 dark:bg-amber-900/20',      border: 'border-amber-200 dark:border-amber-800',     dot: 'bg-amber-500',   badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
-  absent:   { label: 'Absent',   color: 'text-red-600',     bg: 'bg-red-50 dark:bg-red-900/20',          border: 'border-red-200 dark:border-red-800',         dot: 'bg-red-500',     badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
-  on_leave: { label: 'On Leave', color: 'text-indigo-600',  bg: 'bg-indigo-50 dark:bg-indigo-900/20',    border: 'border-indigo-200 dark:border-indigo-800',   dot: 'bg-indigo-500',  badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
-  half_day: { label: 'Half Day', color: 'text-pink-600',    bg: 'bg-pink-50 dark:bg-pink-900/20',        border: 'border-pink-200 dark:border-pink-800',       dot: 'bg-pink-500',    badge: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300' },
-  weekend:  { label: 'Weekend',  color: 'text-gray-400',    bg: 'bg-gray-50 dark:bg-gray-800/40',        border: 'border-gray-100 dark:border-gray-800',       dot: 'bg-gray-300',    badge: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400' },
+  present:    { label: 'Present',       color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20',  border: 'border-emerald-200 dark:border-emerald-800', dot: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  late:       { label: 'Late',          color: 'text-amber-600',   bg: 'bg-amber-50 dark:bg-amber-900/20',      border: 'border-amber-200 dark:border-amber-800',     dot: 'bg-amber-500',   badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  absent:     { label: 'Absent',        color: 'text-red-600',     bg: 'bg-red-50 dark:bg-red-900/20',          border: 'border-red-200 dark:border-red-800',         dot: 'bg-red-500',     badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+  leave:      { label: 'Leave',         color: 'text-indigo-600',  bg: 'bg-indigo-50 dark:bg-indigo-900/20',    border: 'border-indigo-200 dark:border-indigo-800',   dot: 'bg-indigo-500',  badge: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' },
+  holiday:    { label: 'Holiday',       color: 'text-fuchsia-600', bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20',  border: 'border-fuchsia-200 dark:border-fuchsia-800', dot: 'bg-fuchsia-500', badge: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300' },
+  not_joined: { label: 'Not Joined Yet',color: 'text-gray-400',    bg: 'bg-gray-50 dark:bg-gray-800/40',        border: 'border-gray-100 dark:border-gray-800',       dot: 'bg-gray-300',    badge: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400' },
+  weekend:    { label: 'Weekend',       color: 'text-gray-400',    bg: 'bg-gray-50 dark:bg-gray-800/40',        border: 'border-gray-100 dark:border-gray-800',       dot: 'bg-gray-300',    badge: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400' },
 }
 
+// Resolves the display status for a record: a 'leave' row with leave_type 'holiday'
+// is shown as 'Holiday' (distinct color), everything else uses its real status as-is.
+const displayStatus = (rec) => {
+  if (!rec) return 'absent'
+  if (rec.status === 'leave' && rec.leave_type === 'holiday') return 'holiday'
+  return rec.status || 'absent'
+}
+
+// Real, valid statuses an admin can manually set on a record (matches backend CHECK constraint)
 const STATUS_OPTIONS = [
-  { value: 'present',  label: 'Present'  },
-  { value: 'late',     label: 'Late'     },
-  { value: 'absent',   label: 'Absent'   },
-  { value: 'on_leave', label: 'On Leave' },
-  { value: 'half_day', label: 'Half Day' },
+  { value: 'present', label: 'Present' },
+  { value: 'late',    label: 'Late'    },
+  { value: 'absent',  label: 'Absent'  },
+  { value: 'leave',   label: 'Leave'   },
 ]
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const ROLES_ADMIN   = ['super_admin', 'admin', 'superadmin']
-const ROLES_MANAGER = ['super_admin', 'admin', 'superadmin', 'sales_manager']
+const ADMIN_ROLES   = ['super_admin', 'admin']
+const HIERARCHY_ROLES = [
+  'associate', 'associate_partner', 'cluster_head', 'cluster',
+  'partner', 'team_leader', 'sales_manager',
+]
+const ALL_ROLES = [
+  { value: 'all',                label: 'All Roles (Company-wide)' },
+  { value: 'super_admin',        label: 'Super Admin' },
+  { value: 'admin',              label: 'Admin' },
+  { value: 'associate',          label: 'Associate' },
+  { value: 'associate_partner',  label: 'Associate Partner' },
+  { value: 'cluster_head',       label: 'Cluster Head' },
+  { value: 'cluster',            label: 'Cluster' },
+  { value: 'partner',            label: 'Partner' },
+  { value: 'team_leader',        label: 'Team Leader' },
+  { value: 'sales_manager',      label: 'Sales Manager' },
+  { value: 'sales_executive',    label: 'Sales Executive' },
+  { value: 'external_caller',    label: 'External Caller' },
+  { value: 'digital_marketing',  label: 'Digital Marketing' },
+  { value: 'hr_admin',           label: 'HR Admin' },
+]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -75,7 +111,14 @@ const fmtDate = (d) => {
 
 const todayStr = () => new Date().toISOString().split('T')[0]
 
-// ─── Export helpers (all use new /api/v1/export/* endpoints) ─────────────────
+const fmtLateBy = (mins) => {
+  if (!mins || mins <= 0) return ''
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (h > 0 && m > 0) return `${h}h ${m}m`
+  if (h > 0) return `${h}h`
+  return `${m} min`
+}
 
 const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob)
@@ -88,22 +131,41 @@ const downloadBlob = (blob, filename) => {
   URL.revokeObjectURL(url)
 }
 
-const handleExportExcel = async (month, year) => {
-  // Legacy attendance export (kept for Month Grid tab button)
-  try {
-    const start = `${year}-${String(month).padStart(2,'0')}-01`
-    const end   = new Date(year, month, 0).toISOString().split('T')[0]
-    const res   = await api.get('/export/attendance', { params: { from: start, to: end }, responseType: 'blob' })
-    downloadBlob(res.data, `Attendance_${MONTH_NAMES[month-1]}_${year}.xlsx`)
-  } catch (err) { console.error('Export failed:', err) }
-}
-
 const handleExport = async (module, params = {}) => {
   try {
     const res = await api.get(`/export/${module}`, { params, responseType: 'blob' })
     const today = new Date().toISOString().split('T')[0]
     downloadBlob(res.data, `${module.replace('-','_')}_${today}.xlsx`)
   } catch (err) { console.error(`Export ${module} failed:`, err) }
+}
+
+// ─── Pagination ────────────────────────────────────────────────────────────────
+const PAGE_SIZE = 10
+
+// Client-side pagination helper — slices an already-fetched array into pages of
+// PAGE_SIZE. Used on every list endpoint that doesn't support server-side paging
+// (summary, late arrivals, pending approvals, daily list views, holidays).
+function usePagedSlice(items) {
+  const [page, setPage] = useState(1)
+  useEffect(() => { setPage(1) }, [items?.length])
+  const totalPages = Math.max(1, Math.ceil((items?.length || 0) / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const start = (safePage - 1) * PAGE_SIZE
+  const pageItems = (items || []).slice(start, start + PAGE_SIZE)
+  return { page: safePage, setPage, totalPages, pageItems, total: items?.length || 0 }
+}
+
+function Pagination({ page, setPage, totalPages, shownCount, total, label = 'records' }) {
+  if (totalPages <= 1) return null
+  return (
+    <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between flex-wrap gap-2">
+      <span className="text-xs text-gray-400">Showing {shownCount} of {total} {label} · Page {page} of {totalPages}</span>
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>Previous</Button>
+        <Button size="sm" variant="outline" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next</Button>
+      </div>
+    </div>
+  )
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -118,32 +180,210 @@ function StatusBadge({ status, size = 'sm' }) {
   )
 }
 
-function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
-  const colors = {
-    blue:   'from-blue-500 to-[#0082f3]',
-    green:  'from-emerald-500 to-green-400',
-    amber:  'from-amber-500 to-orange-400',
-    red:    'from-red-500 to-rose-400',
-    indigo: 'from-indigo-500 to-purple-400',
-  }
+// ─── Photo Thumbnail (click → opens PhotoLightbox) ────────────────────────────
+function PhotoThumb({ record, onOpen, size = 'md' }) {
+  const sizes = { sm: 'w-9 h-9', md: 'w-10 h-10', lg: 'w-12 h-12' }
+  const photo = record?.checkin_photo || record?.checkout_photo
+  if (!photo) return null
   return (
-    <div className="relative overflow-hidden bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 p-5 shadow-md shadow-blue-100/40 dark:shadow-blue-900/10 transition-all duration-200">
-      <div className={`absolute top-0 right-0 w-24 h-24 rounded-full bg-gradient-to-br ${colors[color]} opacity-5 translate-x-6 -translate-y-6`} />
-      <div className="mb-3">
-        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${colors[color]} flex items-center justify-center shadow-sm`}>
-          <Icon size={18} className="text-white" />
+    <button
+      onClick={() => onOpen(record)}
+      className={`relative ${sizes[size]} rounded-xl overflow-hidden border-2 border-white dark:border-gray-700 shadow-sm flex-shrink-0 group`}
+      title="View photo"
+    >
+      <img src={photo} alt="selfie" className="w-full h-full object-cover" />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center transition-all">
+        <ZoomIn size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+    </button>
+  )
+}
+// Click-to-enlarge popup for check-in/check-out selfies. Shows both photos side by
+// side (when available) with full metadata, and — for admin/super_admin only —
+// a "Change Status" control inline. Pass `record` (the attendance row) and
+// `canChangeStatus` (true only for admin/super_admin per role rules).
+function PhotoLightbox({ isOpen, onClose, record, canChangeStatus, onStatusChange, statusChanging }) {
+  const [tab, setTab] = useState('checkin') // 'checkin' | 'checkout'
+  const [pendingStatus, setPendingStatus] = useState(null)
+  const [reason, setReason] = useState('')
+
+  useEffect(() => {
+    if (isOpen) {
+      setTab(record?.checkin_photo ? 'checkin' : 'checkout')
+      setPendingStatus(null)
+      setReason('')
+    }
+  }, [isOpen, record])
+
+  if (!isOpen || !record) return null
+
+  const hasCheckin  = !!record.checkin_photo
+  const hasCheckout = !!record.checkout_photo
+  const activePhoto = tab === 'checkin' ? record.checkin_photo : record.checkout_photo
+  const activeTime   = tab === 'checkin' ? record.check_in_time : record.check_out_time
+  const activeAddr   = tab === 'checkin' ? record.checkin_address : record.checkout_address
+  const activeLat    = tab === 'checkin' ? record.checkin_latitude : record.checkout_latitude
+  const activeLng    = tab === 'checkin' ? record.checkin_longitude : record.checkout_longitude
+  const status = displayStatus(record)
+
+  const submitStatusChange = () => {
+    if (!pendingStatus) return
+    onStatusChange?.(record, pendingStatus, reason)
+  }
+
+  return (
+    <div style={{marginTop: '0vh'}}  className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md" onClick={onClose}>
+      <div
+        className="w-full max-w-lg bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div   className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center flex-shrink-0">
+              <User size={15} className="text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900 dark:text-white text-sm truncate">{record.full_name || 'Employee'}</p>
+              <p className="text-xs text-gray-400 capitalize truncate">{record.role?.replace(/_/g, ' ')} · {fmtDate(record.date)}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto">
+          {/* Status + check-in/out tabs */}
+          <div className="px-5 pt-4 flex items-center justify-between flex-wrap gap-2">
+            <StatusBadge status={status} size="md" />
+            {(hasCheckin || hasCheckout) && (
+              <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800/60 rounded-xl">
+                <button
+                  onClick={() => setTab('checkin')}
+                  disabled={!hasCheckin}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed ${tab === 'checkin' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}
+                >
+                  Check In
+                </button>
+                <button
+                  onClick={() => setTab('checkout')}
+                  disabled={!hasCheckout}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed ${tab === 'checkout' ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}
+                >
+                  Check Out
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Photo */}
+          <div className="px-5 pt-4">
+            {activePhoto ? (
+              <div className="relative rounded-2xl overflow-hidden bg-gray-900 aspect-square">
+                <img src={activePhoto} alt={`${tab} selfie`} className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-gray-50 dark:bg-gray-800/40 aspect-square flex flex-col items-center justify-center text-gray-300 dark:text-gray-600">
+                <Camera size={32} />
+                <p className="text-xs mt-2">No {tab === 'checkin' ? 'check-in' : 'check-out'} photo</p>
+              </div>
+            )}
+          </div>
+
+          {/* Metadata */}
+          <div className="px-5 py-4 space-y-2">
+            <div className="grid grid-cols-1 gap-2 text-xs">
+              <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                {tab === 'checkin' ? <LogIn size={12} className="text-emerald-500" /> : <LogOut size={12} className="text-rose-500" />}
+                {fmtTime(activeTime)}
+              </div>
+              {/* {record.working_hours && (
+                <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                  <Timer size={12} className="text-brand" /> {record.working_hours}h worked
+                </div>
+              )} */}
+            </div>
+            {activeAddr && (
+              <div className="flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <MapPin size={12} className="mt-0.5 flex-shrink-0 text-brand" />
+                <span>{activeAddr}</span>
+              </div>
+            )}
+            {!activeAddr && activeLat && (
+              <div className="flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <MapPin size={12} className="mt-0.5 flex-shrink-0 text-brand" />
+                <span>{Number(activeLat).toFixed(4)}, {Number(activeLng).toFixed(4)}</span>
+              </div>
+            )}
+            {record.is_manual_entry && (
+              <div className="flex items-start gap-1.5 text-xs text-purple-500">
+                <Info size={12} className="mt-0.5 flex-shrink-0" />
+                <span>Manually recorded{record.manual_reason ? `: ${record.manual_reason}` : ''}</span>
+              </div>
+            )}
+            {record.reason && (
+              <div className="flex items-start gap-1.5 text-xs text-gray-400">
+                <Info size={12} className="mt-0.5 flex-shrink-0" />
+                <span>{record.reason}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Admin-only: change status */}
+          {canChangeStatus && (
+            <div className="px-5 pb-5 pt-2 border-t border-gray-100 dark:border-gray-800 mt-1">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2.5 mt-3">Change Status</p>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {STATUS_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setPendingStatus(opt.value)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                      pendingStatus === opt.value
+                        ? `${STATUS_CONFIG[opt.value]?.bg} ${STATUS_CONFIG[opt.value]?.color} ${STATUS_CONFIG[opt.value]?.border} shadow-sm scale-105`
+                        : 'border-gray-200 dark:border-gray-700 text-gray-500 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {pendingStatus && pendingStatus !== record.status && (
+                <>
+                  <input
+                    type="text"
+                    value={reason}
+                    onChange={e => setReason(e.target.value)}
+                    placeholder="Reason (optional)"
+                    className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-200 placeholder-gray-400 mb-3"
+                  />
+                  <div className="flex items-center gap-2 text-xs mb-3">
+                    <StatusBadge status={record.status} />
+                    <ChevronRight size={12} className="text-gray-400" />
+                    <StatusBadge status={pendingStatus} />
+                  </div>
+                  <Button
+                    variant="primary"
+                    className="w-full rounded-xl"
+                    onClick={submitStatusChange}
+                    loading={statusChanging}
+                    icon={CheckCircle2}
+                  >
+                    Confirm Change
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
-      <p className="text-2xl font-bold text-gray-900 dark:text-white">{value ?? '—'}</p>
-      <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mt-0.5">{label}</p>
-      {sub && <p className="text-xs text-gray-400 dark:text-[#888] mt-1 truncate">{sub}</p>}
     </div>
   )
 }
 
-// ─── Check-In / Out Card ──────────────────────────────────────────────────────
-
-function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showStatusChange = false }) {
+// ─── Check In / Check Out Card ─────────────────────────────────────────────────
+function CheckInCard({ todayData, loading, dispatch, user, isAdmin, showStatusChange = false }) {
   const [showCam,       setShowCam]       = useState(false)
   const [photoType,     setPhotoType]     = useState('checkin')
   const [capturedPhoto, setCapturedPhoto] = useState(null)
@@ -155,10 +395,10 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
   const videoRef  = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
-  const perms = useModulePermissions('attendance')
 
   const isCheckedIn  = todayData?.is_checked_in
   const isCheckedOut = todayData?.is_checked_out
+  const displayedStatus = displayStatus(todayData?.full_record) || todayData?.status || 'absent'
 
   const getLocation = useCallback(() => {
     setGeoLoading(true)
@@ -185,6 +425,8 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
     }, 100)
   }
 
+  const [uploadError, setUploadError] = useState('')
+
   const capture = () => {
     const canvas = canvasRef.current
     const video  = videoRef.current
@@ -196,8 +438,13 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
       const file = new File([blob], `selfie_${Date.now()}.jpg`, { type: 'image/jpeg' })
       setCapturedPhoto(URL.createObjectURL(blob))
       setUploading(true)
+      setUploadError('')
       const res = await dispatch(uploadAttendancePhoto({ file, type: photoType }))
-      if (uploadAttendancePhoto.fulfilled.match(res)) setPhotoUrl(res.payload.photo_url)
+      if (uploadAttendancePhoto.fulfilled.match(res)) {
+        setPhotoUrl(res.payload.photo_url)
+      } else {
+        setUploadError(res.payload || 'Photo upload failed. Please retake.')
+      }
       setUploading(false)
       streamRef.current?.getTracks().forEach(t => t.stop())
     }, 'image/jpeg', 0.85)
@@ -206,6 +453,7 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
   const retake = () => {
     setCapturedPhoto(null)
     setPhotoUrl(null)
+    setUploadError('')
     navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'user' } })
       .then(stream => { streamRef.current = stream; if (videoRef.current) videoRef.current.srcObject = stream })
       .catch(() => {})
@@ -226,20 +474,24 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
     setShowCam(false)
     setCapturedPhoto(null)
     setPhotoUrl(null)
+    setUploadError('')
   }
 
   const changeStatus = async (status) => {
-    if (!todayData?.id || statusChanging) return
+    if (!todayData?.full_record?.id || statusChanging) return
     setStatusChanging(status)
-    await dispatch(updateAttendanceStatus({ id: todayData.id, status }))
+    await dispatch(updateAttendanceStatus({ id: todayData.full_record.id, status }))
     dispatch(fetchAttendanceToday())
     setStatusChanging(null)
   }
 
+  // Selfie required — Confirm stays disabled until a photo has actually uploaded successfully.
+  const canConfirm = !!capturedPhoto && !!photoUrl && !uploading
+
   return (
     <>
       <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
-        <div className="bg-gradient-to-r from-[#0082f3] to-blue-600 px-6 py-5 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-brand to-blue-600 px-6 py-5 flex items-center justify-between">
           <div>
             <p className="text-blue-100 text-xs font-medium uppercase tracking-wider mb-1">Today's Attendance</p>
             <p className="text-white font-semibold text-base">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
@@ -252,7 +504,7 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
         <div className="p-5">
           {/* User row */}
           <div className="flex items-center gap-3 mb-5 pb-4 border-b border-gray-100 dark:border-gray-800">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0082f3] to-blue-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand to-blue-600 flex items-center justify-center flex-shrink-0">
               <User size={17} className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
@@ -261,8 +513,15 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
               </p>
               <p className="text-xs text-gray-400 capitalize">{user?.role?.replace(/_/g, ' ')}</p>
             </div>
-            <StatusBadge status={todayData?.status || 'absent'} size="md" />
+            <StatusBadge status={displayedStatus} size="md" />
           </div>
+
+          {displayedStatus === 'holiday' && (
+            <div className="flex items-center gap-2 bg-fuchsia-50 dark:bg-fuchsia-900/20 rounded-xl px-3 py-2.5 mb-4">
+              <PartyPopper size={14} className="text-fuchsia-500 flex-shrink-0" />
+              <span className="text-sm text-fuchsia-700 dark:text-fuchsia-400 font-medium">Today is a holiday — check-in is optional</span>
+            </div>
+          )}
 
           {/* Times */}
           <div className="grid grid-cols-2 gap-3 mb-4">
@@ -286,16 +545,16 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
             </div>
           </div>
 
-          {isSuperAdmin && todayData?.working_hours && (
+          {isAdmin && todayData?.working_hours && (
             <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl px-3 py-2.5 mb-4">
-              <Timer size={14} className="text-[#0082f3]" />
-              <span className="text-sm text-[#0082f3] font-semibold">{todayData.working_hours}h worked today</span>
+              <Timer size={14} className="text-brand" />
+              <span className="text-sm text-brand font-semibold">{todayData.working_hours}h worked today</span>
             </div>
           )}
 
           {todayData?.checkin_location?.address && (
             <div className="flex items-start gap-1.5 text-xs text-gray-400 mb-4">
-              <MapPin size={12} className="mt-0.5 flex-shrink-0 text-[#0082f3]" />
+              <MapPin size={12} className="mt-0.5 flex-shrink-0 text-brand" />
               <span className="truncate">{todayData.checkin_location.address}</span>
             </div>
           )}
@@ -306,7 +565,7 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
               className={`flex-1 py-3 font-semibold rounded-xl flex items-center justify-center gap-2 transition-all ${
                 isCheckedIn
                   ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-[#0082f3] to-blue-600 text-white hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.98]'
+                  : 'bg-gradient-to-r from-brand to-blue-600 text-white hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.98]'
               } disabled:opacity-60`}>
               {loading.checkin ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
               Check In
@@ -328,27 +587,21 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
           {showStatusChange && (
             <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
               <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-2.5">Change Today's Status</p>
-              {todayData?.id ? (
+              {todayData?.full_record?.id ? (
                 <div className="flex flex-wrap gap-1.5">
-                  {[
-                    ['present',  'Present',  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'],
-                    ['late',     'Late',     'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-800'],
-                    ['on_leave', 'On Leave', 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'],
-                    ['half_day', 'Half Day', 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300 border-pink-200 dark:border-pink-800'],
-                    ['absent',   'Absent',   'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-red-200 dark:border-red-800'],
-                  ].map(([status, label, cls]) => (
+                  {STATUS_OPTIONS.map(opt => (
                     <button
-                      key={status}
-                      disabled={statusChanging === status}
-                      onClick={() => changeStatus(status)}
+                      key={opt.value}
+                      disabled={statusChanging === opt.value}
+                      onClick={() => changeStatus(opt.value)}
                       className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
-                        todayData?.status === status
-                          ? `${cls} ring-1 ring-current ring-offset-1`
+                        todayData?.status === opt.value
+                          ? `${STATUS_CONFIG[opt.value]?.bg} ${STATUS_CONFIG[opt.value]?.color} ${STATUS_CONFIG[opt.value]?.border} ring-1 ring-current ring-offset-1`
                           : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'
                       } disabled:opacity-50`}
                     >
-                      {statusChanging === status && <Loader2 size={9} className="animate-spin" />}
-                      {label}
+                      {statusChanging === opt.value && <Loader2 size={9} className="animate-spin" />}
+                      {opt.label}
                     </button>
                   ))}
                 </div>
@@ -364,7 +617,7 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
       {showCam && (
         <div className="fixed inset-0 z-[999] bg-black/90 flex items-center justify-center p-4">
           <div className="w-full max-w-sm bg-white dark:bg-[#1a1a1a] rounded-3xl overflow-hidden shadow-2xl">
-            <div className="bg-gradient-to-r from-[#0082f3] to-blue-600 px-5 py-4 flex items-center justify-between">
+            <div className="bg-gradient-to-r from-brand to-blue-600 px-5 py-4 flex items-center justify-between">
               <div>
                 <p className="text-white font-semibold">{photoType === 'checkin' ? 'Check In Selfie' : 'Check Out Selfie'}</p>
                 <p className="text-blue-200 text-xs mt-0.5">Take a selfie to mark attendance</p>
@@ -391,7 +644,7 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
                 {uploading && (
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                     <div className="bg-white rounded-2xl px-4 py-3 flex items-center gap-2">
-                      <Loader2 size={16} className="animate-spin text-[#0082f3]" />
+                      <Loader2 size={16} className="animate-spin text-brand" />
                       <span className="text-sm font-medium">Uploading…</span>
                     </div>
                   </div>
@@ -404,12 +657,19 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
                   {geoLoading ? 'Getting location…' : location.latitude ? 'Location captured' : 'Location unavailable'}
                 </div>
                 {!location.latitude && !geoLoading && (
-                  <button onClick={getLocation} className="text-xs text-[#0082f3] hover:underline">Retry</button>
+                  <button onClick={getLocation} className="text-xs text-brand hover:underline">Retry</button>
                 )}
               </div>
 
+              {uploadError && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                  <AlertCircle size={13} className="text-red-500 flex-shrink-0" />
+                  <p className="text-xs text-red-600 dark:text-red-400 flex-1">{uploadError}</p>
+                </div>
+              )}
+
               {!capturedPhoto ? (
-                <button onClick={capture} className="w-full py-3 bg-gradient-to-r from-[#0082f3] to-blue-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+                <button onClick={capture} className="w-full py-3 bg-gradient-to-r from-brand to-blue-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
                   <Camera size={18} /> Capture Selfie
                 </button>
               ) : (
@@ -417,7 +677,7 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
                   <button onClick={retake} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-semibold rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                     <RefreshCw size={15} /> Retake
                   </button>
-                  <button onClick={handleAction} disabled={uploading || loading.checkin || loading.checkout}
+                  <button onClick={handleAction} disabled={!canConfirm || loading.checkin || loading.checkout}
                     className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-green-500 text-white font-semibold rounded-xl flex items-center justify-center gap-2 hover:shadow-lg active:scale-[0.98] transition-all disabled:opacity-60">
                     {(uploading || loading.checkin || loading.checkout) ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
                     Confirm
@@ -433,8 +693,7 @@ function CheckInCard({ todayData, loading, dispatch, user, isSuperAdmin, showSta
 }
 
 // ─── Calendar View ────────────────────────────────────────────────────────────
-
-function CalendarView({ dispatch, isSuperAdmin }) {
+function CalendarView({ dispatch, isAdmin, onOpenPhoto }) {
   const { calendar, loading } = useSelector(s => s.attendance)
   const now = new Date()
   const [month,    setMonth]    = useState(now.getMonth() + 1)
@@ -459,30 +718,30 @@ function CalendarView({ dispatch, isSuperAdmin }) {
           <p className="text-xs text-gray-400 mt-0.5">{sum ? `${sum.present} present · ${sum.absent} absent · ${sum.late} late` : 'Monthly overview'}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={prev} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors"><ChevronLeft size={15} /></button>
+          <button onClick={prev} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-brand hover:text-brand transition-colors"><ChevronLeft size={15} /></button>
           <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 min-w-[110px] text-center">{MONTH_NAMES[month - 1]} {year}</span>
-          <button onClick={next} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors"><ChevronRight size={15} /></button>
+          <button onClick={next} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-brand hover:text-brand transition-colors"><ChevronRight size={15} /></button>
         </div>
       </div>
 
       {sum && (
         <div className="px-6 py-3 flex flex-wrap gap-2 border-b border-gray-100 dark:border-gray-800">
           {[
-            { k: 'present',  l: 'Present', c: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
-            { k: 'late',     l: 'Late',    c: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-            { k: 'absent',   l: 'Absent',  c: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-            { k: 'on_leave', l: 'Leave',   c: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' },
+            { k: 'present', l: 'Present' },
+            { k: 'late',    l: 'Late'    },
+            { k: 'absent',  l: 'Absent'  },
+            { k: 'leave',   l: 'Leave'   },
           ].map(x => (
-            <span key={x.k} className={`px-3 py-1 rounded-full text-xs font-semibold ${x.c}`}>{sum[x.k]} {x.l}</span>
+            <span key={x.k} className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_CONFIG[x.k]?.badge}`}>{sum[x.k] ?? 0} {x.l}</span>
           ))}
-          {isSuperAdmin && sum.total_working_hours > 0 && (
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-[#0082f3] dark:bg-blue-900/30 dark:text-blue-400">{sum.total_working_hours}h worked</span>
+          {isAdmin && sum.total_working_hours > 0 && (
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-brand dark:bg-blue-900/30 dark:text-blue-400">{sum.total_working_hours}h worked</span>
           )}
         </div>
       )}
 
       {loading.calendar ? (
-        <div className="p-10 flex justify-center"><Loader2 size={22} className="animate-spin text-[#0082f3]" /></div>
+        <div className="p-10 flex justify-center"><Loader2 size={22} className="animate-spin text-brand" /></div>
       ) : (
         <div className="p-4">
           <div className="grid grid-cols-7 mb-2">
@@ -494,18 +753,18 @@ function CalendarView({ dispatch, isSuperAdmin }) {
             {padded.map((day, i) => {
               if (!day) return <div key={`e-${i}`} />
               const isToday = day.date === todayStr()
-              const cfg     = STATUS_CONFIG[day.status] || STATUS_CONFIG.absent
-              const isWk    = day.is_weekend
+              const status  = displayStatus(day)
+              const cfg     = STATUS_CONFIG[status] || STATUS_CONFIG.absent
               return (
                 <button key={day.date}
                   onClick={() => setSelected(selected?.date === day.date ? null : day)}
                   className={`relative flex flex-col items-center justify-center rounded-xl aspect-square text-xs font-semibold transition-all hover:scale-105
-                    ${isToday ? 'ring-2 ring-[#0082f3] ring-offset-1 dark:ring-offset-[#1a1a1a]' : ''}
+                    ${isToday ? 'ring-2 ring-brand ring-offset-1 dark:ring-offset-[#1a1a1a]' : ''}
                     ${selected?.date === day.date ? 'scale-105 shadow-md' : ''}
-                    ${isWk ? 'bg-gray-50 dark:bg-gray-800/40 text-gray-400' : `${cfg.bg} ${cfg.color}`}`}
+                    ${cfg.bg} ${cfg.color}`}
                 >
-                  <span className={`text-xs ${isToday ? 'text-[#0082f3] font-bold' : ''}`}>{parseInt(day.date.split('-')[2])}</span>
-                  {!isWk && <span className={`w-1.5 h-1.5 rounded-full mt-0.5 ${cfg.dot}`} />}
+                  <span className={`text-xs ${isToday ? 'text-brand font-bold' : ''}`}>{parseInt(day.date.split('-')[2])}</span>
+                  {status !== 'not_joined' && <span className={`w-1.5 h-1.5 rounded-full mt-0.5 ${cfg.dot}`} />}
                 </button>
               )
             })}
@@ -513,19 +772,24 @@ function CalendarView({ dispatch, isSuperAdmin }) {
         </div>
       )}
 
-      {selected && !selected.is_weekend && (
-        <div className={`mx-4 mb-4 p-4 rounded-xl border ${STATUS_CONFIG[selected.status]?.border || 'border-gray-200 dark:border-gray-700'} ${STATUS_CONFIG[selected.status]?.bg || 'bg-gray-50'}`}>
+      {selected && selected.status !== 'not_joined' && (
+        <div className={`mx-4 mb-4 p-4 rounded-xl border ${STATUS_CONFIG[displayStatus(selected)]?.border || 'border-gray-200 dark:border-gray-700'} ${STATUS_CONFIG[displayStatus(selected)]?.bg || 'bg-gray-50'}`}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{fmtDate(selected.date)}</span>
-            <StatusBadge status={selected.status} />
+            <StatusBadge status={displayStatus(selected)} />
           </div>
           <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-400">
               <div className="flex items-center gap-1.5"><LogIn size={11} className="text-emerald-500" /> {fmtTime(selected.check_in_time)}</div>
               <div className="flex items-center gap-1.5"><LogOut size={11} className="text-rose-500" /> {fmtTime(selected.check_out_time)}</div>
-              {isSuperAdmin && selected.working_hours && <div className="flex items-center gap-1.5 col-span-2"><Timer size={11} className="text-[#0082f3]" /> {selected.working_hours}h working hours</div>}
-              {selected.checkin_address && <div className="flex items-center gap-1.5 col-span-2"><MapPin size={11} className="text-[#0082f3]" /> {selected.checkin_address}</div>}
+              {selected.late_by_minutes > 0 && <div className="flex items-center gap-1.5 col-span-2 text-amber-600 dark:text-amber-400 font-semibold"><AlertCircle size={11} /> Late by {fmtLateBy(selected.late_by_minutes)}</div>}
+              {isAdmin && selected.working_hours && <div className="flex items-center gap-1.5 col-span-2"><Timer size={11} className="text-brand" /> {selected.working_hours}h working hours</div>}
+              {selected.checkin_address && <div className="flex items-center gap-1.5 col-span-2"><MapPin size={11} className="text-brand" /> {selected.checkin_address}</div>}
             </div>
-          {selected.checkin_photo && <img src={selected.checkin_photo} alt="selfie" className="w-12 h-12 rounded-xl object-cover mt-2 border-2 border-white dark:border-gray-700 shadow-sm" />}
+          {selected.checkin_photo && (
+            <button onClick={() => onOpenPhoto(selected)} className="mt-2">
+              <img src={selected.checkin_photo} alt="selfie" className="w-12 h-12 rounded-xl object-cover border-2 border-white dark:border-gray-700 shadow-sm hover:opacity-80 transition-opacity" />
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -533,12 +797,11 @@ function CalendarView({ dispatch, isSuperAdmin }) {
 }
 
 // ─── My History ───────────────────────────────────────────────────────────────
-
-function MyHistory({ dispatch, isSuperAdmin }) {
+function MyHistory({ dispatch, isAdmin, onOpenPhoto }) {
   const { myHistory, loading } = useSelector(s => s.attendance)
   const [page, setPage] = useState(1)
 
-  useEffect(() => { dispatch(fetchMyAttendance({ page, per_page: 15 })) }, [dispatch, page])
+  useEffect(() => { dispatch(fetchMyAttendance({ page, per_page: PAGE_SIZE })) }, [dispatch, page])
 
   const sum  = myHistory?.summary
   const data = myHistory?.data || []
@@ -553,13 +816,13 @@ function MyHistory({ dispatch, isSuperAdmin }) {
       {sum && (
         <div className="grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-800 border-b border-gray-100 dark:border-gray-800">
           {[
-            { v: sum.present,  l: 'Present', c: 'text-emerald-600 dark:text-emerald-400' },
-            { v: sum.absent,   l: 'Absent',  c: 'text-red-500 dark:text-red-400' },
-            { v: sum.late,     l: 'Late',    c: 'text-amber-600 dark:text-amber-400' },
-            { v: sum.on_leave, l: 'Leave',   c: 'text-indigo-600 dark:text-indigo-400' },
+            { v: sum.present, l: 'Present' },
+            { v: sum.absent,  l: 'Absent'  },
+            { v: sum.late,    l: 'Late'    },
+            { v: sum.leave,   l: 'Leave'   },
           ].map(x => (
             <div key={x.l} className="py-3 text-center">
-              <p className={`text-xl font-bold ${x.c}`}>{x.v}</p>
+              <p className="text-xl font-bold text-gray-800 dark:text-gray-100">{x.v ?? 0}</p>
               <p className="text-[10px] text-gray-400 font-medium">{x.l}</p>
             </div>
           ))}
@@ -567,50 +830,44 @@ function MyHistory({ dispatch, isSuperAdmin }) {
       )}
 
       {loading.myHistory ? (
-        <div className="p-8 flex justify-center"><Loader2 size={20} className="animate-spin text-[#0082f3]" /></div>
+        <div className="p-8 flex justify-center"><Loader2 size={20} className="animate-spin text-brand" /></div>
       ) : data.length === 0 ? (
         <div className="p-8 text-center text-gray-400 text-sm">No records found</div>
       ) : (
         <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
           {data.map(rec => {
             const d = rec.date?.split('T')[0] || rec.date
+            const status = displayStatus(rec)
             return (
               <div key={rec.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
-                <div className={`w-2 h-8 rounded-full flex-shrink-0 ${STATUS_CONFIG[rec.status]?.dot || 'bg-gray-300'}`} />
+                <div className={`w-2 h-8 rounded-full flex-shrink-0 ${STATUS_CONFIG[status]?.dot || 'bg-gray-300'}`} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{fmtDate(d)}</span>
-                    <StatusBadge status={rec.status} />
+                    <StatusBadge status={status} />
                   </div>
                   <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400 flex-wrap">
-                <span className="flex items-center gap-1"><LogIn size={10} className="text-emerald-500" />{fmtTime(rec.check_in_time)}</span>
-                <span className="flex items-center gap-1"><LogOut size={10} className="text-rose-500" />{fmtTime(rec.check_out_time)}</span>
-                {isSuperAdmin && rec.working_hours && <span className="flex items-center gap-1"><Timer size={10} className="text-[#0082f3]" />{rec.working_hours}h</span>}
-              </div>
+                    <span className="flex items-center gap-1"><LogIn size={10} className="text-emerald-500" />{fmtTime(rec.check_in_time)}</span>
+                    <span className="flex items-center gap-1"><LogOut size={10} className="text-rose-500" />{fmtTime(rec.check_out_time)}</span>
+                    {isAdmin && rec.working_hours && <span className="flex items-center gap-1"><Timer size={10} className="text-brand" />{rec.working_hours}h</span>}
+                    {rec.late_by_minutes > 0 && <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold"><AlertCircle size={10} />Late by {fmtLateBy(rec.late_by_minutes)}</span>}
+                  </div>
                 </div>
-                {rec.checkin_photo && <img src={rec.checkin_photo} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200 dark:border-gray-700 flex-shrink-0" />}
+                <PhotoThumb record={rec} onOpen={onOpenPhoto} size="sm" />
               </div>
             )
           })}
         </div>
       )}
 
-      {(pg?.total_pages || 0) > 1 && (
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
-          <span className="text-xs text-gray-400">Showing {data.length} of {pg?.total || 0}</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>Previous</Button>
-            <Button size="sm" variant="outline" onClick={() => setPage(p => p + 1)} disabled={page >= pg?.total_pages}>Next</Button>
-          </div>
-        </div>
-      )}
+      <Pagination page={page} setPage={setPage} totalPages={pg?.total_pages || 1} shownCount={data.length} total={pg?.total || 0} label="records" />
     </div>
   )
 }
 
-// ─── Admin: Month Grid ────────────────────────────────────────────────────────
-
-function AdminMonthGrid({ dispatch, title = 'Monthly Attendance Grid', subtitle = null }) {
+// ─── Month Grid (used for both "My Team" and Admin "Company Overview") ───────
+function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'company' }) {
+  // scope: 'company' (admin, all users via /by-month) | 'team' (team lead, own sub-tree via /by-month)
   const { byMonth, loading } = useSelector(s => s.attendance)
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth() + 1)
@@ -618,10 +875,9 @@ function AdminMonthGrid({ dispatch, title = 'Monthly Attendance Grid', subtitle 
   const [page,  setPage]  = useState(1)
 
   useEffect(() => {
-    // Backend scopes by role automatically:
-    // sales_manager → only their team (manager_id = callerId)
-    // admin → all users
-    dispatch(fetchAttendanceByMonth({ month, year, page, per_page: 50 }))
+    // Backend scopes by role automatically — team leads get their recursive sub-tree,
+    // admin gets everyone. Same endpoint, different caller role.
+    dispatch(fetchAttendanceByMonth({ month, year, page, per_page: PAGE_SIZE }))
   }, [dispatch, month, year, page])
 
   const prev = () => { if (month === 1) { setMonth(12); setYear(y => y - 1) } else setMonth(m => m - 1) }
@@ -629,16 +885,16 @@ function AdminMonthGrid({ dispatch, title = 'Monthly Attendance Grid', subtitle 
 
   const allDays  = byMonth?.all_days || []
   const userData = byMonth?.data     || []
-  const workDays = allDays.filter(d => ![0, 6].includes(new Date(d).getDay()))
+  // No weekly off — every calendar day is a working day now.
 
-  const ABBR       = { present: 'P', late: 'L', absent: 'A', on_leave: 'OL', half_day: 'H', weekend: '-' }
+  const ABBR       = { present: 'P', late: 'L', absent: 'A', leave: 'LV', holiday: 'H', not_joined: 'NJ' }
   const ABBR_STYLE = {
     P:  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
     L:  'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
     A:  'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400',
-    OL: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400',
-    H:  'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-400',
-    '-':'bg-gray-50 text-gray-300 dark:bg-gray-800/30 dark:text-gray-600',
+    LV: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400',
+    H:  'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-400',
+    NJ: 'bg-gray-50 text-gray-300 dark:bg-gray-800/30 dark:text-gray-600',
   }
 
   return (
@@ -646,18 +902,17 @@ function AdminMonthGrid({ dispatch, title = 'Monthly Attendance Grid', subtitle 
       <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
-          <p className="text-xs text-gray-400 mt-0.5">{subtitle || `${MONTH_NAMES[month - 1]} ${year}`}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{MONTH_NAMES[month - 1]} {year} · Mon–Sun, no weekly off</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={prev} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors"><ChevronLeft size={15} /></button>
+          <button onClick={prev} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-brand hover:text-brand transition-colors"><ChevronLeft size={15} /></button>
           <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 min-w-[110px] text-center">{MONTH_NAMES[month - 1]} {year}</span>
-          <button onClick={next} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors"><ChevronRight size={15} /></button>
-          {/* <Button size="sm" variant="outline" icon={Download} onClick={() => handleExportExcel(month, year)}>Export</Button> */}
+          <button onClick={next} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-brand hover:text-brand transition-colors"><ChevronRight size={15} /></button>
         </div>
       </div>
 
       {loading.byMonth ? (
-        <div className="p-10 flex justify-center"><Loader2 size={22} className="animate-spin text-[#0082f3]" /></div>
+        <div className="p-10 flex justify-center"><Loader2 size={22} className="animate-spin text-brand" /></div>
       ) : userData.length === 0 ? (
         <div className="p-10 text-center text-gray-400 text-sm">No data for this period</div>
       ) : (
@@ -666,10 +921,11 @@ function AdminMonthGrid({ dispatch, title = 'Monthly Attendance Grid', subtitle 
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/60">
                 <th className="sticky left-0 bg-gray-50 dark:bg-gray-800/60 px-4 py-3 text-left font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap z-10 min-w-[180px]">Employee</th>
-                {workDays.map(d => {
+                {allDays.map(d => {
                   const dt = new Date(d)
+                  const isWk = [0,6].includes(dt.getDay())
                   return (
-                    <th key={d} className="px-1 py-3 text-center font-medium text-gray-400 dark:text-gray-500 min-w-[36px]">
+                    <th key={d} className={`px-1 py-3 text-center font-medium min-w-[36px] ${isWk ? 'text-gray-300 dark:text-gray-600' : 'text-gray-400 dark:text-gray-500'}`}>
                       <div>{dt.getDate()}</div>
                       <div className="text-[9px]">{dt.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
                     </th>
@@ -683,18 +939,19 @@ function AdminMonthGrid({ dispatch, title = 'Monthly Attendance Grid', subtitle 
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800/40">
               {userData.map((u, ui) => {
                 const dayMap = {}
-                u.days?.forEach(d => { dayMap[d.date] = d.status })
+                u.days?.forEach(d => { dayMap[d.date] = d })
                 return (
                   <tr key={u.user?.id || ui} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
                     <td className="sticky left-0 bg-white dark:bg-[#1a1a1a] px-4 py-2.5 z-10">
                       <div className="font-medium text-gray-700 dark:text-gray-200 truncate max-w-[160px]">{u.user?.full_name}</div>
                       <div className="text-[10px] text-gray-400 capitalize">{u.user?.role?.replace(/_/g, ' ')}</div>
                     </td>
-                    {workDays.map(d => {
-                      const st = dayMap[d] || 'absent'
-                      const ab = ABBR[st] || 'A'
+                    {allDays.map(d => {
+                      const rec = dayMap[d]
+                      const st  = displayStatus(rec) || 'absent'
+                      const ab  = ABBR[st] || 'A'
                       return (
-                        <td key={d} className="px-0.5 py-2 text-center">
+                        <td key={d} className="px-0.5 py-2 text-center" title={STATUS_CONFIG[st]?.label}>
                           <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-[10px] font-bold ${ABBR_STYLE[ab] || 'bg-gray-100 text-gray-500'}`}>{ab}</span>
                         </td>
                       )
@@ -710,18 +967,10 @@ function AdminMonthGrid({ dispatch, title = 'Monthly Attendance Grid', subtitle 
         </div>
       )}
 
-      {(byMonth?.pagination?.total_pages || 0) > 1 && (
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center">
-          <span className="text-xs text-gray-400">Showing {userData.length} of {byMonth?.pagination?.total || 0} employees</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>Prev</Button>
-            <Button size="sm" variant="outline" onClick={() => setPage(p => p + 1)} disabled={page >= byMonth?.pagination?.total_pages}>Next</Button>
-          </div>
-        </div>
-      )}
+      <Pagination page={page} setPage={setPage} totalPages={byMonth?.pagination?.total_pages || 1} shownCount={userData.length} total={byMonth?.pagination?.total || 0} label="employees" />
 
       <div className="px-6 py-3 border-t border-gray-100 dark:border-gray-800 flex flex-wrap gap-2">
-        {[['P','Present','bg-emerald-100 text-emerald-700'],['L','Late','bg-amber-100 text-amber-700'],['A','Absent','bg-red-100 text-red-600'],['OL','On Leave','bg-indigo-100 text-indigo-700'],['H','Half Day','bg-pink-100 text-pink-700']].map(([ab, label, cls]) => (
+        {[['P','Present','bg-emerald-100 text-emerald-700'],['L','Late','bg-amber-100 text-amber-700'],['A','Absent','bg-red-100 text-red-600'],['LV','Leave','bg-indigo-100 text-indigo-700'],['H','Holiday','bg-fuchsia-100 text-fuchsia-700'],['NJ','Not Joined','bg-gray-100 text-gray-400']].map(([ab, label, cls]) => (
           <span key={ab} className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${cls}`}>{ab} = {label}</span>
         ))}
       </div>
@@ -729,516 +978,261 @@ function AdminMonthGrid({ dispatch, title = 'Monthly Attendance Grid', subtitle 
   )
 }
 
-// ─── Admin: Daily View ────────────────────────────────────────────────────────
-
-function DailyView({ dispatch, title = 'Daily Attendance View', isSuperAdmin }) {
-  const { byDate, loading } = useSelector(s => s.attendance)
+// ─── Daily List View (own/team/company — backend scopes by caller role) ──────
+function AttendanceListView({ dispatch, title = 'Daily Attendance View', isAdmin, scope = 'auto', onOpenPhoto }) {
+  const { byDate, teamHistory, loading } = useSelector(s => s.attendance)
   const [date, setDate] = useState(todayStr())
 
   useEffect(() => {
-    // Backend now scopes automatically by role:
-    // sales_manager → their team only
-    // sales_exec/external_caller → themselves only
-    // admin → all users
-    dispatch(fetchAttendanceByDate({ date }))
-  }, [dispatch, date])
+    if (scope === 'team') {
+      dispatch(fetchTeamAttendance({ from: date, to: date, per_page: 200 }))
+    } else {
+      // Backend scopes automatically by role: admin → all, team lead → sub-tree, leaf → self
+      dispatch(fetchAttendanceByDate({ date }))
+    }
+  }, [dispatch, date, scope])
 
-  const records  = byDate?.records   || []
-  const noRecord = byDate?.no_record || []
-  const all      = [...records, ...noRecord]
-  const summary  = byDate?.summary
+  let rows = []
+  let summary = null
+
+  if (scope === 'team') {
+    const records     = teamHistory?.data         || []
+    const teamMembers = teamHistory?.team_members  || []
+    const recordMap = {}
+    records.forEach(r => { recordMap[r.user_id] = r })
+    rows = teamMembers.map(m => {
+      const rec = recordMap[m.id]
+      return rec
+        ? rec
+        : { user_id: m.id, full_name: m.full_name, role: m.role, status: 'absent', check_in_time: null, check_out_time: null, working_hours: null, checkin_photo: null }
+    })
+    const present = rows.filter(r => ['present','late'].includes(displayStatus(r))).length
+    const late    = rows.filter(r => displayStatus(r) === 'late').length
+    const absent  = rows.filter(r => displayStatus(r) === 'absent').length
+    const leave   = rows.filter(r => ['leave','holiday'].includes(displayStatus(r))).length
+    summary = { present, late, absent, leave }
+  } else {
+    const records  = byDate?.records   || []
+    const noRecord = byDate?.no_record || []
+    rows = [...records, ...noRecord]
+    summary = byDate?.summary
+  }
+
+  const { page, setPage, totalPages, pageItems, total } = usePagedSlice(rows)
 
   return (
     <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
       <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
-          {summary && <p className="text-xs text-gray-400 mt-0.5">{summary.present} present · {summary.absent} absent · {summary.on_leave} on leave</p>}
+          {summary && <p className="text-xs text-gray-400 mt-0.5">{summary.present} present · {summary.absent} absent · {summary.leave ?? 0} leave</p>}
         </div>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]" />
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-brand" />
       </div>
 
       {summary && (
         <div className="grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-800 border-b border-gray-100 dark:border-gray-800">
           {[
-            { v: summary.present,  l: 'Present',  c: 'text-emerald-600 dark:text-emerald-400' },
-            { v: summary.late,     l: 'Late',      c: 'text-amber-600 dark:text-amber-400' },
-            { v: summary.absent,   l: 'Absent',    c: 'text-red-500 dark:text-red-400' },
-            { v: summary.on_leave, l: 'On Leave',  c: 'text-indigo-600 dark:text-indigo-400' },
+            { v: summary.present, l: 'Present' },
+            { v: summary.late,    l: 'Late'    },
+            { v: summary.absent,  l: 'Absent'  },
+            { v: summary.leave,   l: 'Leave'   },
           ].map(x => (
             <div key={x.l} className="py-3 text-center">
-              <p className={`text-xl font-bold ${x.c}`}>{x.v}</p>
+              <p className="text-xl font-bold text-gray-800 dark:text-gray-100">{x.v ?? 0}</p>
               <p className="text-[10px] text-gray-400 font-medium">{x.l}</p>
             </div>
           ))}
         </div>
       )}
 
-      {loading.byDate ? (
-        <div className="p-8 flex justify-center"><Loader2 size={20} className="animate-spin text-[#0082f3]" /></div>
-      ) : all.length === 0 ? (
-        <div className="p-8 text-center text-gray-400 text-sm">No data for this date</div>
-      ) : (
-        <div className="divide-y divide-gray-50 dark:divide-gray-800/40 max-h-[400px] overflow-y-auto">
-          {all.map((r, i) => (
-            <div key={r.id || i} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${STATUS_CONFIG[r.status]?.bg || 'bg-gray-100'}`}>
-                <User size={14} className={STATUS_CONFIG[r.status]?.color || 'text-gray-400'} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{r.full_name}</span>
-                  <StatusBadge status={r.status} />
-                </div>
-                <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5 flex-wrap">
-                <span className="capitalize text-[10px] bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{r.role?.replace(/_/g, ' ')}</span>
-                {r.check_in_time  && <span className="flex items-center gap-1"><LogIn  size={10} className="text-emerald-500" />{fmtTime(r.check_in_time)}</span>}
-                {r.check_out_time && <span className="flex items-center gap-1"><LogOut size={10} className="text-rose-500" />{fmtTime(r.check_out_time)}</span>}
-                {isSuperAdmin && r.working_hours  && <span className="flex items-center gap-1"><Timer  size={10} className="text-[#0082f3]" />{r.working_hours}h</span>}
-              </div>
-              </div>
-              {r.checkin_photo && <img src={r.checkin_photo} alt="" className="w-9 h-9 rounded-lg object-cover border border-gray-200 dark:border-gray-700 flex-shrink-0" />}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Sales Manager: Team Daily View (via /attendance/team) ───────────────────
-
-function TeamDailyView({ dispatch, isSuperAdmin, managerId }) {
-  const { teamHistory, loading } = useSelector(s => s.attendance)
-  const [date, setDate] = useState(todayStr())
-
-  useEffect(() => {
-    if (!managerId) return
-    dispatch(fetchTeamAttendance({ from: date, to: date, per_page: 100, manager_id: managerId }))
-  }, [dispatch, date, managerId])
-
-  const records     = teamHistory?.data         || []
-  const teamMembers = teamHistory?.team_members || []
-  const teamSummary = teamHistory?.summary      || {}
-  const teamSize    = teamHistory?.team_size    || 0
-
-  // Build a set of user_ids that have a record today
-  const recordMap = {}
-  records.forEach(r => { recordMap[r.user_id] = r })
-
-  // Every team member gets a row — if no record, show as absent
-  const rows = teamMembers.map(m => ({
-    ...(recordMap[m.id] || {
-      user_id:        m.id,
-      full_name:      m.full_name,
-      role:           m.role,
-      email:          m.email,
-      status:         'absent',
-      check_in_time:  null,
-      check_out_time: null,
-      working_hours:  null,
-      checkin_photo:  null,
-    }),
-    full_name: m.full_name,
-    role:      m.role,
-  }))
-
-  // Summary counts from rows
-  const present  = rows.filter(r => ['present','late'].includes(r.status)).length
-  const late     = rows.filter(r => r.status === 'late').length
-  const absent   = rows.filter(r => r.status === 'absent').length
-  const on_leave = rows.filter(r => ['on_leave','half_day'].includes(r.status)).length
-
-  return (
-    <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
-
-      {/* Header */}
-      <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Team Daily View</h3>
-          <p className="text-xs text-gray-400 mt-0.5">{teamSize} team member{teamSize !== 1 ? 's' : ''}</p>
-        </div>
-        <input
-          type="date"
-          value={date}
-          onChange={e => setDate(e.target.value)}
-          className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]"
-        />
-      </div>
-
-      {/* Summary pills */}
-      <div className="grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-800 border-b border-gray-100 dark:border-gray-800">
-        {[
-          { v: present,  l: 'Present',  c: 'text-emerald-600 dark:text-emerald-400' },
-          { v: late,     l: 'Late',     c: 'text-amber-600 dark:text-amber-400' },
-          { v: absent,   l: 'Absent',   c: 'text-red-500 dark:text-red-400' },
-          { v: on_leave, l: 'On Leave', c: 'text-indigo-600 dark:text-indigo-400' },
-        ].map(x => (
-          <div key={x.l} className="py-3 text-center">
-            <p className={`text-xl font-bold ${x.c}`}>{x.v}</p>
-            <p className="text-[10px] text-gray-400 font-medium">{x.l}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Rows */}
-      {loading.teamHistory ? (
-        <div className="p-8 flex justify-center"><Loader2 size={20} className="animate-spin text-[#0082f3]" /></div>
+      {(scope === 'team' ? loading.teamHistory : loading.byDate) ? (
+        <div className="p-8 flex justify-center"><Loader2 size={20} className="animate-spin text-brand" /></div>
       ) : rows.length === 0 ? (
-        <div className="p-8 text-center text-gray-400 text-sm">No team members assigned to you yet</div>
+        <div className="p-8 text-center text-gray-400 text-sm">{scope === 'team' ? 'No team members assigned to you yet' : 'No data for this date'}</div>
       ) : (
-        <div className="divide-y divide-gray-50 dark:divide-gray-800/40 max-h-[450px] overflow-y-auto">
-          {rows.map((r, i) => (
-            <div key={r.user_id || i} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${STATUS_CONFIG[r.status]?.bg || 'bg-gray-100 dark:bg-gray-800'}`}>
-                <User size={15} className={STATUS_CONFIG[r.status]?.color || 'text-gray-400'} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate">{r.full_name}</span>
-                  <StatusBadge status={r.status} />
+        <div className="divide-y divide-gray-50 dark:divide-gray-800/40">
+          {pageItems.map((r, i) => {
+            const status = displayStatus(r)
+            return (
+              <div key={r.id || r.user_id || i} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${STATUS_CONFIG[status]?.bg || 'bg-gray-100'}`}>
+                  <User size={14} className={STATUS_CONFIG[status]?.color || 'text-gray-400'} />
                 </div>
-                <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5 flex-wrap">
-                  <span className="capitalize text-[10px] bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{r.role?.replace(/_/g, ' ')}</span>
-                  {r.check_in_time  && <span className="flex items-center gap-1"><LogIn  size={10} className="text-emerald-500" />{fmtTime(r.check_in_time)}</span>}
-                  {r.check_out_time && <span className="flex items-center gap-1"><LogOut size={10} className="text-rose-500" />{fmtTime(r.check_out_time)}</span>}
-                  {r.working_hours  && <span className="flex items-center gap-1"><Timer  size={10} className="text-[#0082f3]" />{r.working_hours}h</span>}
-                  {r.is_manual_entry && <span className="text-[10px] text-purple-500 bg-purple-50 dark:bg-purple-900/20 px-1.5 py-0.5 rounded">Manual</span>}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{r.full_name}</span>
+                    <StatusBadge status={status} />
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5 flex-wrap">
+                    <span className="capitalize text-[10px] bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{r.role?.replace(/_/g, ' ')}</span>
+                    {r.check_in_time  && <span className="flex items-center gap-1"><LogIn  size={10} className="text-emerald-500" />{fmtTime(r.check_in_time)}</span>}
+                    {r.check_out_time && <span className="flex items-center gap-1"><LogOut size={10} className="text-rose-500" />{fmtTime(r.check_out_time)}</span>}
+                    {isAdmin && r.working_hours && <span className="flex items-center gap-1"><Timer size={10} className="text-brand" />{r.working_hours}h</span>}
+                  </div>
                 </div>
+                <PhotoThumb record={r} onOpen={onOpenPhoto} size="sm" />
               </div>
-              {r.checkin_photo && (
-                <img src={r.checkin_photo} alt="Check-in" className="w-9 h-9 rounded-lg object-cover border border-gray-200 dark:border-gray-700 flex-shrink-0" />
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
+
+      <Pagination page={page} setPage={setPage} totalPages={totalPages} shownCount={pageItems.length} total={total} label={scope === 'team' ? 'team members' : 'records'} />
     </div>
   )
 }
 
-// ─── Sales Manager: Team Month Grid (via /attendance/team) ───────────────────
-
-function TeamMonthGrid({ dispatch, managerId }) {
-  const { teamHistory, loading } = useSelector(s => s.attendance)
-  const now   = new Date()
-  const [month, setMonth] = useState(now.getMonth() + 1)
-  const [year,  setYear]  = useState(now.getFullYear())
-
-  const from = `${year}-${String(month).padStart(2,'0')}-01`
-  const to   = new Date(year, month, 0).toISOString().split('T')[0]
-
-  useEffect(() => {
-    if (!managerId) return
-    dispatch(fetchTeamAttendance({ from, to, per_page: 100, manager_id: managerId }))
-  }, [dispatch, from, to, managerId])
-
-  const prev = () => { if (month === 1) { setMonth(12); setYear(y => y-1) } else setMonth(m => m-1) }
-  const next = () => { if (month === 12) { setMonth(1); setYear(y => y+1) } else setMonth(m => m+1) }
-
-  const records     = teamHistory?.data         || []
-  const teamMembers = teamHistory?.team_members || []
-  const teamSize    = teamHistory?.team_size    || 0
-
-  // Build list of working days in selected month
-  const allDays = []
-  const cur = new Date(from)
-  const end = new Date(to)
-  while (cur <= end) {
-    allDays.push(cur.toISOString().split('T')[0])
-    cur.setDate(cur.getDate() + 1)
-  }
-  const workDays = allDays.filter(d => ![0,6].includes(new Date(d).getDay()))
-
-  // Build lookup: { user_id: { 'YYYY-MM-DD': record } }
-  const lookup = {}
-  records.forEach(r => {
-    const d = r.date?.split('T')[0] || r.date
-    if (!lookup[r.user_id]) lookup[r.user_id] = {}
-    lookup[r.user_id][d] = r
-  })
-
-  const ABBR       = { present:'P', late:'L', absent:'A', on_leave:'OL', half_day:'H', weekend:'-' }
-  const ABBR_STYLE = {
-    P:  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400',
-    L:  'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
-    A:  'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400',
-    OL: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400',
-    H:  'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-400',
-    '-':'bg-gray-50 text-gray-300 dark:bg-gray-800/30 dark:text-gray-600',
-  }
-
-  return (
-    <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
-      {/* Header */}
-      <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Team Monthly Grid</h3>
-          <p className="text-xs text-gray-400 mt-0.5">{teamSize} team member{teamSize !== 1 ? 's' : ''} · {MONTH_NAMES[month-1]} {year}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={prev} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors"><ChevronLeft size={15}/></button>
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 min-w-[110px] text-center">{MONTH_NAMES[month-1]} {year}</span>
-          <button onClick={next} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-[#0082f3] hover:text-[#0082f3] transition-colors"><ChevronRight size={15}/></button>
-        </div>
-      </div>
-
-      {loading.teamHistory ? (
-        <div className="p-10 flex justify-center"><Loader2 size={22} className="animate-spin text-[#0082f3]"/></div>
-      ) : teamMembers.length === 0 ? (
-        <div className="p-10 text-center text-gray-400 text-sm">No team members assigned to you yet</div>
-      ) : (
-        <>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-xs border-collapse">
-              <thead>
-                <tr className="bg-gray-50 dark:bg-[#111] sticky top-0 z-10">
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300 min-w-[160px] sticky left-0 bg-gray-50 dark:bg-[#111] z-20">Employee</th>
-                  {workDays.map(d => {
-                    const dt = new Date(d)
-                    return (
-                      <th key={d} className="px-1 py-2 text-center min-w-[36px] font-medium text-gray-500 dark:text-gray-400">
-                        <div>{dt.getDate()}</div>
-                        <div className="text-[9px] text-gray-400">{dt.toLocaleDateString('en-IN',{weekday:'short'}).slice(0,3)}</div>
-                      </th>
-                    )
-                  })}
-                  <th className="px-2 py-3 text-center text-emerald-600 dark:text-emerald-400 font-semibold">P</th>
-                  <th className="px-2 py-3 text-center text-red-500 dark:text-red-400 font-semibold">A</th>
-                  <th className="px-2 py-3 text-center text-amber-600 dark:text-amber-400 font-semibold">L</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-800/40">
-                {teamMembers.map((member, mi) => {
-                  const userRecs = lookup[member.id] || {}
-                  let presentCnt=0, absentCnt=0, lateCnt=0
-                  const cells = workDays.map(d => {
-                    const rec = userRecs[d]
-                    const status = rec?.status || 'absent'
-                    if (['present','late'].includes(status)) presentCnt++
-                    else if (status === 'absent') absentCnt++
-                    if (status === 'late') lateCnt++
-                    const abbr  = ABBR[status] || 'A'
-                    const style = ABBR_STYLE[abbr] || ABBR_STYLE['A']
-                    return { d, abbr, style, status }
-                  })
-                  return (
-                    <tr key={member.id} className={mi%2===0?'':'bg-gray-50/40 dark:bg-gray-800/10'}>
-                      <td className={`px-4 py-3 sticky left-0 z-10 ${mi%2===0?'bg-white dark:bg-[#1a1a1a]':'bg-gray-50/40 dark:bg-[#1a1a1a]'}`}>
-                        <div className="font-semibold text-gray-800 dark:text-gray-200">{member.full_name}</div>
-                        <div className="text-[10px] text-gray-400 capitalize">{member.role?.replace(/_/g,' ')}</div>
-                      </td>
-                      {cells.map(({ d, abbr, style }) => (
-                        <td key={d} className="px-1 py-2 text-center">
-                          <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-[10px] font-bold ${style}`}>{abbr}</span>
-                        </td>
-                      ))}
-                      <td className="px-2 py-3 text-center font-bold text-emerald-600 dark:text-emerald-400">{presentCnt}</td>
-                      <td className="px-2 py-3 text-center font-bold text-red-500 dark:text-red-400">{absentCnt}</td>
-                      <td className="px-2 py-3 text-center font-bold text-amber-600 dark:text-amber-400">{lateCnt}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Legend */}
-          <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 flex flex-wrap gap-3">
-            {[['P','Present','bg-emerald-100 text-emerald-700'],['L','Late','bg-amber-100 text-amber-700'],['A','Absent','bg-red-100 text-red-600'],['OL','On Leave','bg-indigo-100 text-indigo-700'],['H','Half Day','bg-pink-100 text-pink-700']].map(([a,l,s])=>(
-              <span key={a} className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${s}`}>{a} = {l}</span>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-// ─── Sales Manager: Team Summary (via /attendance/team) ───────────────────────
-
-function TeamSummaryTable({ dispatch, isSuperAdmin, managerId }) {
-  const { teamHistory, loading } = useSelector(s => s.attendance)
+// ─── Summary Table (own scope determined by backend role) ────────────────────
+function SummaryView({ dispatch, isAdmin }) {
+  const { summary, loading } = useSelector(s => s.attendance)
   const now = new Date()
-  const [from, setFrom] = useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`)
+  const [from, setFrom] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`)
   const [to,   setTo]   = useState(now.toISOString().split('T')[0])
 
-  useEffect(() => {
-    if (!managerId) return
-    dispatch(fetchTeamAttendance({ from, to, per_page: 200, manager_id: managerId }))
-  }, [dispatch, from, to, managerId])
+  useEffect(() => { dispatch(fetchAttendanceSummary({ from, to })) }, [dispatch, from, to])
 
-  const teamMembers = teamHistory?.team_members || []
-  const records     = teamHistory?.data         || []
-  const teamSummary = teamHistory?.summary      || {}
-  const teamSize    = teamHistory?.team_size    || 0
-
-  // Aggregate per-member stats from records
-  const memberStats = {}
-  teamMembers.forEach(m => {
-    memberStats[m.id] = { full_name: m.full_name, role: m.role, email: m.email,
-      present:0, late:0, absent:0, on_leave:0, total_working_hours:0, days:0 }
-  })
-  records.forEach(r => {
-    if (!memberStats[r.user_id]) return
-    memberStats[r.user_id].days++
-    if (['present','late'].includes(r.status)) memberStats[r.user_id].present++
-    if (r.status === 'late')                   memberStats[r.user_id].late++
-    if (r.status === 'absent')                 memberStats[r.user_id].absent++
-    if (['on_leave','half_day'].includes(r.status)) memberStats[r.user_id].on_leave++
-    memberStats[r.user_id].total_working_hours += parseFloat(r.working_hours || 0)
-  })
-  const statsRows = Object.values(memberStats)
+  const data = summary?.data || []
+  const { page, setPage, totalPages, pageItems, total } = usePagedSlice(data)
 
   return (
     <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
-      {/* Header */}
       <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Team Attendance Summary</h3>
-          <p className="text-xs text-gray-400 mt-0.5">{teamSize} team member{teamSize!==1?'s':''}</p>
+          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Attendance Summary</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{data.length} employee{data.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2">
-          <input type="date" value={from} onChange={e=>setFrom(e.target.value)}
-            className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]"/>
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-brand" />
           <span className="text-gray-400 text-xs">to</span>
-          <input type="date" value={to} onChange={e=>setTo(e.target.value)}
-            className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]"/>
+          <input type="date" value={to} onChange={e => setTo(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-brand" />
         </div>
       </div>
 
-      {/* Team-wide summary pills */}
-      {(teamSummary.present !== undefined) && (
-        <div className="grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-800 border-b border-gray-100 dark:border-gray-800">
-          {[
-            { v: teamSummary.present,  l:'Total Present',  c:'text-emerald-600 dark:text-emerald-400' },
-            { v: teamSummary.late,     l:'Total Late',     c:'text-amber-600 dark:text-amber-400' },
-            { v: teamSummary.absent,   l:'Total Absent',   c:'text-red-500 dark:text-red-400' },
-            { v: teamSummary.on_leave, l:'On Leave',       c:'text-indigo-600 dark:text-indigo-400' },
-          ].map(x=>(
-            <div key={x.l} className="py-4 text-center">
-              <p className={`text-2xl font-bold ${x.c}`}>{x.v ?? 0}</p>
-              <p className="text-[10px] text-gray-400 font-medium mt-0.5">{x.l}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {loading.teamHistory ? (
-        <div className="p-8 flex justify-center"><Loader2 size={20} className="animate-spin text-[#0082f3]"/></div>
-      ) : statsRows.length === 0 ? (
-        <div className="p-8 text-center text-gray-400 text-sm">No team members or no data in this period</div>
+      {loading.summary ? (
+        <div className="p-10 flex justify-center"><Loader2 size={22} className="animate-spin text-brand" /></div>
+      ) : data.length === 0 ? (
+        <div className="p-10 text-center text-gray-400 text-sm">No data for this period</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/60">
-                {['Employee','Role','Present','Late','Absent','On Leave', ...(isSuperAdmin ? ['Working Hrs'] : [])].map(h=>(
+                {['Employee', 'Present', 'Late', 'Absent', 'Leave', ...(isAdmin ? ['Hours'] : []), 'Attendance %'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800/40">
-              {statsRows.map((r,i)=>(
-                <tr key={i} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
+              {pageItems.map((r) => (
+                <tr key={r.id} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-700 dark:text-gray-200">{r.full_name}</div>
-                    <div className="text-xs text-gray-400">{r.email}</div>
+                    <div className="text-xs text-gray-400 capitalize">{r.role?.replace(/_/g, ' ')}</div>
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-500 capitalize whitespace-nowrap">{r.role?.replace(/_/g,' ')}</td>
                   <td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400">{r.present}</td>
                   <td className="px-4 py-3 font-bold text-amber-600 dark:text-amber-400">{r.late}</td>
                   <td className="px-4 py-3 font-bold text-red-500 dark:text-red-400">{r.absent}</td>
-                  <td className="px-4 py-3 font-bold text-indigo-600 dark:text-indigo-400">{r.on_leave}</td>
-                  {isSuperAdmin && <td className="px-4 py-3 text-gray-600 dark:text-gray-300 font-medium">{r.total_working_hours.toFixed(1)}h</td>}
+                  <td className="px-4 py-3 font-bold text-indigo-600 dark:text-indigo-400">{r.leave}</td>
+                  {isAdmin && <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{r.total_working_hours}h</td>}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                        <div className={`h-full rounded-full ${r.attendance_percent >= 90 ? 'bg-emerald-500' : r.attendance_percent >= 75 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${r.attendance_percent}%` }} />
+                      </div>
+                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{r.attendance_percent}%</span>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <Pagination page={page} setPage={setPage} totalPages={totalPages} shownCount={pageItems.length} total={total} label="employees" />
     </div>
   )
 }
 
-// ─── Admin: Summary Table ─────────────────────────────────────────────────────
-
-function SummaryTable({ dispatch, isSalesMgr = false, managerId = null, isSuperAdmin }) {
-  const { summary, loading } = useSelector(s => s.attendance)
-  const now  = new Date()
+// ─── Late Arrivals Report (admin only) ────────────────────────────────────────
+function LateArrivalsReport({ dispatch, onOpenPhoto }) {
+  const { lateArrivals, loading } = useSelector(s => s.attendance)
+  const now = new Date()
   const [from, setFrom] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`)
   const [to,   setTo]   = useState(now.toISOString().split('T')[0])
 
   useEffect(() => {
-    // Backend scopes by role — no params needed for sales_manager
-    // (getSummary now reads req.user.role and filters automatically)
-    dispatch(fetchAttendanceSummary({ from, to }))
+    dispatch(fetchLateArrivals({ from, to }))
   }, [dispatch, from, to])
 
-  const data = summary?.data || []
+  const data = lateArrivals?.data || []
+  const { page, setPage, totalPages, pageItems, total } = usePagedSlice(data)
 
   return (
     <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
       <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Team Summary</h3>
+        <div>
+          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Late Arrivals Report</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{data.length} records found</p>
+        </div>
         <div className="flex items-center gap-2">
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]" />
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-brand" />
           <span className="text-gray-400 text-xs">to</span>
-          <input type="date" value={to}   onChange={e => setTo(e.target.value)}   className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]" />
+          <input type="date" value={to}   onChange={e => setTo(e.target.value)}   className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-brand" />
         </div>
       </div>
 
-      {loading.summary ? (
-        <div className="p-8 flex justify-center"><Loader2 size={20} className="animate-spin text-[#0082f3]" /></div>
+      {loading.lateArrivals ? (
+        <div className="p-8 flex justify-center"><Loader2 size={20} className="animate-spin text-brand" /></div>
       ) : data.length === 0 ? (
-        <div className="p-8 text-center text-gray-400 text-sm">No data for this period</div>
+        <div className="p-8 text-center text-gray-400 text-sm">No late arrivals in this period</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/60">
-                {['Employee', 'Role', 'Present', 'Late', 'Absent', 'Leave', ...(isSuperAdmin ? ['Working Hrs'] : []), 'Attend %'].map(h => (
+                {['Employee', 'Date', 'Check In', 'Late By', 'Location', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800/40">
-              {data.map((r, i) => {
-                const pct = r.attendance_percent || 0
-                return (
-                  <tr key={r.user_id || i} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-gray-700 dark:text-gray-200 text-sm">{r.full_name}</div>
-                      <div className="text-xs text-gray-400">{r.email}</div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500 capitalize whitespace-nowrap">{r.role?.replace(/_/g, ' ')}</td>
-                    <td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400">{r.present}</td>
-                    <td className="px-4 py-3 font-bold text-amber-600 dark:text-amber-400">{r.late}</td>
-                    <td className="px-4 py-3 font-bold text-red-500 dark:text-red-400">{r.absent}</td>
-                    <td className="px-4 py-3 font-bold text-indigo-600 dark:text-indigo-400">{r.on_leave}</td>
-                    {isSuperAdmin && <td className="px-4 py-3 text-gray-600 dark:text-gray-300 font-medium">{parseFloat(r.total_working_hours || 0).toFixed(1)}h</td>}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 min-w-[40px]">
-                          <div className={`h-1.5 rounded-full ${pct >= 90 ? 'bg-emerald-500' : pct >= 75 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${Math.min(100, pct)}%` }} />
-                        </div>
-                        <span className={`text-xs font-bold ${pct >= 90 ? 'text-emerald-600' : pct >= 75 ? 'text-amber-600' : 'text-red-500'}`}>{pct}%</span>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+              {pageItems.map((r, i) => (
+                <tr key={r.id || i} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-700 dark:text-gray-200">{r.full_name}</div>
+                    <div className="text-xs text-gray-400 capitalize">{r.role?.replace(/_/g, ' ')}</div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{fmtDate(r.date)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5 text-amber-600 font-bold">
+                      <LogIn size={12} />
+                      {fmtTime(r.check_in_time)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-amber-600 font-medium">{r.late_by_minutes ? fmtLateBy(r.late_by_minutes) : '—'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-start gap-1.5 max-w-[200px]">
+                      <MapPin size={12} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                      <span className="text-xs text-gray-500 truncate">{r.checkin_address || '—'}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3"><PhotoThumb record={r} onOpen={onOpenPhoto} size="sm" /></td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <Pagination page={page} setPage={setPage} totalPages={totalPages} shownCount={pageItems.length} total={total} label="records" />
     </div>
   )
 }
 
-// ─── Admin: Approvals Panel ───────────────────────────────────────────────────
-
-function ApprovalPanel({ dispatch, isSuperAdmin }) {
+// ─── Approval Panel (admin/super_admin only) ──────────────────────────────────
+function ApprovalPanel({ dispatch, onOpenPhoto }) {
   const { pending, loading } = useSelector(s => s.attendance)
   const [date,        setDate]        = useState(todayStr())
   const [selectedRec, setSelectedRec] = useState(null)
@@ -1251,6 +1245,7 @@ function ApprovalPanel({ dispatch, isSuperAdmin }) {
 
   const records = pending?.records || []
   const summary = pending?.summary
+  const { page, setPage, totalPages, pageItems, total } = usePagedSlice(records)
 
   const openApprove = (rec) => {
     setSelectedRec(rec)
@@ -1298,7 +1293,7 @@ function ApprovalPanel({ dispatch, isSuperAdmin }) {
           <div className="flex items-center gap-2">
             <Calendar size={14} className="text-gray-400" />
             <input type="date" value={date} onChange={e => { setDate(e.target.value); setSelectedRec(null) }}
-              className="px-3 py-1.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]" />
+              className="px-3 py-1.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-brand" />
           </div>
           {summary && (
             <div className="flex items-center gap-2 text-xs flex-wrap">
@@ -1317,7 +1312,7 @@ function ApprovalPanel({ dispatch, isSuperAdmin }) {
 
         {/* Records */}
         {loading.pending ? (
-          <div className="p-10 flex justify-center"><Loader2 size={22} className="animate-spin text-[#0082f3]" /></div>
+          <div className="p-10 flex justify-center"><Loader2 size={22} className="animate-spin text-brand" /></div>
         ) : records.length === 0 ? (
           <div className="p-10 text-center">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mx-auto mb-3">
@@ -1328,20 +1323,20 @@ function ApprovalPanel({ dispatch, isSuperAdmin }) {
           </div>
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-gray-800/40">
-            {records.map(rec => {
+            {pageItems.map(rec => {
               const isSelected = selectedRec?.id === rec.id
-              const cfg        = STATUS_CONFIG[rec.status] || STATUS_CONFIG.absent
+              const status = displayStatus(rec)
               return (
                 <div key={rec.id} className={`transition-colors ${isSelected ? 'bg-indigo-50/60 dark:bg-indigo-900/10' : 'hover:bg-gray-50/60 dark:hover:bg-gray-800/20'}`}>
                   <div className="flex items-center gap-4 px-6 py-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${cfg.bg}`}>
-                      <User size={16} className={cfg.color} />
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${STATUS_CONFIG[status]?.bg}`}>
+                      <User size={16} className={STATUS_CONFIG[status]?.color} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{rec.full_name}</span>
                         <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded capitalize">{rec.role?.replace(/_/g, ' ')}</span>
-                        <StatusBadge status={rec.status} />
+                        <StatusBadge status={status} />
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
                         <span className="flex items-center gap-1">
@@ -1352,11 +1347,11 @@ function ApprovalPanel({ dispatch, isSuperAdmin }) {
                           <LogOut size={10} className="text-rose-500" />
                           {rec.check_out_time ? fmtTime(rec.check_out_time) : 'Not checked out'}
                         </span>
-                        {isSuperAdmin && rec.working_hours && <span className="flex items-center gap-1"><Timer size={10} className="text-[#0082f3]" />{rec.working_hours}h</span>}
-                        {rec.checkin_address && <span className="flex items-center gap-1 max-w-[180px] truncate"><MapPin size={10} className="text-[#0082f3] flex-shrink-0" />{rec.checkin_address}</span>}
+                        {rec.working_hours && <span className="flex items-center gap-1"><Timer size={10} className="text-brand" />{rec.working_hours}h</span>}
+                        {rec.checkin_address && <span className="flex items-center gap-1 max-w-[180px] truncate"><MapPin size={10} className="text-brand flex-shrink-0" />{rec.checkin_address}</span>}
                       </div>
                     </div>
-                    {rec.checkin_photo && <img src={rec.checkin_photo} alt="selfie" className="w-10 h-10 rounded-xl object-cover border-2 border-white dark:border-gray-700 shadow-sm flex-shrink-0" />}
+                    <PhotoThumb record={rec} onOpen={onOpenPhoto} size="md" />
                     <button onClick={() => isSelected ? setSelectedRec(null) : openApprove(rec)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex-shrink-0 ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25' : 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40'}`}>
                       <Pencil size={11} />
@@ -1406,244 +1401,13 @@ function ApprovalPanel({ dispatch, isSuperAdmin }) {
             })}
           </div>
         )}
+        <Pagination page={page} setPage={setPage} totalPages={totalPages} shownCount={pageItems.length} total={total} label="records" />
       </div>
-    </div>
-  )
-}
-
-// ─── Circular Clock Picker ───────────────────────────────────────────────────
-
-function ClockPicker({ value, onChange, label, icon: Icon, iconColor = 'text-gray-400', required = false }) {
-  const [open,    setOpen]    = useState(false)
-  const [mode,    setMode]    = useState('hour')   // 'hour' | 'minute'
-  const svgRef  = useRef(null)
-  const ref     = useRef(null)
-
-  const [hh, mm] = value ? value.split(':') : ['00', '00']
-  const hour   = parseInt(hh || 0)
-  const minute = parseInt(mm || 0)
-
-  useEffect(() => {
-    const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', fn)
-    return () => document.removeEventListener('mousedown', fn)
-  }, [])
-
-  // Compute angle from center click on SVG
-  const getValueFromAngle = (clientX, clientY) => {
-    const rect   = svgRef.current.getBoundingClientRect()
-    const cx     = rect.left + rect.width  / 2
-    const cy     = rect.top  + rect.height / 2
-    const dx     = clientX - cx
-    const dy     = clientY - cy
-    let   angle  = Math.atan2(dy, dx) * (180 / Math.PI) + 90
-    if (angle < 0) angle += 360
-    if (mode === 'hour') {
-      const h = Math.round(angle / 30) % 12
-      return h === 0 ? 12 : h
-    } else {
-      return Math.round(angle / 6) % 60
-    }
-  }
-
-  const handleClockClick = (e) => {
-    const val = getValueFromAngle(e.clientX, e.clientY)
-    if (mode === 'hour') {
-      const newHH = String(val === 12 ? 0 : val).padStart(2,'0')
-      onChange(`${newHH}:${mm || '00'}`)
-      setMode('minute')
-    } else {
-      const newMM = String(val).padStart(2,'0')
-      onChange(`${hh || '00'}:${newMM}`)
-    }
-  }
-
-  const handleAMPM = (isAM) => {
-    const h = parseInt(hh || 0)
-    let newH = h
-    if (isAM && h >= 12) newH = h - 12
-    if (!isAM && h < 12) newH = h + 12
-    onChange(`${String(newH).padStart(2,'0')}:${mm || '00'}`)
-  }
-
-  // Build clock face numbers + hand
-  const SIZE    = 220
-  const CX      = SIZE / 2
-  const CY      = SIZE / 2
-  const R_OUTER = 88
-  const R_INNER = 62  // inner ring for 13-23
-
-  // For hour mode: 1-12 outer, 13-24 inner (24h clock)
-  // For minute mode: 0,5,10...55 outer
-  const clockNumbers = mode === 'hour'
-    ? [
-        ...Array.from({length:12},(_,i)=>({ val: i===0?12:i,  r: R_OUTER, is12h: true  })),
-        ...Array.from({length:12},(_,i)=>({ val: i===0?0:i+12, r: R_INNER, is12h: false })),
-      ]
-    : Array.from({length:12},(_,i)=>({ val: i*5, r: R_OUTER, is12h: true }))
-
-  const activeVal = mode === 'hour' ? (hour === 0 ? 0 : hour % 24) : minute
-  const handAngle = mode === 'hour'
-    ? ((activeVal % 12 === 0 ? 12 : activeVal % 12) / 12) * 360 - 90
-    : (activeVal / 60) * 360 - 90
-  const handR     = mode === 'hour' ? (hour >= 13 || hour === 0 ? R_INNER : R_OUTER) : R_OUTER
-  const handX     = CX + handR * Math.cos(handAngle * Math.PI / 180)
-  const handY     = CY + handR * Math.sin(handAngle * Math.PI / 180)
-
-  const isAM = hour < 12
-  const display12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-  const displayStr = value
-    ? `${String(display12).padStart(2,'0')}:${mm || '00'} ${isAM ? 'AM' : 'PM'}`
-    : '--:-- --'
-
-  return (
-    <div className="relative" ref={ref}>
-      {label && (
-        <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">
-          {label}{required && ' *'}
-        </label>
-      )}
-      {/* Trigger */}
-      <div
-        onClick={() => { setOpen(o => !o); setMode('hour') }}
-        className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm border rounded-xl cursor-pointer transition-all select-none
-          ${open
-            ? 'border-[#0082f3] bg-white dark:bg-gray-800 ring-1 ring-[#0082f3]/20'
-            : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 hover:border-gray-300 dark:hover:border-gray-600'
-          }`}
-      >
-        {Icon && <Icon size={14} className={`flex-shrink-0 ${iconColor}`} />}
-        <span className={`flex-1 font-mono text-base tracking-widest ${value ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
-          {value || '--:--'}
-        </span>
-        <Clock size={14} className="text-gray-400 flex-shrink-0" />
-      </div>
-
-      {/* Clock panel — centered in modal */}
-      {open && (
-        <>
-          {/* Overlay to catch clicks and dim background */}
-          <div className="fixed inset-0 z-[9998] bg-black/10 backdrop-blur-[1px]" onClick={() => setOpen(false)} />
-          
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[9999] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-[32px] shadow-2xl shadow-black/40 overflow-hidden flex flex-col items-center"
-            style={{ width: 'min(320px, 80vw)' }}>
-
-            {/* Digital display + AM/PM */}
-            <div className="bg-[#0082f3] w-full px-8 py-6 flex items-center justify-between">
-              <div className="flex items-baseline gap-1">
-                <span
-                  onClick={() => setMode('hour')}
-                  className={`font-mono text-5xl font-bold cursor-pointer transition-opacity ${mode==='hour' ? 'opacity-100' : 'opacity-60'} text-white`}>
-                  {String(display12).padStart(2,'0')}
-                </span>
-                <span className="font-mono text-5xl font-bold text-white/80">:</span>
-                <span
-                  onClick={() => setMode('minute')}
-                  className={`font-mono text-5xl font-bold cursor-pointer transition-opacity ${mode==='minute' ? 'opacity-100' : 'opacity-60'} text-white`}>
-                  {mm || '00'}
-                </span>
-              </div>
-              <div className="flex flex-col gap-2">
-                <button onClick={() => handleAMPM(true)}
-                  className={`w-12 h-9 text-sm font-bold rounded-xl transition-all ${isAM ? 'bg-white text-[#0082f3] shadow-md' : 'text-white/60 hover:text-white/90'}`}>
-                  AM
-                </button>
-                <button onClick={() => handleAMPM(false)}
-                  className={`w-12 h-9 text-sm font-bold rounded-xl transition-all ${!isAM ? 'bg-white text-[#0082f3] shadow-md' : 'text-white/60 hover:text-white/90'}`}>
-                  PM
-                </button>
-              </div>
-            </div>
-
-            {/* Mode toggle */}
-            <div className="flex w-full border-b border-gray-100 dark:border-gray-800">
-              <button onClick={() => setMode('hour')}
-                className={`flex-1 py-3 text-xs font-bold tracking-widest transition-colors ${mode==='hour' ? 'text-[#0082f3] border-b-2 border-[#0082f3]' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>
-                HOUR
-              </button>
-              <button onClick={() => setMode('minute')}
-                className={`flex-1 py-3 text-xs font-bold tracking-widest transition-colors ${mode==='minute' ? 'text-[#0082f3] border-b-2 border-[#0082f3]' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>
-                MINUTE
-              </button>
-            </div>
-
-            {/* Circular clock face */}
-            <div className="flex justify-center py-6 px-6 bg-gray-50/30 dark:bg-black/10 w-full">
-              <svg ref={svgRef} width={260} height={260} onClick={handleClockClick}
-                style={{ cursor: 'pointer' }}>
-                {/* Background circle */}
-                <circle cx={130} cy={130} r={126} fill="var(--clock-bg, #ffffff)" className="dark:fill-gray-900" />
-                <circle cx={130} cy={130} r={126} fill="none" stroke="#E2E8F0" strokeWidth="0.5" className="dark:stroke-gray-800" />
-
-                {/* Inner ring separator (hour mode only) */}
-                {mode === 'hour' && (
-                  <circle cx={130} cy={130} r={R_INNER + 20} fill="none"
-                    stroke="#E2E8F0" strokeWidth="0.5" strokeDasharray="4,4" className="dark:stroke-gray-700" />
-                )}
-
-                {/* Hand */}
-                <line
-                  x1={130} y1={130} x2={130 + handR * 1.18 * Math.cos(handAngle * Math.PI / 180)} y2={130 + handR * 1.18 * Math.sin(handAngle * Math.PI / 180)}
-                  stroke="#0082f3" strokeWidth="2.5" strokeLinecap="round" />
-                {/* Center dot */}
-                <circle cx={130} cy={130} r={5} fill="#0082f3" />
-                {/* Tip dot */}
-                <circle cx={130 + handR * 1.18 * Math.cos(handAngle * Math.PI / 180)} cy={130 + handR * 1.18 * Math.sin(handAngle * Math.PI / 180)} r={20} fill="#0082f3" opacity="0.15" />
-                <circle cx={130 + handR * 1.18 * Math.cos(handAngle * Math.PI / 180)} cy={130 + handR * 1.18 * Math.sin(handAngle * Math.PI / 180)} r={10}  fill="#0082f3" />
-
-                {/* Numbers */}
-                {clockNumbers.map(({ val, r, is12h }) => {
-                  const displayVal = mode === 'hour'
-                    ? (val === 0 ? '00' : String(val).padStart(2,'0'))
-                    : String(val).padStart(2,'0')
-                  const indexAngle = mode === 'hour'
-                    ? ((val % 12 === 0 ? 0 : val % 12) / 12) * 360 - 90
-                    : (val / 60) * 360 - 90
-                  const x = 130 + r * 1.18 * Math.cos(indexAngle * Math.PI / 180)
-                  const y = 130 + r * 1.18 * Math.sin(indexAngle * Math.PI / 180)
-                  const isActive = mode === 'hour'
-                    ? activeVal === val
-                    : activeVal === val
-                  return (
-                    <g key={`${mode}-${val}`}>
-                      {isActive && <circle cx={x} cy={y} r={18} fill="#0082f3" />}
-                      <text
-                        x={x} y={y}
-                        textAnchor="middle" dominantBaseline="central"
-                        fontSize={is12h ? 13 : 11}
-                        fontWeight={isActive ? 700 : 500}
-                        fill={isActive ? '#ffffff' : is12h ? '#374151' : '#9CA3AF'}
-                        className={isActive ? '' : 'dark:fill-gray-400'}
-                        style={{ userSelect: 'none', fontFamily: 'monospace' }}
-                      >
-                        {displayVal}
-                      </text>
-                    </g>
-                  )
-                })}
-              </svg>
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center w-full bg-white dark:bg-[#1a1a1a]">
-              <button onClick={() => { onChange(''); setOpen(false) }}
-                className="text-sm font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                CLEAR
-              </button>
-              <button onClick={() => setOpen(false)}
-                className="px-8 py-2.5 bg-[#0082f3] hover:bg-[#0070d4] text-white text-sm font-bold rounded-2xl transition-all shadow-lg shadow-blue-500/20 active:scale-95">
-                DONE
-              </button>
-            </div>
-          </div>
-        </>
-      )}
     </div>
   )
 }
 
 // ─── Admin Manual Check-in Modal ─────────────────────────────────────────────
-
 function AdminCheckInModal({ onClose, dispatch }) {
   const today    = todayStr()
   const { user } = useSelector(s => s.auth)
@@ -1666,12 +1430,10 @@ function AdminCheckInModal({ onClose, dispatch }) {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  const statusOptions = STATUS_OPTIONS.map(o => ({ value: o.value, label: o.label }))
-
   const handleSave = async () => {
     setError('')
     if (!form.status) { setError('Please select a status'); return }
-    if (['present','late','half_day'].includes(form.status) && !form.check_in_time) {
+    if (['present','late'].includes(form.status) && !form.check_in_time) {
       setError('Check-in time is required for this status'); return
     }
     setSaving(true)
@@ -1682,8 +1444,6 @@ function AdminCheckInModal({ onClose, dispatch }) {
       return new Date(`${form.date}T${timeStr}:00`).toISOString()
     }
 
-    // Payload matches API schema exactly:
-    // { user_id, date, status, check_in_time, check_out_time, reason }
     const payload = {
       user_id:        user?.id,
       date:           form.date,
@@ -1704,7 +1464,7 @@ function AdminCheckInModal({ onClose, dispatch }) {
     }
   }
 
-  const showTimes = ['present','late','half_day'].includes(form.status)
+  const showTimes = ['present','late'].includes(form.status)
 
   return (
     <Modal isOpen={true} onClose={onClose} title="Manual Attendance Entry" size="md"
@@ -1721,7 +1481,6 @@ function AdminCheckInModal({ onClose, dispatch }) {
       }
     >
       <div className="space-y-4">
-        {/* Feedback */}
         {success && (
           <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl px-4 py-3">
             <CheckCircle2 size={15} className="text-emerald-500 flex-shrink-0" />
@@ -1739,7 +1498,7 @@ function AdminCheckInModal({ onClose, dispatch }) {
         <div>
           <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Employee</label>
           <div className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm bg-gray-100 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 rounded-xl cursor-not-allowed opacity-70">
-            <div className="w-6 h-6 rounded-full bg-[#0082f3] flex items-center justify-center flex-shrink-0">
+            <div className="w-6 h-6 rounded-full bg-brand flex items-center justify-center flex-shrink-0">
               <span className="text-white text-[10px] font-bold">
                 {user?.first_name?.[0]}{user?.last_name?.[0]}
               </span>
@@ -1758,13 +1517,13 @@ function AdminCheckInModal({ onClose, dispatch }) {
           <div>
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Date</label>
             <input type="date" value={form.date} onChange={e => set('date', e.target.value)} max={today}
-              className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300 transition-colors" />
+              className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 transition-colors" />
           </div>
           <CustomSelect
             label="Status *"
             value={form.status}
             onChange={v => set('status', v)}
-            options={statusOptions}
+            options={STATUS_OPTIONS}
           />
         </div>
 
@@ -1796,15 +1555,14 @@ function AdminCheckInModal({ onClose, dispatch }) {
           </label>
           <input type="text" value={form.reason} onChange={e => set('reason', e.target.value)}
             placeholder="e.g. Field visit, WFH, Client meeting…"
-            className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300 placeholder-gray-400 transition-colors" />
+            className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 placeholder-gray-400 transition-colors" />
         </div>
       </div>
     </Modal>
   )
 }
 
-// ─── MyData Overview Panel (non-admin users only) ─────────────────────────────
-
+// ─── My Month at a Glance (cross-module summary widget) ───────────────────────
 function MyDataOverview({ dispatch }) {
   const { summary, loading } = useSelector(s => s.myData)
 
@@ -1830,7 +1588,7 @@ function MyDataOverview({ dispatch }) {
   const ATT = summary.attendance_this_month || {}
 
   const cards = [
-    { label: 'My Leads',         value: L.total      ?? 0, sub: `${L.booked ?? 0} booked · ${L.lost ?? 0} lost`,        color: 'text-[#0082f3] bg-blue-50 dark:bg-blue-900/20' },
+    { label: 'My Leads',         value: L.total      ?? 0, sub: `${L.booked ?? 0} booked · ${L.lost ?? 0} lost`,        color: 'text-brand bg-blue-50 dark:bg-blue-900/20' },
     { label: 'Site Visits',      value: V.total      ?? 0, sub: `${V.upcoming ?? 0} upcoming · ${V.done ?? 0} done`,     color: 'text-teal-600 bg-teal-50 dark:bg-teal-900/20' },
     { label: 'Pending Tasks',    value: T.pending    ?? 0, sub: `${T.overdue ?? 0} overdue · ${T.due_today ?? 0} today`, color: T.overdue > 0 ? 'text-red-600 bg-red-50 dark:bg-red-900/20' : 'text-green-600 bg-green-50 dark:bg-green-900/20' },
     { label: 'Days Present',     value: ATT.present  ?? 0, sub: `${ATT.absent ?? 0} absent · ${ATT.on_leave ?? 0} leave`,color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' },
@@ -1857,7 +1615,6 @@ function MyDataOverview({ dispatch }) {
           </div>
         ))}
       </div>
-      {/* Lead pipeline mini bar */}
       {L.total > 0 && (
         <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-sm">
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wide">My Lead Pipeline</p>
@@ -1899,102 +1656,290 @@ function MyDataOverview({ dispatch }) {
   )
 }
 
-// ─── My Salary Section ───────────────────────────────────────────────────────
+// ─── Holiday Form Modal (create / edit) ───────────────────────────────────────
+function HolidayFormModal({ holiday, onClose, onSaved, dispatch }) {
+  const isEdit = !!holiday
+  const { list: users = [] } = useSelector(s => s.users)
+  const [form, setForm] = useState({
+    date:        holiday?.date?.split('T')[0] || todayStr(),
+    name:        holiday?.name || '',
+    description: holiday?.description || '',
+    roles:       holiday?.roles    || [],
+    user_ids:    holiday?.user_ids || [],
+  })
+  const [saving, setSaving] = useState(false)
+  const [error,  setError]  = useState('')
 
-// ─── Admin: Late Arrivals Report ──────────────────────────────────────────────
+  useEffect(() => { dispatch(fetchUsers({ per_page: 500 })) }, [dispatch])
 
-function LateArrivalsReport({ dispatch }) {
-  const { lateArrivals, loading } = useSelector(s => s.attendance)
-  const now = new Date()
-  const [from, setFrom] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`)
-  const [to,   setTo]   = useState(now.toISOString().split('T')[0])
+  const userOptions = users.map(u => ({
+    value: u.id,
+    label: `${u.first_name} ${u.last_name || ''}`.trim(),
+    sublabel: u.role?.replace(/_/g, ' '),
+  }))
 
-  useEffect(() => {
-    dispatch(fetchLateArrivals({ from, to }))
-  }, [dispatch, from, to])
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  const data = lateArrivals?.data || []
+  const handleSave = async () => {
+    setError('')
+    if (!form.date) { setError('Date is required'); return }
+    if (!form.name.trim()) { setError('Name is required'); return }
+    if (form.roles.length === 0 && form.user_ids.length === 0) {
+      setError('Select at least one role (or "All Roles") or a specific user'); return
+    }
+    setSaving(true)
+    const payload = {
+      date: form.date,
+      name: form.name.trim(),
+      description: form.description.trim() || undefined,
+      roles: form.roles,
+      user_ids: form.user_ids,
+    }
+    const res = isEdit
+      ? await dispatch(updateHoliday({ id: holiday.id, payload }))
+      : await dispatch(createHoliday(payload))
+    setSaving(false)
+    const success = isEdit ? updateHoliday.fulfilled.match(res) : createHoliday.fulfilled.match(res)
+    if (success) {
+      onSaved?.()
+      onClose()
+    } else {
+      setError(res.payload || 'Failed to save holiday')
+    }
+  }
 
   return (
-    <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
-      <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">Late Arrivals Report</h3>
-          <p className="text-xs text-gray-400 mt-0.5">{data.length} records found</p>
+    <Modal isOpen={true} onClose={onClose} title={isEdit ? 'Edit Holiday' : 'Create Holiday'} size="md"
+      footer={
+        <>
+          <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            Cancel
+          </button>
+          <Button onClick={handleSave} loading={saving} disabled={saving} icon={CheckCircle2}>
+            {isEdit ? 'Save Changes' : 'Create Holiday'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+            <AlertCircle size={15} className="text-red-500 flex-shrink-0" />
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Date *</label>
+            <input type="date" value={form.date} onChange={e => set('date', e.target.value)}
+              className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 transition-colors" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Name *</label>
+            <input type="text" value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Diwali"
+              className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 placeholder-gray-400 transition-colors" />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]" />
-          <span className="text-gray-400 text-xs">to</span>
-          <input type="date" value={to}   onChange={e => setTo(e.target.value)}   className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-[#0082f3]" />
+
+        <div>
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+          <input type="text" value={form.description} onChange={e => set('description', e.target.value)} placeholder="e.g. Festival of Lights — company holiday"
+            className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 placeholder-gray-400 transition-colors" />
+        </div>
+
+        <CustomSelect
+          label="Apply to Roles"
+          value={form.roles}
+          onChange={v => set('roles', v)}
+          options={ALL_ROLES}
+          multiple
+          searchable
+          placeholder="Select roles, or 'All Roles' for company-wide…"
+        />
+
+        <CustomSelect
+          label="Also apply to specific users"
+          value={form.user_ids}
+          onChange={v => set('user_ids', v)}
+          options={userOptions}
+          multiple
+          searchable
+          placeholder="Search and select individual employees…"
+        />
+
+        <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl px-3 py-2.5">
+          <Info size={13} className="text-brand mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-brand/90 dark:text-blue-300">
+            At least one role (or "All Roles") or specific user is required. Targeted employees will show "Holiday" for this date
+            and won't be marked absent — they can still check in voluntarily if they want.
+          </p>
         </div>
       </div>
+    </Modal>
+  )
+}
 
-      {loading.lateArrivals ? (
-        <div className="p-8 flex justify-center"><Loader2 size={20} className="animate-spin text-[#0082f3]" /></div>
-      ) : data.length === 0 ? (
-        <div className="p-8 text-center text-gray-400 text-sm">No late arrivals in this period</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-gray-800/60">
-                {['Employee', 'Date', 'Check In', 'Location'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-gray-800/40">
-              {data.map((r, i) => (
-                <tr key={r.id || i} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-gray-700 dark:text-gray-200">{r.full_name}</div>
-                    <div className="text-xs text-gray-400">{r.role?.replace(/_/g, ' ')}</div>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{fmtDate(r.date)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5 text-amber-600 font-bold">
-                      <LogIn size={12} />
-                      {fmtTime(r.check_in_time)}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-start gap-1.5 max-w-[200px]">
-                      <MapPin size={12} className="text-gray-400 mt-0.5 flex-shrink-0" />
-                      <span className="text-xs text-gray-500 truncate">{r.checkin_address || '—'}</span>
-                    </div>
-                  </td>
-                </tr>
+// ─── Holidays Panel (admin/super_admin only — full CRUD) ──────────────────────
+function HolidaysPanel({ dispatch }) {
+  const { list, pagination, loading } = useSelector(s => s.holidays)
+  const [showForm,    setShowForm]    = useState(false)
+  const [editingItem, setEditingItem] = useState(null)
+  const [deletingItem, setDeletingItem] = useState(null)
+  const [deleting,    setDeleting]    = useState(false)
+  const [yearFilter,  setYearFilter]  = useState(new Date().getFullYear())
+  const [page,        setPage]        = useState(1)
+
+  useEffect(() => { dispatch(fetchHolidays({ year: yearFilter, page, per_page: PAGE_SIZE })) }, [dispatch, yearFilter, page])
+  useEffect(() => { setPage(1) }, [yearFilter])
+
+  const openCreate = () => { setEditingItem(null); setShowForm(true) }
+  const openEdit   = (h) => { setEditingItem(h); setShowForm(true) }
+
+  const refetch = () => dispatch(fetchHolidays({ year: yearFilter, page, per_page: PAGE_SIZE }))
+
+  const confirmDelete = async () => {
+    if (!deletingItem) return
+    setDeleting(true)
+    const res = await dispatch(deleteHoliday(deletingItem.id))
+    setDeleting(false)
+    if (deleteHoliday.fulfilled.match(res)) {
+      setDeletingItem(null)
+      refetch()
+    }
+  }
+
+  const describeTarget = (h) => {
+    const parts = []
+    if (h.roles?.includes('all')) parts.push('All Roles (Company-wide)')
+    else if (h.roles?.length) parts.push(`${h.roles.length} role${h.roles.length !== 1 ? 's' : ''}`)
+    if (h.user_ids?.length) parts.push(`${h.user_ids.length} specific user${h.user_ids.length !== 1 ? 's' : ''}`)
+    return parts.join(' + ') || 'No target'
+  }
+
+  const isUpcoming = (date) => date?.split('T')[0] >= todayStr()
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md overflow-hidden">
+        <div className="bg-gradient-to-r from-fuchsia-600 to-purple-600 px-6 py-5 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="font-display text-base font-semibold text-white">Holidays</h3>
+            <p className="text-fuchsia-200 text-xs mt-0.5">Declare company or team-specific holidays</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <select value={yearFilter} onChange={e => setYearFilter(parseInt(e.target.value))}
+              className="px-3 py-2 text-sm rounded-xl bg-white/20 text-white outline-none border border-white/20">
+              {[yearFilter - 1, yearFilter, yearFilter + 1].map(y => (
+                <option key={y} value={y} className="text-gray-900">{y}</option>
               ))}
-            </tbody>
-          </table>
+            </select>
+            <button onClick={openCreate}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-fuchsia-700 text-xs font-semibold hover:shadow-md transition-all">
+              <Plus size={14} /> New Holiday
+            </button>
+          </div>
         </div>
+
+        {loading.list ? (
+          <div className="p-10 flex justify-center"><Loader2 size={22} className="animate-spin text-brand" /></div>
+        ) : list.length === 0 ? (
+          <div className="p-10 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-fuchsia-50 dark:bg-fuchsia-900/20 flex items-center justify-center mx-auto mb-3">
+              <PartyPopper size={24} className="text-fuchsia-400" />
+            </div>
+            <p className="font-medium text-gray-600 dark:text-gray-300">No holidays for {yearFilter}</p>
+            <p className="text-sm text-gray-400 mt-1">Create one to get started</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50 dark:divide-gray-800/40">
+            {list.map(h => (
+              <div key={h.id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
+                <div className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center flex-shrink-0 ${isUpcoming(h.date) ? 'bg-fuchsia-50 dark:bg-fuchsia-900/20 text-fuchsia-600' : 'bg-gray-50 dark:bg-gray-800/40 text-gray-400'}`}>
+                  <span className="text-[9px] font-semibold uppercase">{new Date(h.date).toLocaleDateString('en-IN', { month: 'short' })}</span>
+                  <span className="text-sm font-bold leading-none">{new Date(h.date).getDate()}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{h.name}</span>
+                    {!isUpcoming(h.date) && <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded">Past</span>}
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
+                    <span>{fmtDate(h.date)}</span>
+                    <span className="flex items-center gap-1"><Users size={10} /> {describeTarget(h)}</span>
+                  </div>
+                  {h.description && <p className="text-xs text-gray-400 mt-1 truncate">{h.description}</p>}
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button onClick={() => openEdit(h)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-brand hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                    <Pencil size={14} />
+                  </button>
+                  <button onClick={() => setDeletingItem(h)} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <Pagination page={page} setPage={setPage} totalPages={pagination?.total_pages || 1} shownCount={list.length} total={pagination?.total || 0} label="holidays" />
+      </div>
+
+      {showForm && (
+        <HolidayFormModal holiday={editingItem} onClose={() => setShowForm(false)} onSaved={refetch} dispatch={dispatch} />
       )}
+
+      <ConfirmModal
+        isOpen={!!deletingItem}
+        onClose={() => setDeletingItem(null)}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        variant="danger"
+        title="Delete Holiday"
+        message={`Delete "${deletingItem?.name}"? Employees who haven't checked in on this date will lose their holiday marking. Anyone who already checked in keeps their real attendance record.`}
+        confirmText="Delete Holiday"
+      />
     </div>
   )
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-
 export default function Attendance() {
   const dispatch = useDispatch()
   const { user }  = useSelector(s => s.auth)
   const { today: todayData, loading, error } = useSelector(s => s.attendance)
 
-  const isAdmin     = ROLES_ADMIN.includes(user?.role)
-  const isManager   = ROLES_MANAGER.includes(user?.role)
-  const isSuperAdmin = user?.role === 'super_admin'
+  const isAdmin = ADMIN_ROLES.includes(user?.role)
+  const isTeamLead = HIERARCHY_ROLES.includes(user?.role)
+  // Per role rules: admin/super_admin → everything. Team leads → own + team. Everyone else → own only.
 
   const [showManualEntry, setShowManualEntry] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [exportingKey,   setExportingKey]   = useState(null)
   const [exportModule,   setExportModule]   = useState('attendance')
 
+  // Photo lightbox — shared across every tab. canChangeStatus only true for admin/super_admin.
+  const [lightboxRecord, setLightboxRecord] = useState(null)
+  const [statusChangingId, setStatusChangingId] = useState(null)
+  const openLightbox = (rec) => setLightboxRecord(rec)
+  const closeLightbox = () => setLightboxRecord(null)
+
+  const handleLightboxStatusChange = async (record, newStatus, reason) => {
+    setStatusChangingId(record.id)
+    const res = await dispatch(updateAttendanceStatus({ id: record.id, status: newStatus, reason }))
+    setStatusChangingId(null)
+    if (updateAttendanceStatus.fulfilled.match(res)) {
+      setLightboxRecord(null)
+      // Refresh whichever views might show this record
+      dispatch(fetchAttendanceToday())
+    }
+  }
+
   const handleExportSubmit = async (dateRange) => {
     try {
       setExportingKey(exportModule)
       const params = { ...dateRange }
       const res = await api.get(`/export/${exportModule}`, { params, responseType: 'blob' })
-      const today = new Date().toISOString().split('T')[0]
       downloadBlob(res.data, `${exportModule.replace('-', '_')}_${dateRange.from}_to_${dateRange.to}.xlsx`)
       setShowExportModal(false)
     } catch (err) {
@@ -2004,28 +1949,22 @@ export default function Attendance() {
     }
   }
 
-  const now  = new Date()
-  // Role flags
-  const isSalesExec   = ['sales_executive', 'external_caller'].includes(user?.role)
-  const isTeamLead    = ['associate', 'associate_partner', 'cluster_head', 'cluster', 'partner', 'team_leader', 'sales_manager'].includes(user?.role)
-
+  // ── Tabs — strictly role-based per the agreed structure ──────────────────────
   const TABS = [
-    { id: 'overview',  label: 'Overview',      icon: BarChart3,   show: true },
-    { id: 'calendar',  label: 'Calendar',      icon: Calendar,    show: true },
-    { id: 'history',   label: 'My History',    icon: Clock,       show: true },
-    // team leads: see their team daily + monthly + summary
-    { id: 'team-daily',label: 'Team Daily',    icon: UserCheck,   show: isTeamLead },
-    { id: 'team-month',label: 'Team Month',    icon: Users,       show: isTeamLead },
-    { id: 'summary',   label: 'Team Summary',  icon: TrendingUp,  show: isTeamLead },
-    // admin tabs
-    { id: 'monthly',   label: 'Month Grid',         icon: Users,        show: isAdmin },
-    { id: 'daily',     label: "Today's Attendance",  icon: UserCheck,    show: isAdmin },
-    { id: 'admin-sum', label: 'Summary',             icon: TrendingUp,   show: isAdmin },
-    { id: 'late-recs', label: 'Late Reports',        icon: AlertCircle,  show: isAdmin },
-    { id: 'approvals', label: 'Approvals',           icon: CheckCircle2, show: isAdmin },
+    { id: 'today',     label: 'Check In/Out', icon: Clock,       show: true },
+    { id: 'calendar',  label: 'Calendar',     icon: Calendar,    show: true },
+    { id: 'history',   label: 'My History',   icon: BarChart3,   show: true },
+    { id: 'team',      label: 'My Team',      icon: Users,       show: isTeamLead },
+    { id: 'team-month',label: 'Team Month',   icon: UserCheck,   show: isTeamLead },
+    { id: 'company',   label: 'Company Overview', icon: TrendingUp, show: isAdmin },
+    { id: 'monthly',   label: 'Month Grid',   icon: Users,       show: isAdmin },
+    { id: 'summary',   label: 'Summary',      icon: TrendingUp,  show: isAdmin },
+    { id: 'late',      label: 'Late Reports', icon: AlertCircle, show: isAdmin },
+    { id: 'approvals', label: 'Approvals',    icon: CheckCircle2,show: isAdmin },
+    { id: 'holidays',  label: 'Holidays',     icon: PartyPopper, show: isAdmin },
   ].filter(t => t.show)
 
-  const [activeTab, setActiveTab] = useState(isAdmin ? 'daily' : 'overview')
+  const [activeTab, setActiveTab] = useState('today')
 
   useEffect(() => { dispatch(fetchAttendanceToday()) }, [dispatch])
 
@@ -2057,32 +1996,29 @@ export default function Attendance() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => dispatch(fetchAttendanceToday())}
-            className="w-9 h-9 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-400 hover:text-[#0082f3] hover:border-[#0082f3] transition-colors">
+            className="w-9 h-9 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-400 hover:text-brand hover:border-brand transition-colors">
             <RefreshCw size={15} className={loading.today ? 'animate-spin' : ''} />
           </button>
           {isAdmin && (
             <button
               onClick={() => setShowManualEntry(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#0082f3] hover:bg-[#0070d4] text-white text-xs font-semibold transition-colors shadow-sm shadow-blue-500/20"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand hover:bg-brand-dark text-white text-xs font-semibold transition-colors shadow-sm shadow-blue-500/20"
             >
               <Pencil size={13} /> Log My Attendance
             </button>
           )}
-          {/* {isManager && (
+          {isAdmin && (
             <Button
               variant="outline"
               size="sm"
               icon={Download}
               loading={!!exportingKey}
-              onClick={() => {
-                setExportModule('attendance')
-                setShowExportModal(true)
-              }}
+              onClick={() => { setExportModule('attendance'); setShowExportModal(true) }}
               className="rounded-xl border-gray-200 dark:border-gray-700 shadow-md"
             >
-              Export Attendance
+              Export
             </Button>
-          )} */}
+          )}
         </div>
       </div>
 
@@ -2090,7 +2026,7 @@ export default function Attendance() {
       <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800/60 rounded-2xl overflow-x-auto scrollbar-hide">
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${activeTab === tab.id ? 'bg-white dark:bg-[#1a1a1a] text-[#0082f3] shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${activeTab === tab.id ? 'bg-white dark:bg-[#1a1a1a] text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
             <tab.icon size={15} />
             {tab.label}
           </button>
@@ -2098,80 +2034,60 @@ export default function Attendance() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'overview' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
-              <CheckInCard todayData={todayData} loading={loading} dispatch={dispatch} user={user} isSuperAdmin={isSuperAdmin} />
-            </div>
-            <div className="lg:col-span-2 grid grid-cols-1 gap-6">
-                <div className="grid grid-cols-2 gap-4 content-start">
-                  <StatCard icon={CheckCircle2} label="Status Today"
-                    value={STATUS_CONFIG[todayData?.status || 'absent']?.label || 'Absent'}
-                    sub={todayData?.status === 'late' ? 'Arrived late' : todayData?.is_checked_in ? 'On time' : 'Not checked in'}
-                    color={todayData?.status === 'present' ? 'green' : todayData?.status === 'late' ? 'amber' : 'red'} />
-                  {isSuperAdmin && <StatCard icon={Timer} label="Working Hours"
-                    value={todayData?.working_hours ? `${todayData.working_hours}h` : '--'}
-                    sub="Today so far" color="blue" />}
-                  <StatCard icon={LogIn} label="Check In"
-                    value={todayData?.is_checked_in ? fmtTime(todayData?.check_in_time) : '--:--'}
-                    sub={todayData?.checkin_location?.address || 'Not checked in yet'} color="green" />
-                  <StatCard icon={LogOut} label="Check Out"
-                    value={todayData?.is_checked_out ? fmtTime(todayData?.check_out_time) : '--:--'}
-                    sub={todayData?.checkout_location?.address || 'Not checked out yet'} color="red" />
-                </div>
-            </div>
+      {activeTab === 'today' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1">
+            <CheckInCard todayData={todayData} loading={loading} dispatch={dispatch} user={user} isAdmin={isAdmin} showStatusChange={isAdmin} />
           </div>
-
-          {/* MyData Overview — only shown for non-admin regular users */}
-          {!isAdmin && (
+          <div className="lg:col-span-2">
             <MyDataOverview dispatch={dispatch} />
-          )}
+          </div>
         </div>
       )}
 
-      {activeTab === 'calendar'   && <CalendarView dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}
-      {activeTab === 'history'    && <MyHistory dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}
+      {activeTab === 'calendar' && <CalendarView dispatch={dispatch} isAdmin={isAdmin} onOpenPhoto={openLightbox} />}
+      {activeTab === 'history'  && <MyHistory dispatch={dispatch} isAdmin={isAdmin} onOpenPhoto={openLightbox} />}
 
-      {/* sales_manager — uses /attendance/team API, scoped to their team only */}
-      {activeTab === 'team-daily' && isTeamLead && (
-        <TeamDailyView dispatch={dispatch} isSuperAdmin={isSuperAdmin} managerId={user?.id} />
+      {activeTab === 'team' && isTeamLead && (
+        <AttendanceListView dispatch={dispatch} title="My Team — Today" isAdmin={isAdmin} scope="team" onOpenPhoto={openLightbox} />
       )}
       {activeTab === 'team-month' && isTeamLead && (
-        <TeamMonthGrid dispatch={dispatch} managerId={user?.id} />
-      )}
-      {activeTab === 'summary' && isTeamLead && (
-        <TeamSummaryTable dispatch={dispatch} isSuperAdmin={isSuperAdmin} managerId={user?.id} />
+        <MonthGridView dispatch={dispatch} title="My Team — Monthly Grid" scope="team" />
       )}
 
-      {/* admin / super_admin — all users */}
-      {activeTab === 'monthly'   && isAdmin && <AdminMonthGrid dispatch={dispatch} />}
-      {activeTab === 'daily'     && isAdmin && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
-              <CheckInCard todayData={todayData} loading={loading} dispatch={dispatch} user={user} isSuperAdmin={isSuperAdmin} showStatusChange={true} />
-            </div>
-          </div>
-          <DailyView dispatch={dispatch} isSuperAdmin={isSuperAdmin} />
-        </div>
+      {activeTab === 'company' && isAdmin && (
+        <AttendanceListView dispatch={dispatch} title="Company Overview — Today" isAdmin={isAdmin} scope="company" onOpenPhoto={openLightbox} />
       )}
-      {activeTab === 'late-recs' && isAdmin && <LateArrivalsReport dispatch={dispatch} />}
-      {activeTab === 'admin-sum' && isAdmin && <SummaryTable   dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}
-      {activeTab === 'approvals' && isAdmin && <ApprovalPanel  dispatch={dispatch} isSuperAdmin={isSuperAdmin} />}
+      {activeTab === 'monthly' && isAdmin && (
+        <MonthGridView dispatch={dispatch} title="Company — Monthly Grid" scope="company" />
+      )}
+      {activeTab === 'summary' && isAdmin && <SummaryView dispatch={dispatch} isAdmin={isAdmin} />}
+      {activeTab === 'late'    && isAdmin && <LateArrivalsReport dispatch={dispatch} onOpenPhoto={openLightbox} />}
+      {activeTab === 'approvals' && isAdmin && <ApprovalPanel dispatch={dispatch} onOpenPhoto={openLightbox} />}
+      {activeTab === 'holidays'  && isAdmin && <HolidaysPanel dispatch={dispatch} />}
 
       {/* Admin Manual Entry Modal */}
       {showManualEntry && (
         <AdminCheckInModal dispatch={dispatch} onClose={() => setShowManualEntry(false)} />
       )}
 
+      {/* Photo Lightbox — shared across all tabs */}
+      <PhotoLightbox
+        isOpen={!!lightboxRecord}
+        onClose={closeLightbox}
+        record={lightboxRecord}
+        canChangeStatus={isAdmin}
+        onStatusChange={handleLightboxStatusChange}
+        statusChanging={!!statusChangingId}
+      />
+
       {/* Export Modal */}
-      <ExportModal 
-        isOpen={showExportModal} 
-        onClose={() => setShowExportModal(false)} 
-        onExport={handleExportSubmit} 
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExportSubmit}
         loading={!!exportingKey}
-        title={`Export ${exportModule.replace('-', ' ')}`}
+        title="Export Attendance"
       />
     </div>
   )
