@@ -627,7 +627,7 @@ export default function Projects() {
   const canManage = ['super_admin', 'admin'].includes(currentUser?.role)
   const isViewOnly = !canManage  // sales roles have view-only access
   const perms = useModulePermissions('projects')
-  const canShareProject = ['sales_manager', 'sales_executive', 'external_caller'].includes(currentUser?.role)
+  const canShareProject = true
 
   const handleAdd = async (e) => {
     e.preventDefault()
@@ -1004,43 +1004,33 @@ export default function Projects() {
                     )}
                   </div>
 
-                  {/* Download Options for Sales roles */}
-      {['sales_manager', 'sales_executive', 'external_caller', 'admin', 'super_admin'].includes(currentUser?.role) && (
-        <div className="grid grid-cols-2 md:grid-cols-2 gap-2 mb-3">
-          <button 
-            onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'unit_plan') }}
-            disabled={downloading[project.id]?.unit_plan}
-            className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50"
-          >
-            {downloading[project.id]?.unit_plan ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-            Unit Plans
-          </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'creative') }}
-            disabled={downloading[project.id]?.creative}
-            className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 text-[10px] font-bold hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-50"
-          >
-            {downloading[project.id]?.creative ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-            Creatives
-          </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'payment_plan') }}
-            disabled={downloading[project.id]?.payment_plan}
-            className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-[10px] font-bold hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors disabled:opacity-50"
-          >
-            {downloading[project.id]?.payment_plan ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-            Payment Plans
-          </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'video') }}
-            disabled={downloading[project.id]?.video}
-            className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:opacity-50"
-          >
-            {downloading[project.id]?.video ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-            Videos
-          </button>
-        </div>
-      )}
+                  {/* Download Options */}
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <button onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'unit_plan') }}
+                      disabled={downloading[project.id]?.unit_plan}
+                      className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50">
+                      {downloading[project.id]?.unit_plan ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                      Unit Plans
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'creative') }}
+                      disabled={downloading[project.id]?.creative}
+                      className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 text-[10px] font-bold hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-50">
+                      {downloading[project.id]?.creative ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                      Creatives
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'payment_plan') }}
+                      disabled={downloading[project.id]?.payment_plan}
+                      className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-[10px] font-bold hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors disabled:opacity-50">
+                      {downloading[project.id]?.payment_plan ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                      Payment Plans
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'video') }}
+                      disabled={downloading[project.id]?.video}
+                      className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:opacity-50">
+                      {downloading[project.id]?.video ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                      Videos
+                    </button>
+                  </div>
 
                   <Button onClick={() => navigate(`/projects/${project.id}`)} variant="outline" size="sm" className="w-full mt-auto">View Project</Button>
                 </div>

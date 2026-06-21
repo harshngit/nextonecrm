@@ -370,7 +370,8 @@ export default function Revisits() {
   const [page,       setPage]       = useState(1)
 
   // Filters
-  const [filterView,   setFilterView]   = useState('team') // 'mine' | 'team'
+  const isExternalCaller = user?.role === 'external_caller'
+  const [filterView,   setFilterView]   = useState(isExternalCaller ? 'mine' : 'team')
   const [filterStatus, setFilterStatus] = useState('')
   const [search,       setSearch]       = useState('')
 
@@ -473,7 +474,7 @@ export default function Revisits() {
       {/* Filters bar */}
       <div className="flex items-center gap-2 flex-wrap">
         {/* My / Team toggle — hidden for super_admin and admin */}
-        {!['super_admin', 'admin'].includes(user?.role) && (
+        {!['super_admin', 'admin', 'external_caller'].includes(user?.role) && (
           <div className="flex bg-card border border-gray-200 dark:border-gray-700 rounded-xl p-1 gap-1">
             {[
               { key: 'mine', label: 'My Re-visits' },

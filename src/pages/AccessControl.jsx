@@ -7,7 +7,7 @@ const toTitleCase = (str) =>
 
 const ALL_MODULES = [
   'dashboard', 'leads', 'projects', 'site_visits', 'revisits', 'closures',
-  'follow_ups', 'attendance', 'salary', 'team', 'users', 'notifications',
+  'follow_ups', 'targets', 'attendance', 'salary', 'team', 'users', 'notifications',
 ]
 const ALL_KEYS = ['view', 'create', 'edit', 'delete', 'approve', 'export']
 

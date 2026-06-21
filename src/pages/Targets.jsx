@@ -5,7 +5,7 @@ import {
   Target, RefreshCw, Edit2, RotateCcw, MoreVertical, X,
   CheckCircle2, AlertCircle, Users, TrendingUp, Building2,
 } from 'lucide-react'
-import { fetchTargets, createTarget, updateTarget, deleteTarget, clearTargetError } from '../store/targetSlice'
+import { fetchTargets, fetchMyTarget, createTarget, updateTarget, deleteTarget, clearTargetError } from '../store/targetSlice'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
@@ -143,8 +143,7 @@ function TargetFormModal({ target, userName, monthStr, monthLabel, isEdit, onClo
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Targets() {
   const dispatch = useDispatch()
-  const { list: rawList, loading, actionLoading, actionError } = useSelector(s => s.targets)
-  const list = Array.isArray(rawList) ? rawList : []
+  const { list: rawList, myTarget, loading, actionError } = useSelector(s => s.targets)
   const { user: currentUser } = useSelector(s => s.auth)
   const perms = useModulePermissions('targets')
 
@@ -166,14 +165,21 @@ export default function Targets() {
   const monthStr   = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
   const monthLabel = `${MONTHS.find(m => m.v === selectedMonth)?.l} ${selectedYear}`
 
-  const isAdmin   = ['super_admin', 'admin'].includes(currentUser?.role)
-  const isManager = currentUser?.role === 'sales_manager'
-  const canManage = isAdmin || isManager
+  const isAdmin    = ['super_admin', 'admin'].includes(currentUser?.role)
+  const isTeamLead = ['associate', 'associate_partner', 'cluster_head', 'cluster', 'partner', 'team_leader', 'sales_manager'].includes(currentUser?.role)
+  const canManage  = isAdmin || isTeamLead
+  const list       = canManage
+    ? (Array.isArray(rawList) ? rawList : [])
+    : (myTarget ? [myTarget] : [])
 
   useEffect(() => {
-    dispatch(fetchTargets({ month: monthStr }))
+    if (canManage) {
+      dispatch(fetchTargets({ month: monthStr }))
+    } else {
+      dispatch(fetchMyTarget({ month: monthStr }))
+    }
     setPage(1)
-  }, [dispatch, monthStr])
+  }, [dispatch, monthStr, canManage])
 
   useEffect(() => {
     if (actionError) {
@@ -197,7 +203,7 @@ export default function Targets() {
 
   const canEditRow = (t) => {
     if (isAdmin) return true
-    if (isManager) return getUserId(t) !== currentUser?.id
+    if (isTeamLead) return getUserId(t) !== currentUser?.id
     return false
   }
 

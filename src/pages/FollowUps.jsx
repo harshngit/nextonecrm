@@ -708,7 +708,8 @@ export default function FollowUps() {
   const { user: currentUser } = useSelector(s => s.auth)
   const { teamTree: teamMembers = [] } = useSelector(s => s.users)
 
-  const [filterView,     setFilterView]     = useState('team') // 'mine' | 'team'
+  const isExternalCaller = currentUser?.role === 'external_caller'
+  const [filterView,     setFilterView]     = useState(isExternalCaller ? 'mine' : 'team')
   const [filterStatus,   setFilterStatus]   = useState('all') // pending | overdue | all | completed
   const [filterAssigned, setFilterAssigned] = useState('')
   const [page, setPage] = useState(1)
@@ -1019,7 +1020,7 @@ export default function FollowUps() {
         <div className="flex flex-wrap gap-2">
 
           {/* My / Team toggle — hidden for super_admin and admin */}
-          {!['super_admin', 'admin'].includes(currentUser?.role) && (
+          {!['super_admin', 'admin', 'external_caller'].includes(currentUser?.role) && (
             <div className="flex bg-white dark:bg-[#1a1a1a] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl p-1 gap-1">
               {[
                 { key: 'mine', label: 'My Follow-ups' },

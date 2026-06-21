@@ -518,7 +518,8 @@ export default function SiteVisits() {
   const { teamTree: teamMembers, teamTreeLoading } = useSelector(s => s.users)
 
   const [viewMode,      setViewMode]      = useState('list')
-  const [filterView,    setFilterView]    = useState('team') // 'mine' | 'team'
+  const isExternalCaller = currentUser?.role === 'external_caller'
+  const [filterView,    setFilterView]    = useState(isExternalCaller ? 'mine' : 'team')
   const [filterStatus,  setFilterStatus]  = useState('')
   const [selectedDate,  setSelectedDate]  = useState(new Date().toISOString().split('T')[0])
   const [page,          setPage]          = useState(1)
@@ -708,8 +709,8 @@ export default function SiteVisits() {
             </button>
           </div>
 
-          {/* My / Team toggle — hidden for super_admin and admin */}
-          {!['super_admin', 'admin'].includes(currentUser?.role) && (
+          {/* My / Team toggle — hidden for super_admin, admin, and external_caller */}
+          {!['super_admin', 'admin', 'external_caller'].includes(currentUser?.role) && (
             <div className="flex bg-card border border-gray-200 dark:border-gray-700 rounded-xl p-1 gap-1">
               {[
                 { key: 'mine', label: 'My Visits' },

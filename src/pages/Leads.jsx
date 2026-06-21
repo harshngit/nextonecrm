@@ -1367,7 +1367,8 @@ export default function Leads() {
   const [page, setPage] = useState(1)
 
   const isAdminOrManager = ['admin', 'super_admin', 'manager'].includes(currentUser?.role)
-  const showLeadsTabs = !['super_admin', 'admin'].includes(currentUser?.role)
+  const isExternalCaller = currentUser?.role === 'external_caller'
+  const showLeadsTabs = !['super_admin', 'admin', 'external_caller'].includes(currentUser?.role)
   const activeLeadListRef = useRef([])
   const activeLeadList = activeLeadListRef.current
   const [leadsTab, setLeadsTab] = useState(showLeadsTabs ? 'my' : 'team') // 'my' | 'team'
@@ -1433,15 +1434,18 @@ export default function Leads() {
     if (filterStatus)   params.status      = filterStatus
     if (filterSource)   params.source_id   = filterSource
     if (filterAssigned) params.assigned_to = filterAssigned
-    dispatch(fetchLeads(params))
-    // sales_manager also sees their OWN assigned leads via /me/leads
+    if (isExternalCaller) {
+      dispatch(fetchMyLeads(params))
+    } else {
+      dispatch(fetchLeads(params))
+    }
     if (showLeadsTabs) {
       const myParams = { page: myPage, per_page: 10 }
       if (search)       myParams.search = search
       if (filterStatus) myParams.status = filterStatus
       dispatch(fetchMyLeads(myParams))
     }
-  }, [dispatch, search, filterStatus, filterSource, filterAssigned, page, myPage, showLeadsTabs])
+  }, [dispatch, search, filterStatus, filterSource, filterAssigned, page, myPage, showLeadsTabs, isExternalCaller])
 
   useEffect(() => {
     dispatch(fetchLeadSources())
@@ -1930,11 +1934,11 @@ export default function Leads() {
         </div>
       )}
       </>)})({
-        activeList:    showLeadsTabs && leadsTab === 'my' ? myList     : list,
-        activeLoading: showLeadsTabs && leadsTab === 'my' ? myLoading  : loading,
-        activePag:     showLeadsTabs && leadsTab === 'my' ? myPagination : pagination,
-        activePage:    showLeadsTabs && leadsTab === 'my' ? myPage     : page,
-        setActivePage: showLeadsTabs && leadsTab === 'my' ? setMyPage  : setPage,
+        activeList:    isExternalCaller ? myList : (showLeadsTabs && leadsTab === 'my' ? myList     : list),
+        activeLoading: isExternalCaller ? myLoading : (showLeadsTabs && leadsTab === 'my' ? myLoading  : loading),
+        activePag:     isExternalCaller ? myPagination : (showLeadsTabs && leadsTab === 'my' ? myPagination : pagination),
+        activePage:    isExternalCaller ? page : (showLeadsTabs && leadsTab === 'my' ? myPage     : page),
+        setActivePage: isExternalCaller ? setPage : (showLeadsTabs && leadsTab === 'my' ? setMyPage  : setPage),
         visiblePhoneLeadId: visiblePhoneLeadId,
         setVisiblePhoneLeadId: setVisiblePhoneLeadId,
       })}
