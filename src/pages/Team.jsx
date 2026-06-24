@@ -2,21 +2,16 @@ import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { Shield, RefreshCw, Search, TrendingUp, Users, Calendar, BookOpen, Eye, UserCheck, MoreVertical } from 'lucide-react'
-import { fetchUsers, assignManager, clearUserError } from '../store/userSlice'
+import { fetchUsers, assignManager, clearUserError, fetchRoles } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
 import CustomSelect from '../components/ui/CustomSelect'
 import Modal from '../components/ui/Modal'
+import api from '../api/axios'
 
-const allRoles = [
-  { value: 'sales_manager',   label: 'Sales Manager' },
-  { value: 'sales_executive', label: 'Sales Executive' },
-  { value: 'external_caller', label: 'External Caller' },
-  { value: 'admin',           label: 'Admin' },
-  { value: 'super_admin',     label: 'Super Admin' },
-]
+
 
 const statusOptions = [
   { value: 'true',  label: 'Active Only' },
@@ -30,6 +25,14 @@ const roleColors = {
   sales_manager:  'text-brand bg-brand/10 dark:bg-brand/15',
   sales_executive:'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30',
   external_caller:'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30',
+  associate:      'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
+  associate_partner:'text-pink-600 dark:text-pink-400 bg-pink-100 dark:bg-pink-900/30',
+  partner:        'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30',
+  team_leader:  'text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/30',
+  cluster:      'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30',
+  cluster_head: 'text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-900/30',
+  digital_marketing:'text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-900/30',
+  hr_admin:     'text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30',
 }
 
 // ── Assign Manager Modal ───────────────────────────────────────────────────────
@@ -113,7 +116,7 @@ function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, l
 export default function Team() {
   const navigate   = useNavigate()
   const dispatch   = useDispatch()
-  const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.users)
+  const { list, roles, loading, pagination, actionLoading, actionError } = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
 
   const isSalesManager = currentUser?.role === 'sales_manager'
@@ -129,6 +132,11 @@ export default function Team() {
   const [openMenuMemberId, setOpenMenuMemberId] = useState(null)
   const [menuPos,          setMenuPos]          = useState(null)
   const menuRef = useRef(null)
+
+  // Fetch roles
+  useEffect(() => {
+    dispatch(fetchRoles())
+  }, [dispatch])
 
   // For sales_manager: API already scopes to their team via manager_id on server
   useEffect(() => {
@@ -163,13 +171,19 @@ export default function Team() {
     )
   })
 
-  // Sales managers from the full list — for the assign dropdown
-  const salesManagers = list.filter(u => u.role === 'sales_manager' && u.is_active)
+  // Eligible managers for assign dropdown
+  const [availableManagers, setAvailableManagers] = useState([])
 
-  const handleOpenAssign = (member) => {
+  const handleOpenAssign = async (member) => {
     setAssignTarget(member)
     setAssignSuccess('')
     dispatch(clearUserError())
+    try {
+      const res = await api.get('/users/eligible-managers', { params: { for_role: member.role } })
+      setAvailableManagers(res.data?.data?.managers || [])
+    } catch {
+      setAvailableManagers([])
+    }
     setShowAssignModal(true)
   }
 
@@ -195,7 +209,7 @@ export default function Team() {
   const showAssignBtn  = !isSalesManager && canAssign
 
   const isAssignable = (member) =>
-    ['sales_executive', 'external_caller'].includes(member.role) && member.is_active
+    !['admin', 'super_admin', 'superadmin'].includes(member.role) && member.is_active
 
   return (
     <div className="space-y-5">
@@ -241,7 +255,7 @@ export default function Team() {
               <CustomSelect
                 value={filterRole}
                 onChange={val => setFilterRole(val)}
-                options={[{ value: '', label: 'All Roles' }, ...allRoles]}
+                options={[{ value: '', label: 'All Roles' }, ...roles]}
                 placeholder="Filter by Role"
               />
             </div>
@@ -433,7 +447,7 @@ export default function Team() {
         isOpen={showAssignModal}
         onClose={() => setShowAssignModal(false)}
         targetUser={assignTarget}
-        managers={salesManagers}
+        managers={availableManagers}
         onAssign={handleAssign}
         loading={actionLoading}
         error={actionError}
