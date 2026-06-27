@@ -6,7 +6,7 @@ import { fetchTeamTree } from '../store/userSlice'
 import {
   Plus, RefreshCw, Eye, Edit2, X, CheckCircle2, Clock, CalendarDays,
   Loader2, AlertCircle, ChevronDown, RotateCcw, Star, MessageSquare,
-  Users, Building2, Car, Trash2, Search, Filter,
+  Users, Building2, Car, Trash2, Search, Filter, Phone,
 } from 'lucide-react'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
@@ -628,6 +628,12 @@ export default function Revisits() {
                     {/* Actions */}
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                        {rv.lead_phone && (
+                          <a href={`tel:${rv.lead_phone}`} title="Call"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
+                            <Phone size={13} />
+                          </a>
+                        )}
                         <button onClick={() => navigate(`/revisits/${rv.id}`)} title="View Details"
                           className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">
                           <Eye size={13} />

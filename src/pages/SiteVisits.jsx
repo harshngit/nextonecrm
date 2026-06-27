@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { useModulePermissions } from '../hooks/usePermission'
-import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw, StarIcon, MoreVertical } from 'lucide-react'
+import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw, StarIcon, MoreVertical, Phone } from 'lucide-react'
 import {
   fetchSiteVisits, fetchMySiteVisits, createSiteVisit, updateSiteVisit,
   updateSiteVisitStatus, cancelSiteVisit, clearSiteVisitError,
@@ -1005,7 +1005,13 @@ export default function SiteVisits() {
                         </span>
                       </td>
                       <td className="py-3 px-4" ref={openMenuVisitId === visit.id ? menuRef : null}>
-                        <div className="flex items-center justify-end">
+                        <div className="flex items-center justify-end gap-1">
+                          {visit.lead_phone && (
+                            <a href={`tel:${visit.lead_phone}`}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title="Call">
+                              <Phone size={15} />
+                            </a>
+                          )}
                           <div className="relative">
                             <button
                               onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const below = window.innerHeight - r.bottom; setMenuPos({ right: window.innerWidth - r.right, ...(below > 200 ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) }); setOpenMenuVisitId(openMenuVisitId === visit.id ? null : visit.id) }}
