@@ -10,6 +10,7 @@ import PageLoader from './components/loaders/PageLoader'
 import PermissionProtectedRoute from './components/auth/PermissionProtectedRoute'
 
 import Login          from './pages/Login'
+import ForgotPassword from './pages/ForgotPassword'
 import Dashboard      from './pages/Dashboard'
 import Leads          from './pages/Leads'
 import LeadDetail     from './pages/LeadDetail'
@@ -70,6 +71,7 @@ function AppRoutes() {
       {pageLoading && <PageLoader />}
       <Routes>
         <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
+        <Route path="/forgot-password" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} />
         <Route path="/"      element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
 
         {/* Permission-gated for all roles */}

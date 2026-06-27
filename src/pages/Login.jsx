@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { Eye, EyeOff, Lock, Mail, Phone } from 'lucide-react'
 import { login, clearError } from '../store/authSlice'
@@ -113,9 +113,9 @@ export default function Login() {
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Password
                   </label>
-                  <button type="button" className="text-xs font-semibold text-[#0082f3] hover:text-[#0068c2] transition-colors">
+                  <Link to="/forgot-password" className="text-xs font-semibold text-[#0082f3] hover:text-[#0068c2] transition-colors">
                     Forgot?
-                  </button>
+                  </Link>
                 </div>
                 <div className="relative group">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#0082f3] transition-colors">
