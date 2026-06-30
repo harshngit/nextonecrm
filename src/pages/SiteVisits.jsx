@@ -47,7 +47,7 @@ const defaultForm = {
 const defaultLeadWithVisitForm = {
   // Lead fields
   name: '', phone: '', alternate_phone_number: '', email: '',
-  source: '', source_id: '', project_id: '', assigned_to: '',
+  source: '', source_id: '', project_id: '', project_name: '', assigned_to: '',
   budget: '', location_preference: '', configuration: '',
   lead_notes: '', callback_time: '', next_followup_time: '',
   // Site visit fields
@@ -514,15 +514,18 @@ function LeadWithVisitForm({ formData, setFormData, activeTab, setActiveTab, sou
             <input value={formData.configuration} onChange={e => updateForm('configuration', e.target.value)} placeholder="3BHK" className={inputClass} />
           </div>
 
-          {/* Project Name — async search */}
+          {/* Project Name — autocomplete with plain-text fallback when no results */}
           <div>
             <AsyncSearchSelect
               label="Project Name"
               value={formData.project_id}
-              onChange={val => updateForm('project_id', val)}
+              onChange={val => setFormData(prev => ({ ...prev, project_id: val, project_name: '' }))}
+              onTextChange={text => updateForm('project_name', text)}
               onSearch={searchProjects}
               initialOptions={projectOptions.slice(0, 20)}
               placeholder="Type to search projects..."
+              fallbackToInput
+              defaultText={formData.project_id ? '' : (formData.project_name || '')}
             />
           </div>
 
@@ -929,9 +932,12 @@ export default function SiteVisits() {
     const errors = {}
     if (!leadWithVisitForm.name) errors.name = 'Full name is required'
     if (!leadWithVisitForm.phone) errors.phone = 'Phone is required'
-    
+    if (!leadWithVisitForm.project_id && !leadWithVisitForm.project_name) {
+      errors.project = 'Project is required for a site visit — please select one from the dropdown'
+    }
+
     setLeadWithVisitErrors(errors)
-    
+
     if (Object.keys(errors).length === 0) {
       setLeadWithVisitTab('visit')
     }
@@ -940,6 +946,11 @@ export default function SiteVisits() {
   const handleAddLeadWithVisit = async (e) => {
     e.preventDefault()
     dispatch(clearSiteVisitError())
+    if (!leadWithVisitForm.project_id && !leadWithVisitForm.project_name) {
+      setLeadWithVisitErrors({ project: 'Project is required for a site visit — please select one from the dropdown' })
+      setLeadWithVisitTab('lead')
+      return
+    }
     try {
       // Build the payload
       const payload = {
@@ -950,7 +961,9 @@ export default function SiteVisits() {
         ...(leadWithVisitForm.email && { email: leadWithVisitForm.email }),
         ...(leadWithVisitForm.source && { source: leadWithVisitForm.source }),
         ...(leadWithVisitForm.source_id && { source_id: leadWithVisitForm.source_id }),
-        ...(leadWithVisitForm.project_id && { project_id: leadWithVisitForm.project_id }),
+        ...(leadWithVisitForm.project_id
+          ? { project_id: leadWithVisitForm.project_id }
+          : leadWithVisitForm.project_name ? { project_name: leadWithVisitForm.project_name } : {}),
         ...(leadWithVisitForm.assigned_to && { assigned_to: leadWithVisitForm.assigned_to }),
         ...(leadWithVisitForm.budget && { budget: leadWithVisitForm.budget }),
         ...(leadWithVisitForm.location_preference && { location_preference: leadWithVisitForm.location_preference }),
@@ -983,7 +996,10 @@ export default function SiteVisits() {
       }
     } catch (err) {
       console.error('Error creating lead with site visit:', err)
-      if (err.response?.data?.message) {
+      if (err.response?.status === 404 && leadWithVisitForm.project_name && !leadWithVisitForm.project_id) {
+        setLeadWithVisitErrors({ submit: `${err.response?.data?.message || 'Project not found'} — please select a project from the dropdown instead.` })
+        setLeadWithVisitTab('lead')
+      } else if (err.response?.data?.message) {
         setLeadWithVisitErrors({ submit: err.response.data.message })
       }
     }

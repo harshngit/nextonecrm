@@ -202,7 +202,7 @@ const defaultForm = {
 const defaultLeadWithTaskForm = {
   // Lead fields
   name: '', phone: '', alternate_phone_number: '', email: '',
-  source: '', source_id: '', project_id: '', assigned_to: '',
+  source: '', source_id: '', project_id: '', project_name: '', assigned_to: '',
   budget: '', location_preference: '', configuration: '',
   lead_notes: '', callback_time: '', next_followup_time: '',
   // Task fields
@@ -431,15 +431,18 @@ function LeadWithTaskForm({ formData, setFormData, activeTab, setActiveTab, sour
             <input value={formData.configuration} onChange={e => updateForm('configuration', e.target.value)} placeholder="2BHK" className={inputClass} />
           </div>
 
-          {/* Project Name — async search */}
+          {/* Project Name — autocomplete with plain-text fallback when no results */}
           <div>
             <AsyncSearchSelect
               label="Project Name"
               value={formData.project_id}
-              onChange={val => updateForm('project_id', val)}
+              onChange={val => setFormData(prev => ({ ...prev, project_id: val, project_name: '' }))}
+              onTextChange={text => updateForm('project_name', text)}
               onSearch={searchProjects}
               initialOptions={projectOptions.slice(0, 20)}
               placeholder="Type to search projects..."
+              fallbackToInput
+              defaultText={formData.project_id ? '' : (formData.project_name || '')}
             />
           </div>
 
@@ -1111,7 +1114,9 @@ export default function FollowUps() {
         ...(leadWithTaskForm.email && { email: leadWithTaskForm.email }),
         ...(leadWithTaskForm.source && { source: leadWithTaskForm.source }),
         ...(leadWithTaskForm.source_id && { source_id: leadWithTaskForm.source_id }),
-        ...(leadWithTaskForm.project_id && { project_id: leadWithTaskForm.project_id }),
+        ...(leadWithTaskForm.project_id
+          ? { project_id: leadWithTaskForm.project_id }
+          : leadWithTaskForm.project_name ? { project_name: leadWithTaskForm.project_name } : {}),
         ...(leadWithTaskForm.assigned_to && { assigned_to: leadWithTaskForm.assigned_to }),
         ...(leadWithTaskForm.budget && { budget: leadWithTaskForm.budget }),
         ...(leadWithTaskForm.location_preference && { location_preference: leadWithTaskForm.location_preference }),

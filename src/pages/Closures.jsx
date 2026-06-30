@@ -391,7 +391,7 @@ function StatusChangeModal({ closure, onClose, onSuccess }) {
           <Avatar name={closure.lead_name} size="sm" />
           <div>
             <p className="text-sm font-semibold text-gray-900 dark:text-white">{closure.lead_name}</p>
-            <p className="text-xs text-gray-400">{closure.project_name} · {fmtDate(closure.booking_date)}</p>
+            <p className="text-xs text-gray-400">{closure.project_name || closure.project_name_text} · {fmtDate(closure.booking_date)}</p>
           </div>
         </div>
 
@@ -452,7 +452,7 @@ function ClosureDrawer({ closure, onClose }) {
           <div className="bg-gray-50 dark:bg-[#141414] rounded-2xl p-4 space-y-3 border border-gray-100 dark:border-gray-800">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Unit Details</p>
             {[
-              { l: 'Project',      v: closure.project_name || closure.project?.name },
+              { l: 'Project',      v: closure.project_name || closure.project?.name || closure.project_name_text },
               { l: 'Unit',         v: [closure.unit_type, closure.unit_number].filter(Boolean).join(' — ') || '—' },
               { l: 'Tower/Block',  v: closure.tower_block },
               { l: 'Floor',        v: closure.floor_number },
@@ -749,7 +749,7 @@ export default function Closures() {
 
                     {/* Project */}
                     <td className="py-3 px-4">
-                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{c.project_name || '—'}</p>
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{c.project_name || c.project_name_text || '—'}</p>
                       <p className="text-[11px] text-gray-400">{c.project_city || ''}</p>
                     </td>
 
