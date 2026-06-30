@@ -288,7 +288,7 @@ function ClockPicker({ value, onChange, label, icon: Icon, iconColor = 'text-gra
 
 // ── Forms defined OUTSIDE to prevent typing/focus loss bug ───────────────────
 
-function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit, currentUser }) {
+function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit, currentUser, selectedVisit = null }) {
   const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
@@ -309,18 +309,38 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit,
     return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.locality ? ` — ${p.locality}` : p.city ? ` — ${p.city}` : ''}` }))
   }
 
-  const leadInitial = leads.slice(0, 20).map(l => ({ value: l.id, label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}` }))
-  const projInitial = projects.slice(0, 20).map(p => ({ value: p.id, label: `${p.name}${p.locality ? ` — ${p.locality}` : p.city ? ` — ${p.city}` : ''}` }))
+  const leadInitial = [
+    ...(isEdit && selectedVisit?.lead_id && selectedVisit?.lead_name
+      && !leads.slice(0, 20).find(l => l.id === selectedVisit.lead_id)
+      ? [{ value: selectedVisit.lead_id, label: `${selectedVisit.lead_name}${selectedVisit.lead_phone ? ` — ${selectedVisit.lead_phone}` : ''}` }]
+      : []),
+    ...leads.slice(0, 20).map(l => ({ value: l.id, label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}` })),
+  ]
+  const projInitial = [
+    ...(isEdit && selectedVisit?.project_id && selectedVisit?.project_name
+      && !projects.slice(0, 20).find(p => p.id === selectedVisit.project_id)
+      ? [{ value: selectedVisit.project_id, label: selectedVisit.project_name }]
+      : []),
+    ...projects.slice(0, 20).map(p => ({ value: p.id, label: `${p.name}${p.locality ? ` — ${p.locality}` : p.city ? ` — ${p.city}` : ''}` })),
+  ]
 
   return (
     <div className="space-y-4">
 
       {/* Lead — async search */}
       <AsyncSearchSelect
-        label="Lead *"
+        label="Lead"
         required
         value={formData.lead_id}
-        onChange={val => setFormData(p => ({ ...p, lead_id: val }))}
+        onChange={async val => {
+          setFormData(p => ({ ...p, lead_id: val }))
+          if (!val) return
+          try {
+            const res = await api.get(`/leads/${val}`)
+            const projId = res.data.data?.project?.id || res.data.data?.project_id
+            if (projId) setFormData(p => ({ ...p, project_id: projId }))
+          } catch {}
+        }}
         onSearch={searchLeads}
         initialOptions={leadInitial}
         placeholder="Type to search leads..."
@@ -328,7 +348,7 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit,
 
       {/* Project — async search */}
       <AsyncSearchSelect
-        label="Project *"
+        label="Project"
         required
         value={formData.project_id}
         onChange={val => setFormData(p => ({ ...p, project_id: val }))}
@@ -969,7 +989,7 @@ export default function SiteVisits() {
     }
   }
 
-  const openEdit = (visit) => {
+  const openEdit = async (visit) => {
     setSelectedVisit(visit)
     setEditForm({
       lead_id:             visit.lead_id || '',
@@ -982,6 +1002,27 @@ export default function SiteVisits() {
       status:              visit.status || 'scheduled',
     })
     setShowEditModal(true)
+    try {
+      const res = await api.get(`/site-visits/${visit.id}`)
+      const d = res.data.data || res.data
+      setSelectedVisit({
+        ...visit,
+        ...d,
+        lead_name:    d.lead?.name    || d.lead_name    || visit.lead_name,
+        lead_phone:   d.lead?.phone   || d.lead_phone   || visit.lead_phone,
+        project_name: d.project?.name || d.project_name || visit.project_name,
+      })
+      setEditForm({
+        lead_id:            d.lead?.id    || d.lead_id    || '',
+        project_id:         d.project?.id || d.project_id || '',
+        visit_date:         d.visit_date?.split('T')[0] || '',
+        visit_time:         d.visit_time || '',
+        assigned_to:        typeof d.assigned_to === 'object' ? d.assigned_to?.id : d.assigned_to || '',
+        notes:              d.notes || '',
+        transport_arranged: d.transport_arranged || false,
+        status:             d.status || 'scheduled',
+      })
+    } catch {}
   }
 
   const openFeedback = (visit) => {
@@ -990,9 +1031,20 @@ export default function SiteVisits() {
     setShowFeedbackModal(true)
   }
 
-  const handleRevisit = (visit) => {
+  const handleRevisit = async (visit) => {
     setSelectedVisit(visit)
     setShowRevisitModal(true)
+    try {
+      const res = await api.get(`/site-visits/${visit.id}`)
+      const d = res.data.data || res.data
+      setSelectedVisit({
+        ...visit,
+        ...d,
+        lead_name:    d.lead?.name    || d.lead_name    || visit.lead_name,
+        lead_phone:   d.lead?.phone   || d.lead_phone   || visit.lead_phone,
+        project_name: d.project?.name || d.project_name || visit.project_name,
+      })
+    } catch {}
   }
 
   // Close menu when clicking outside
@@ -1098,7 +1150,7 @@ export default function SiteVisits() {
                   className="fixed inset-0 z-40"
                   onClick={() => setAddMenuOpen(false)}
                 />
-                <div className="absolute right-0 top-full mt-2 z-50 w-60 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg py-1">
+                <div className="absolute lg:right-0 top-full mt-2 z-50 w-60 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg py-1">
                   <button 
                     onClick={() => { 
                       setAddForm(defaultForm); 
@@ -1499,7 +1551,7 @@ export default function SiteVisits() {
       {/* Edit Modal */}
       <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSuccess('') }} title="Edit Site Visit">
         <form onSubmit={handleEdit} className="space-y-4">
-          <VisitForm formData={editForm} setFormData={setEditForm} leads={leadList} projects={projectList} salesExecs={salesExecs} isEdit={true} currentUser={currentUser} />
+          <VisitForm formData={editForm} setFormData={setEditForm} leads={leadList} projects={projectList} salesExecs={salesExecs} isEdit={true} currentUser={currentUser} selectedVisit={selectedVisit} />
           {success && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
           {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
           <div className="flex gap-3 pt-2">

@@ -141,7 +141,15 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
           <div className="space-y-4">
             {!isEdit && (
               <AsyncSearchSelect label="Lead *" required value={form.lead_id}
-                onChange={v => setForm(p => ({ ...p, lead_id: v }))}
+                onChange={async v => {
+                  setForm(p => ({ ...p, lead_id: v }))
+                  if (!v) return
+                  try {
+                    const res = await api.get(`/leads/${v}`)
+                    const projId = res.data.data?.project?.id || res.data.data?.project_id
+                    if (projId) setForm(p => ({ ...p, project_id: projId }))
+                  } catch {}
+                }}
                 onSearch={searchLeads} initialOptions={leadOptions.slice(0, 20)}
                 placeholder="Type to search leads..." />
             )}

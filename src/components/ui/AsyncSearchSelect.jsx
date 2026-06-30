@@ -6,25 +6,36 @@ export default function AsyncSearchSelect({
   placeholder = 'Search...',
   value,
   onChange,
-  onSearch,           // async fn(query) → [{ value, label }]
-  initialOptions = [], // pre-load options (e.g. recently used)
+  onSearch,            // async fn(query) → [{ value, label }]
+  onTextChange,        // called with raw typed text; empty string when option selected/cleared
+  fallbackToInput = false, // when true: switch to plain-text input if search returns no results
+  defaultText = '',    // pre-fill free text on mount (edit mode with no project_id)
+  initialOptions = [],
   required = false,
   searchable = true,
   disabled = false,
 }) {
-  const [query,    setQuery]    = useState('')
-  const [options,  setOptions]  = useState(initialOptions)
-  const [open,     setOpen]     = useState(false)
-  const [loading,  setLoading]  = useState(false)
-  const [display,  setDisplay]  = useState('') // label of current value
-  const ref    = useRef(null)
-  const timer  = useRef(null)
+  const initInputMode = fallbackToInput && !!defaultText && !value
+  const [query,     setQuery]     = useState('')
+  const [options,   setOptions]   = useState(initialOptions)
+  const [open,      setOpen]      = useState(false)
+  const [loading,   setLoading]   = useState(false)
+  const [display,   setDisplay]   = useState(initInputMode ? defaultText : '')
+  const [inputMode, setInputMode] = useState(initInputMode) // true = plain-text / no-dropdown mode
+  const [dropdownPosition, setDropdownPosition] = useState('bottom')
+  const ref          = useRef(null)
+  const timer        = useRef(null)
+  const inputModeRef = useRef(initInputMode) // stable ref so useEffect can read without deps
+  inputModeRef.current = inputMode
 
-  // When value is set externally, find and show its label from options
+  // Sync display label when value or options change externally
   useEffect(() => {
-    if (!value) { setDisplay(''); return }
+    if (!value) {
+      if (!inputModeRef.current) setDisplay('')
+      return
+    }
     const found = options.find(o => String(o.value) === String(value))
-    if (found) setDisplay(found.label)
+    if (found) { setDisplay(found.label); setInputMode(false) }
   }, [value, options])
 
   // Close on outside click
@@ -34,31 +45,59 @@ export default function AsyncSearchSelect({
     return () => document.removeEventListener('mousedown', fn)
   }, [])
 
+  // Detect dropdown position
+  useEffect(() => {
+    if (open && ref.current) {
+      const rect = ref.current.getBoundingClientRect()
+      let pos = 'bottom'
+      if (window.innerHeight - rect.bottom < 280 && rect.top > window.innerHeight - rect.bottom) pos = 'top'
+      if (window.innerWidth - rect.right < 200) pos = pos.replace('bottom', 'bottom-right').replace('top', 'top-right')
+      setDropdownPosition(pos)
+    }
+  }, [open])
+
   const runSearch = useCallback(async (q) => {
     setLoading(true)
     try {
       const results = await onSearch(q)
       setOptions(results)
-    } catch { setOptions([]) }
-    finally { setLoading(false) }
-  }, [onSearch])
+      if (fallbackToInput && q.length >= 1) {
+        const noMatch = results.length === 0
+        setInputMode(noMatch)
+        // if results came back after being in input-mode, open the dropdown
+        if (!noMatch) setOpen(true)
+      }
+    } catch {
+      setOptions([])
+      if (fallbackToInput) setInputMode(true)
+    } finally {
+      setLoading(false)
+    }
+  }, [onSearch, fallbackToInput])
 
   const handleInput = e => {
     const q = e.target.value
     setQuery(q)
     setDisplay(q)
-    if (!open) setOpen(true)
     clearTimeout(timer.current)
+    onTextChange?.(q)
     if (q.length >= 1) {
+      // only open dropdown when not in input-mode; runSearch will open it if results found
+      if (!open && !inputModeRef.current) setOpen(true)
       timer.current = setTimeout(() => runSearch(q), 300)
     } else {
       setOptions(initialOptions)
+      if (fallbackToInput) setInputMode(false)
+      setOpen(true) // show initial options when text cleared
     }
   }
 
   const handleFocus = () => {
-    setOpen(true)
-    if (options.length === 0 && initialOptions.length === 0) runSearch('')
+    // restore typed text when refocusing a field that has free text but no selected ID
+    if (!value && display) setQuery(display)
+    // don't open dropdown when in plain-text input mode
+    if (!inputModeRef.current) setOpen(true)
+    if (!inputModeRef.current && options.length === 0 && initialOptions.length === 0) runSearch('')
   }
 
   const select = opt => {
@@ -66,6 +105,8 @@ export default function AsyncSearchSelect({
     setDisplay(opt.label)
     setQuery('')
     setOpen(false)
+    setInputMode(false)
+    onTextChange?.('')
   }
 
   const clear = e => {
@@ -74,9 +115,16 @@ export default function AsyncSearchSelect({
     setDisplay('')
     setQuery('')
     setOptions(initialOptions)
+    setInputMode(false)
+    onTextChange?.('')
   }
 
   const ic = `w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all pr-9`
+  const dropCls = `absolute z-[9999] w-full mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl ${
+    dropdownPosition === 'top'         ? 'bottom-full mb-1' :
+    dropdownPosition === 'bottom-right'? 'right-0' :
+    dropdownPosition === 'top-right'   ? 'right-0 bottom-full mb-1' : 'top-full'
+  }`
 
   return (
     <div className="relative" ref={ref}>
@@ -96,17 +144,18 @@ export default function AsyncSearchSelect({
         />
         <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {loading && <Loader2 size={13} className="animate-spin text-gray-400" />}
-          {!loading && value && (
+          {!loading && (value || inputMode) && (
             <button type="button" onClick={clear} className="text-gray-400 hover:text-gray-600 transition-colors">
               <X size={13} />
             </button>
           )}
-          {!loading && !value && <Search size={13} className="text-gray-300" />}
+          {!loading && !value && !inputMode && <Search size={13} className="text-gray-300" />}
         </div>
       </div>
 
-      {open && options.length > 0 && (
-        <div className="absolute z-[9999] w-full mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl max-h-52 overflow-y-auto">
+      {/* Dropdown — hidden in plain-text mode */}
+      {open && !inputMode && options.length > 0 && (
+        <div className={`${dropCls} max-h-52 overflow-y-auto`}>
           {options.map(opt => (
             <button
               key={opt.value}
@@ -124,8 +173,9 @@ export default function AsyncSearchSelect({
         </div>
       )}
 
-      {open && options.length === 0 && !loading && query.length >= 1 && (
-        <div className="absolute z-[9999] w-full mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl px-3 py-3 text-xs text-gray-400 text-center">
+      {/* "No results" message — only shown when fallbackToInput is OFF */}
+      {open && !inputMode && !fallbackToInput && options.length === 0 && !loading && query.length >= 1 && (
+        <div className={`${dropCls} px-3 py-3 text-xs text-gray-400 text-center`}>
           No results for "{query}"
         </div>
       )}

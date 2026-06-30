@@ -249,7 +249,13 @@ function FollowUpForm({ formData, setFormData, leads, teamMembers = [], isEdit, 
     const res = await api.get('/leads', { params: { search: q, per_page: 20 } })
     return (res.data.data || []).map(l => ({ value: l.id, label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}` }))
   }
-  const leadInitial = leads.slice(0, 20).map(l => ({ value: l.id, label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}` }))
+  const leadInitial = [
+    // ensure the current lead is always in the list when editing so AsyncSearchSelect can display it
+    ...(isEdit && selectedTask?.lead_id && selectedTask?.lead_name && !leads.slice(0, 20).find(l => l.id === selectedTask.lead_id)
+      ? [{ value: selectedTask.lead_id, label: `${selectedTask.lead_name}${selectedTask.lead_phone ? ` — ${selectedTask.lead_phone}` : ''}` }]
+      : []),
+    ...leads.slice(0, 20).map(l => ({ value: l.id, label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}` })),
+  ]
 
   return (
     <div className="space-y-4">
@@ -268,7 +274,7 @@ function FollowUpForm({ formData, setFormData, leads, teamMembers = [], isEdit, 
 
       {/* Lead — async search */}
       <AsyncSearchSelect
-        label="Lead *"
+        label="Lead"
         required
         value={formData.lead_id}
         onChange={val => setFormData(p => ({ ...p, lead_id: val }))}
@@ -606,13 +612,21 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
 
   useEffect(() => {
     api.get(`/convert/follow-up/${task.id}/options`)
-      .then(r => {
+      .then(async r => {
         setOptions(r.data.data)
         const pf = r.data.data?.conversions?.to_site_visit?.prefill || {}
+        let projectId = pf.project_id || ''
+        // fallback: fetch project from the lead if prefill didn't provide one
+        if (!projectId && task.lead_id) {
+          try {
+            const lr = await api.get(`/leads/${task.lead_id}`)
+            projectId = lr.data.data?.project?.id || lr.data.data?.project_id || ''
+          } catch {}
+        }
         setForm(f => ({
           ...f,
-          project_id:        pf.project_id || '',
-          assigned_to:       pf.assigned_to || task.assigned_to || '',
+          project_id:         projectId,
+          assigned_to:        pf.assigned_to || task.assigned_to || '',
           transport_arranged: pf.transport_arranged || false,
         }))
       })
@@ -1441,7 +1455,7 @@ export default function FollowUps() {
                   className="fixed inset-0 z-40"
                   onClick={() => setAddMenuOpen(false)}
                 />
-                <div className="absolute right-0 top-full mt-2 z-50 w-60 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg py-1">
+                <div className="absolute lg:right-0 top-full mt-2 z-50 w-60 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg py-1">
                   <button 
                     onClick={() => { 
                       setAddForm(defaultForm); 

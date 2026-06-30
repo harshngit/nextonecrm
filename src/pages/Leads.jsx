@@ -52,7 +52,7 @@ const defaultSources = [
 
 const defaultForm = {
   name: '', phone: '', alternate_phone_number: '', email: '',
-  source: '', source_id: '', project_id: '',
+  source: '', source_id: '', project_id: '', project_name: '',
   assigned_to: '', budget: '', location_preference: '',
   notes: '', status: 'New',
   callback_time: '', next_followup_time: '',
@@ -330,15 +330,18 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
         </div>
       </div>
       
-      {/* Project Name — async search */}
+      {/* Project Name — autocomplete with plain-text fallback when no results */}
       <div>
         <AsyncSearchSelect
           label="Project Name"
           value={formData.project_id}
-          onChange={val => setFormData(prev => ({ ...prev, project_id: val }))}
+          onChange={val => setFormData(prev => ({ ...prev, project_id: val, project_name: '' }))}
+          onTextChange={text => setFormData(prev => ({ ...prev, project_name: text }))}
           onSearch={searchProjects}
           initialOptions={projectOptions.slice(0, 20)}
           placeholder="Type to search projects..."
+          fallbackToInput
+          defaultText={formData.project_id ? '' : (formData.project_name || '')}
         />
       </div>
 
@@ -1470,6 +1473,14 @@ export default function Leads() {
     e.preventDefault()
     dispatch(clearLeadError())
     const payload = { ...addForm }
+    if (payload.project_id) {
+      delete payload.project_name
+    } else if (payload.project_name) {
+      delete payload.project_id
+    } else {
+      delete payload.project_id
+      delete payload.project_name
+    }
     if (pendingRecordings.length > 0) {
       payload.call_recordings = pendingRecordings.map(({ url, phone_number, name }) => ({
         url, phone_number: phone_number || undefined, name: name || undefined,
@@ -1487,7 +1498,16 @@ export default function Leads() {
   const handleEditLead = async (e) => {
     e.preventDefault()
     dispatch(clearLeadError())
-    const result = await dispatch(updateLead({ id: selectedLead.id, leadData: editForm }))
+    const leadData = { ...editForm }
+    if (leadData.project_id) {
+      delete leadData.project_name
+    } else if (leadData.project_name) {
+      delete leadData.project_id
+    } else {
+      delete leadData.project_id
+      delete leadData.project_name
+    }
+    const result = await dispatch(updateLead({ id: selectedLead.id, leadData }))
     if (updateLead.fulfilled.match(result)) {
       setEditSuccess('Lead updated!')
       reloadLeads()
@@ -1543,6 +1563,7 @@ export default function Leads() {
         source: sourceName,
         source_id: sourceId,
         project_id: leadData.project?.id || leadData.project_id || '',
+        project_name: '',
         assigned_to: leadData.assigned_to?.id || leadData.assigned_to || '',
         budget: leadData.budget || '',
         location_preference: leadData.location_preference || '',
@@ -1574,6 +1595,7 @@ export default function Leads() {
         source: sourceName,
         source_id: sourceId,
         project_id: lead.project_id || '',
+        project_name: '',
         assigned_to: lead.assigned_to || '',
         budget: lead.budget || '',
         location_preference: lead.location_preference || '',
