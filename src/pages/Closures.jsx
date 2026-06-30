@@ -15,6 +15,7 @@ import Modal from '../components/ui/Modal'
 import Button from '../components/ui/Button'
 import CustomSelect from '../components/ui/CustomSelect'
 import ListSkeleton from '../components/loaders/ListSkeleton'
+import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const CLOSURE_STATUSES = [
@@ -79,6 +80,9 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
 
   const leadOptions    = leads.map(l => ({ value: l.id,   label: `${l.name} — ${l.phone || ''}` }))
   const projectOptions = projects.map(p => ({ value: p.id, label: `${p.name}${p.city ? ` — ${p.city}` : ''}` }))
+
+  const searchLeads    = async (q) => { const r = await api.get('/leads',    { params: { search: q, per_page: 20 } }); return (r.data.data || []).map(l => ({ value: l.id, label: `${l.name} — ${l.phone || ''}` })) }
+  const searchProjects = async (q) => { const r = await api.get('/projects', { params: { search: q, per_page: 20 } }); return (r.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` — ${p.city}` : ''}` })) }
   const managerOptions = managers.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))
   const paymentOptions = PAYMENT_PLANS.map(p => ({ value: p, label: p }))
 
@@ -136,14 +140,16 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
         {tab === 'booking' && (
           <div className="space-y-4">
             {!isEdit && (
-              <CustomSelect label="Lead *" value={form.lead_id}
+              <AsyncSearchSelect label="Lead *" required value={form.lead_id}
                 onChange={v => setForm(p => ({ ...p, lead_id: v }))}
-                options={leadOptions} placeholder="Select lead to book..." />
+                onSearch={searchLeads} initialOptions={leadOptions.slice(0, 20)}
+                placeholder="Type to search leads..." />
             )}
             {!isEdit && (
-              <CustomSelect label="Project" value={form.project_id}
+              <AsyncSearchSelect label="Project" value={form.project_id}
                 onChange={v => setForm(p => ({ ...p, project_id: v }))}
-                options={projectOptions} placeholder="Override project (optional)" />
+                onSearch={searchProjects} initialOptions={projectOptions.slice(0, 20)}
+                placeholder="Type to search projects (optional)..." />
             )}
             <div>
               <label className={lc}>Booking Date *</label>

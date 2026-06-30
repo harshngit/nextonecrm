@@ -22,6 +22,7 @@ import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
 import ConfirmModal from '../components/ui/ConfirmModal'
+import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 
 const priorities = ['low', 'medium', 'high']
 const priorityOptions = priorities.map(p => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))
@@ -223,19 +224,6 @@ function FollowUpForm({ formData, setFormData, leads, teamMembers = [], isEdit, 
   const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
-  // Create lead options with fallback if needed
-  const leadOptions = [
-    ...leads.map(l => ({
-      value: l.id,
-      label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}`
-    })),
-    // Add fallback if lead from task isn't in list
-    ...(isEdit && selectedTask?.lead_id && !leads.find(l => l.id === selectedTask.lead_id) && selectedTask?.lead_name
-      ? [{ value: selectedTask.lead_id, label: selectedTask.lead_name }]
-      : [])
-  ]
-
-  // Create exec options with fallback if needed
   const execOptions = [
     ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
     ...teamMembers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u => ({
@@ -246,6 +234,12 @@ function FollowUpForm({ formData, setFormData, leads, teamMembers = [], isEdit, 
       ? [{ value: selectedTask.assigned_to, label: selectedTask.assigned_name }]
       : [])
   ]
+
+  const searchLeads = async (q) => {
+    const res = await api.get('/leads', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(l => ({ value: l.id, label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}` }))
+  }
+  const leadInitial = leads.slice(0, 20).map(l => ({ value: l.id, label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}` }))
 
   return (
     <div className="space-y-4">
@@ -262,14 +256,15 @@ function FollowUpForm({ formData, setFormData, leads, teamMembers = [], isEdit, 
         />
       </div>
 
-      {/* Lead */}
-      <CustomSelect
-        label="Lead"
+      {/* Lead — async search */}
+      <AsyncSearchSelect
+        label="Lead *"
         required
         value={formData.lead_id}
         onChange={val => setFormData(p => ({ ...p, lead_id: val }))}
-        options={leadOptions}
-        placeholder="Select lead..."
+        onSearch={searchLeads}
+        initialOptions={leadInitial}
+        placeholder="Type to search leads..."
       />
 
       {/* Due Date + Time */}

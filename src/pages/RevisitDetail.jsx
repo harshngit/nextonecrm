@@ -405,6 +405,15 @@ export default function RevisitDetail() {
                               <p className="text-sm text-gray-700 dark:text-gray-300">{feedbackData.remarks}</p>
                             </div>
                           )}
+                          {feedbackData.closing_person && (
+                            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-900/5 border border-emerald-100/50 dark:border-emerald-900/20">
+                              <UserCheck size={14} className="text-emerald-600" />
+                              <div>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Closing Person</p>
+                                <p className="text-sm font-bold text-gray-900 dark:text-white">{feedbackData.closing_person}</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );

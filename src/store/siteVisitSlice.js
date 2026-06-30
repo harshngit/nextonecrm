@@ -51,9 +51,11 @@ export const updateSiteVisit = createAsyncThunk(
 
 export const updateSiteVisitStatus = createAsyncThunk(
   'siteVisits/updateStatus',
-  async ({ id, status, feedback }, { rejectWithValue }) => {
+  async ({ id, status, feedback, closing_person }, { rejectWithValue }) => {
     try {
-      const response = await api.patch(`/site-visits/${id}/status`, { status, feedback })
+      const body = { status, feedback }
+      if (closing_person) body.closing_person = closing_person
+      const response = await api.patch(`/site-visits/${id}/status`, body)
       return response.data
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Failed to update status')

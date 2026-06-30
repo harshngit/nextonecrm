@@ -20,6 +20,7 @@ import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
+import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 
 const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
 
@@ -282,16 +283,6 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit,
   const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
-  const leadOptions = leads.map(l => ({
-    value: l.id,
-    label: `${l.name} ${l.phone ? `— ${l.phone}` : ''}`
-  }))
-
-  const projectOptions = projects.map(p => ({
-    value: p.id,
-    label: `${p.name} ${p.locality ? `— ${p.locality}` : p.location ? `— ${p.location}` : ''}`
-  }))
-
   const execOptions = [
     ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
     ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({
@@ -300,27 +291,41 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit,
     }))
   ]
 
+  const searchLeads = async (q) => {
+    const res = await api.get('/leads', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(l => ({ value: l.id, label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}` }))
+  }
+  const searchProjects = async (q) => {
+    const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.locality ? ` — ${p.locality}` : p.city ? ` — ${p.city}` : ''}` }))
+  }
+
+  const leadInitial = leads.slice(0, 20).map(l => ({ value: l.id, label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}` }))
+  const projInitial = projects.slice(0, 20).map(p => ({ value: p.id, label: `${p.name}${p.locality ? ` — ${p.locality}` : p.city ? ` — ${p.city}` : ''}` }))
+
   return (
     <div className="space-y-4">
 
-      {/* Lead dropdown */}
-      <CustomSelect
-        label="Lead"
+      {/* Lead — async search */}
+      <AsyncSearchSelect
+        label="Lead *"
         required
         value={formData.lead_id}
         onChange={val => setFormData(p => ({ ...p, lead_id: val }))}
-        options={leadOptions}
-        placeholder="Select lead..."
+        onSearch={searchLeads}
+        initialOptions={leadInitial}
+        placeholder="Type to search leads..."
       />
 
-      {/* Project dropdown */}
-      <CustomSelect
-        label="Project"
+      {/* Project — async search */}
+      <AsyncSearchSelect
+        label="Project *"
         required
         value={formData.project_id}
         onChange={val => setFormData(p => ({ ...p, project_id: val }))}
-        options={projectOptions}
-        placeholder="Select project..."
+        onSearch={searchProjects}
+        initialOptions={projInitial}
+        placeholder="Type to search projects..."
       />
 
       {/* Date + Time */}
@@ -388,6 +393,7 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit,
 
 function FeedbackForm({ formData, setFormData }) {
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+  const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
 
   return (
     <div className="space-y-4">
@@ -406,8 +412,25 @@ function FeedbackForm({ formData, setFormData }) {
         <textarea rows={4} value={formData.feedback}
           onChange={e => setFormData(p => ({ ...p, feedback: e.target.value }))}
           placeholder="Client liked the property, interested in 3BHK on 8th floor..."
-          className="w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200 resize-none" />
+          className={`${ic} resize-none`} />
       </div>
+      {formData.status === 'done' && (
+        <div className="p-3 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 rounded-xl space-y-3">
+          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+            🏆 Closing Details <span className="font-normal text-emerald-600/70">(optional)</span>
+          </p>
+          <div>
+            <label className={lc}>Closing Person</label>
+            <input
+              type="text"
+              value={formData.closing_person || ''}
+              onChange={e => setFormData(p => ({ ...p, closing_person: e.target.value }))}
+              placeholder="Enter closing person name..."
+              className={ic}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -600,6 +623,7 @@ export default function SiteVisits() {
       id: selectedVisit.id,
       status: status,
       feedback: feedbackForm.feedback,
+      ...(feedbackForm.closing_person && { closing_person: feedbackForm.closing_person }),
     }))
     if (updateSiteVisitStatus.fulfilled.match(result)) {
       setSuccess('Feedback saved!')
@@ -933,7 +957,7 @@ export default function SiteVisits() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-[#0f0f0f]">
-                    {['Lead', 'Project', 'Date & Time', ...(filterView !== 'mine' ? ['Assigned To'] : []), 'Transport', 'Status', 'Feedback', 'Actions'].map(h => (
+                    {['Lead', 'Project', 'Date & Time', ...(filterView !== 'mine' ? ['Assigned To'] : []), 'Transport', 'Status', 'Feedback', 'Closing Person', 'Actions'].map(h => (
                       <th key={h} className="py-3 px-4 text-left text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -1003,6 +1027,9 @@ export default function SiteVisits() {
                             </div>
                           ) : '—'}
                         </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="text-xs text-gray-700 dark:text-gray-300">{visit.closing_person || '—'}</span>
                       </td>
                       <td className="py-3 px-4" ref={openMenuVisitId === visit.id ? menuRef : null}>
                         <div className="flex items-center justify-end gap-1">

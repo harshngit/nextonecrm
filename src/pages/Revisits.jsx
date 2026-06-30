@@ -6,7 +6,7 @@ import { fetchTeamTree } from '../store/userSlice'
 import {
   Plus, RefreshCw, Eye, Edit2, X, CheckCircle2, Clock, CalendarDays,
   Loader2, AlertCircle, ChevronDown, RotateCcw, Star, MessageSquare,
-  Users, Building2, Car, Trash2, Search, Filter, Phone,
+  Users, Building2, Car, Trash2, Search, Filter, Phone, MoreVertical,
 } from 'lucide-react'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
@@ -272,9 +272,9 @@ function StatusModal({ revisit, onClose, onSuccess }) {
 }
 
 // ── Feedback Modal ────────────────────────────────────────────────────────────
-function FeedbackModal({ revisit, onClose, onSuccess }) {
+function FeedbackModal({ revisit, onClose, onSuccess, salesExecs = [], currentUser }) {
   const [form, setForm] = useState({
-    rating: '', client_reaction: '', interested_in: '', next_step: '', remarks: '',
+    rating: '', client_reaction: '', interested_in: '', next_step: '', remarks: '', closing_person: '',
   })
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
@@ -284,9 +284,11 @@ function FeedbackModal({ revisit, onClose, onSuccess }) {
     if (!form.client_reaction || !form.next_step) { setError('Client reaction and next step are required'); return }
     setLoading(true); setError('')
     try {
+      const { closing_person, ...feedbackPayload } = form
       await api.post(`/site-revisits/${revisit.id}/feedback`, {
-        ...form,
+        ...feedbackPayload,
         rating: form.rating ? parseInt(form.rating) : undefined,
+        ...(closing_person && { closing_person }),
       })
       onSuccess(); onClose()
     } catch (e) { setError(e.response?.data?.message || 'Failed to submit feedback') }
@@ -347,6 +349,22 @@ function FeedbackModal({ revisit, onClose, onSuccess }) {
             placeholder="Client liked Tower B, comparing with competitor..." className={ic} />
         </div>
 
+        {form.next_step === 'booked' && (
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 rounded-xl space-y-2">
+            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">🏆 Closing Details</p>
+            <div>
+              <label className={lc}>Closing Person</label>
+              <input
+                type="text"
+                value={form.closing_person}
+                onChange={e => setForm(p => ({ ...p, closing_person: e.target.value }))}
+                placeholder="Enter closing person name..."
+                className={ic}
+              />
+            </div>
+          </div>
+        )}
+
         {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-xl">{error}</p>}
         <div className="flex gap-3 pt-1">
           <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
@@ -386,8 +404,18 @@ export default function Revisits() {
   const [showDelete,    setShowDelete]    = useState(false)
   const [selected,      setSelected]      = useState(null)
 
+  const menuRef = useRef(null)
+  const [openMenuId, setOpenMenuId] = useState(null)
+  const [menuPos,    setMenuPos]    = useState(null)
+
   const canManage = true // All roles can manage re-visits
   const perms = useModulePermissions('revisits')
+
+  useEffect(() => {
+    const fn = e => { if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenuId(null) }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [])
 
   const fetchRevisits = async () => {
     setLoading(true)
@@ -535,7 +563,7 @@ export default function Revisits() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-[#0f0f0f] border-b border-gray-200 dark:border-gray-800">
-                  {['Lead', 'Project', 'Date & Time', ...(filterView !== 'mine' ? ['Assigned To'] : []), 'Reason', 'Transport', 'Status', 'Feedback', 'Actions'].map(h => (
+                  {['Lead', 'Project', 'Date & Time', ...(filterView !== 'mine' ? ['Assigned To'] : []), 'Reason', 'Transport', 'Status', 'Feedback', 'Closing Person', 'Actions'].map(h => (
                     <th key={h} className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -625,6 +653,11 @@ export default function Revisits() {
                       )}
                     </td>
 
+                    {/* Closing Person */}
+                    <td className="py-3 px-4">
+                      <span className="text-xs text-gray-700 dark:text-gray-300">{rv.closing_person || '—'}</span>
+                    </td>
+
                     {/* Actions */}
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
@@ -634,36 +667,41 @@ export default function Revisits() {
                             <Phone size={13} />
                           </a>
                         )}
-                        <button onClick={() => navigate(`/revisits/${rv.id}`)} title="View Details"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">
-                          <Eye size={13} />
-                        </button>
-                        <button onClick={() => { setSelected(rv); setShowEdit(true) }} title="Edit"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
-                          <Edit2 size={13} />
-                        </button>
-                        {rv.status !== 'done' && (
-                          <button onClick={() => { setSelected(rv); setShowStatus(true) }} title="Update status"
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
-                            <CheckCircle2 size={13} />
-                          </button>
-                        )}
-                        {rv.status === 'done' && !rv.client_reaction && (
-                          <button onClick={() => { setSelected(rv); setShowFeedback(true) }} title="Submit feedback"
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">
-                            <MessageSquare size={13} />
-                          </button>
-                        )}
-                        <button onClick={() => { setSelected(rv); setShowDelete(true) }} title="Delete"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                          <Trash2 size={13} />
-                        </button>
-                        {/* {rv.original_visit_id && (
-                          <button onClick={() => navigate(`/site-visits/${rv.original_visit_id}`)} title="View original visit"
+                        <div className="relative" ref={openMenuId === rv.id ? menuRef : null}>
+                          <button
+                            onClick={e => { const r = e.currentTarget.getBoundingClientRect(); const below = window.innerHeight - r.bottom; setMenuPos({ right: window.innerWidth - r.right, ...(below > 160 ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) }); setOpenMenuId(openMenuId === rv.id ? null : rv.id) }}
                             className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-brand/10 transition-colors">
-                            <Eye size={13} />
+                            <MoreVertical size={14} />
                           </button>
-                        )} */}
+                          {openMenuId === rv.id && (
+                            <div style={{ top: menuPos?.top, bottom: menuPos?.bottom, right: menuPos?.right }} className="fixed w-48 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[9999] py-1">
+                              <button onClick={() => { navigate(`/revisits/${rv.id}`); setOpenMenuId(null) }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                <Eye size={14} /> View Details
+                              </button>
+                              <button onClick={() => { setSelected(rv); setShowEdit(true); setOpenMenuId(null) }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                <Edit2 size={14} /> Edit
+                              </button>
+                              {rv.status !== 'done' && (
+                                <button onClick={() => { setSelected(rv); setShowStatus(true); setOpenMenuId(null) }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                  <CheckCircle2 size={14} /> Update Status
+                                </button>
+                              )}
+                              {rv.status === 'done' && !rv.client_reaction && (
+                                <button onClick={() => { setSelected(rv); setShowFeedback(true); setOpenMenuId(null) }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                  <MessageSquare size={14} /> Submit Feedback
+                                </button>
+                              )}
+                              <button onClick={() => { setSelected(rv); setShowDelete(true); setOpenMenuId(null) }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -700,6 +738,7 @@ export default function Revisits() {
       )}
       {showFeedback && selected && (
         <FeedbackModal revisit={selected}
+          salesExecs={salesExecs} currentUser={user}
           onClose={() => setShowFeedback(false)} onSuccess={fetchRevisits} />
       )}
       <ConfirmModal

@@ -16,6 +16,7 @@ import ExportModal from '../components/ui/ExportModal'
 import ConfirmModal from '../components/ui/ConfirmModal'
 import CustomSelect from '../components/ui/CustomSelect'
 import ClockPicker from '../components/ui/ClockPicker'
+import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 import ConvertLeadModal from '../components/modals/ConvertLeadModal'
 
 const leadStages = [
@@ -277,6 +278,10 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
     ...teamMembers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
   ]
   const projectOptions = projects.map(p => ({ value: p.id, label: p.name || p.project_name }))
+  const searchProjects = async (q) => {
+    const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` — ${p.city}` : ''}` }))
+  }
 
   useEffect(() => {
     if (isRestricted && !formData.assigned_to && currentUser?.id) {
@@ -325,14 +330,15 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
         </div>
       </div>
       
-      {/* Project Name */}
+      {/* Project Name — async search */}
       <div>
-        <CustomSelect
+        <AsyncSearchSelect
           label="Project Name"
           value={formData.project_id}
           onChange={val => setFormData(prev => ({ ...prev, project_id: val }))}
-          options={projectOptions}
-          placeholder="Select Project"
+          onSearch={searchProjects}
+          initialOptions={projectOptions.slice(0, 20)}
+          placeholder="Type to search projects..."
         />
       </div>
 

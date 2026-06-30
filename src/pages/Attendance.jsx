@@ -202,18 +202,18 @@ function PhotoThumb({ record, onOpen, size = 'md' }) {
 // side (when available) with full metadata, and — for admin/super_admin only —
 // a "Change Status" control inline. Pass `record` (the attendance row) and
 // `canChangeStatus` (true only for admin/super_admin per role rules).
-function PhotoLightbox({ isOpen, onClose, record, canChangeStatus, onStatusChange, statusChanging }) {
+function PhotoLightbox({ isOpen, onClose, record, canChangeStatus, onStatusChange, statusChanging, initialTab }) {
   const [tab, setTab] = useState('checkin') // 'checkin' | 'checkout'
   const [pendingStatus, setPendingStatus] = useState(null)
   const [reason, setReason] = useState('')
 
   useEffect(() => {
     if (isOpen) {
-      setTab(record?.checkin_photo ? 'checkin' : 'checkout')
+      setTab(initialTab || (record?.checkin_photo ? 'checkin' : 'checkout'))
       setPendingStatus(null)
       setReason('')
     }
-  }, [isOpen, record])
+  }, [isOpen, record, initialTab])
 
   if (!isOpen || !record) return null
 
@@ -866,6 +866,200 @@ function MyHistory({ dispatch, isAdmin, onOpenPhoto }) {
 }
 
 // ─── Month Grid (used for both "My Team" and Admin "Company Overview") ───────
+function UserHistoryDrawer({ userId, userName, defaultFrom, defaultTo, onClose }) {
+  const [from, setFrom] = useState(defaultFrom)
+  const [to,   setTo]   = useState(defaultTo)
+  const [data,    setData]    = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [page,    setPage]    = useState(1)
+  const [lightboxRecord, setLightboxRecord] = useState(null)
+
+  useEffect(() => {
+    setLoading(true)
+    api.get(`/attendance/user/${userId}/history`, { params: { from, to, page, per_page: 20 } })
+      .then(r => setData(r.data))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false))
+  }, [userId, from, to, page])
+
+  const records = data?.data || []
+  const summary = data?.summary || {}
+  const user    = data?.user    || {}
+
+  return (
+    <>
+      <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose} style={{ margin: 0 }}>
+        <div className="bg-white dark:bg-[#1a1a1a] w-full max-w-lg h-full overflow-y-auto border-l border-gray-200 dark:border-gray-800 shadow-2xl flex flex-col"
+          onClick={e => e.stopPropagation()}>
+
+          {/* Header */}
+          <div className="sticky top-0 bg-white dark:bg-[#1a1a1a] border-b border-gray-100 dark:border-gray-800 z-10">
+            <div className="px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-brand/10 flex items-center justify-center">
+                  <User size={16} className="text-brand" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">{userName || user.full_name}</p>
+                  <p className="text-xs text-gray-400 capitalize">{user.role?.replace(/_/g,' ') || 'Attendance History'}</p>
+                </div>
+              </div>
+              <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <X size={15} />
+              </button>
+            </div>
+            <div className="px-5 pb-4 flex gap-3">
+              <div className="flex-1">
+                <p className="text-[10px] text-gray-400 mb-1">From</p>
+                <input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1) }}
+                  className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-200" />
+              </div>
+              <div className="flex-1">
+                <p className="text-[10px] text-gray-400 mb-1">To</p>
+                <input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1) }}
+                  className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-200" />
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex-1 flex items-center justify-center"><Loader2 size={22} className="animate-spin text-brand" /></div>
+          ) : (
+            <div className="flex-1 overflow-y-auto">
+              {/* Summary */}
+              {summary && (
+                <div className="grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-800 border-b border-gray-100 dark:border-gray-800">
+                  {[
+                    { v: summary.present,  l: 'Present',  c: 'text-emerald-600 dark:text-emerald-400' },
+                    { v: summary.absent,   l: 'Absent',   c: 'text-red-500 dark:text-red-400' },
+                    { v: summary.late,     l: 'Late',     c: 'text-amber-600 dark:text-amber-400' },
+                    { v: summary.leave,    l: 'Leave',    c: 'text-indigo-600 dark:text-indigo-400' },
+                  ].map(x => (
+                    <div key={x.l} className="py-3 text-center">
+                      <p className={`text-lg font-bold ${x.c}`}>{x.v ?? 0}</p>
+                      <p className="text-[10px] text-gray-400 font-medium">{x.l}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {summary?.total_working_hours && (
+                <div className="px-5 py-2 border-b border-gray-50 dark:border-gray-800 flex items-center gap-2 text-xs text-gray-500">
+                  <Timer size={12} className="text-brand" />
+                  Total: <span className="font-semibold text-gray-800 dark:text-gray-200">{parseFloat(summary.total_working_hours).toFixed(1)}h</span>
+                  {summary.avg_working_hours && <> · Avg: <span className="font-semibold text-gray-800 dark:text-gray-200">{parseFloat(summary.avg_working_hours).toFixed(1)}h/day</span></>}
+                </div>
+              )}
+
+              {/* Records */}
+              {records.length === 0 ? (
+                <div className="py-16 text-center text-gray-400 text-sm">No records found for this period</div>
+              ) : (
+                <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
+                  {[...records].sort((a, b) => new Date(b.date) - new Date(a.date)).map((rec, i) => {
+                    const status = displayStatus(rec) || rec.status || 'absent'
+                    const cfg    = STATUS_CONFIG[status] || STATUS_CONFIG.absent
+                    const d      = rec.date?.split('T')[0] || rec.date
+                    return (
+                      <div key={rec.id || i} className="px-5 py-4 space-y-3">
+                        {/* Date + Status */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                              {d ? new Date(d).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                            </p>
+                            {rec.is_manual_entry && (
+                              <p className="text-[10px] text-purple-500 mt-0.5">Manual entry by {rec.manual_by_name || 'Admin'}{rec.manual_reason ? ` · ${rec.manual_reason}` : ''}</p>
+                            )}
+                          </div>
+                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${cfg.badge}`}>
+                            {cfg.label}
+                          </span>
+                        </div>
+
+                        {/* Times row */}
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-2.5">
+                            <div className="flex items-center gap-1.5 text-gray-400 mb-1"><LogIn size={10} className="text-emerald-500" /> Check In</div>
+                            <p className="font-semibold text-gray-800 dark:text-gray-200">{fmtTime(rec.check_in_time)}</p>
+                            {rec.late_by_minutes > 0 && <p className="text-amber-600 text-[10px] mt-0.5">Late by {fmtLateBy(rec.late_by_minutes)}</p>}
+                            {rec.checkin_location?.address && <p className="text-gray-400 text-[10px] mt-0.5 line-clamp-1">{rec.checkin_location.address}</p>}
+                          </div>
+                          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-2.5">
+                            <div className="flex items-center gap-1.5 text-gray-400 mb-1"><LogOut size={10} className="text-rose-500" /> Check Out</div>
+                            <p className="font-semibold text-gray-800 dark:text-gray-200">{fmtTime(rec.check_out_time)}</p>
+                            {rec.working_hours && <p className="text-brand text-[10px] mt-0.5">{rec.working_hours}h worked</p>}
+                            {rec.checkout_location?.address && <p className="text-gray-400 text-[10px] mt-0.5 line-clamp-1">{rec.checkout_location.address}</p>}
+                          </div>
+                        </div>
+
+                        {/* Photos */}
+                        {(rec.checkin_photo || rec.checkout_photo) && (
+                          <div className="flex gap-2">
+                            {rec.checkin_photo && (
+                              <button onClick={() => setLightboxRecord(rec)} className="text-left">
+                                <p className="text-[10px] text-gray-400 mb-1">Check-in</p>
+                                <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 group">
+                                  <img src={rec.checkin_photo} alt="Check-in" className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center transition-all">
+                                    <ZoomIn size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                </div>
+                              </button>
+                            )}
+                            {rec.checkout_photo && (
+                              <button onClick={() => setLightboxRecord(rec)} className="text-left">
+                                <p className="text-[10px] text-gray-400 mb-1">Check-out</p>
+                                <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 group">
+                                  <img src={rec.checkout_photo} alt="Check-out" className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center transition-all">
+                                    <ZoomIn size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                </div>
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Leave type */}
+                        {rec.leave_type && (
+                          <p className="text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-2.5 py-1 rounded-lg w-fit">
+                            Leave: {rec.leave_type}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Pagination */}
+              {data?.pagination?.total_pages > 1 && (
+                <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-800">
+                  <span className="text-xs text-gray-400">Page {page} of {data.pagination.total_pages}</span>
+                  <div className="flex gap-2">
+                    <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:border-brand hover:text-brand transition-colors">Prev</button>
+                    <button disabled={page >= data.pagination.total_pages} onClick={() => setPage(p => p + 1)}
+                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:border-brand hover:text-brand transition-colors">Next</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Photo Lightbox */}
+      <PhotoLightbox
+        isOpen={!!lightboxRecord}
+        onClose={() => setLightboxRecord(null)}
+        record={lightboxRecord}
+        canChangeStatus={false}
+      />
+    </>
+  )
+}
+
 function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'company' }) {
   // scope: 'company' (admin, all users via /by-month) | 'team' (team lead, own sub-tree via /by-month)
   const { byMonth, loading } = useSelector(s => s.attendance)
@@ -873,6 +1067,7 @@ function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'c
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year,  setYear]  = useState(now.getFullYear())
   const [page,  setPage]  = useState(1)
+  const [historyUser, setHistoryUser] = useState(null)
 
   useEffect(() => {
     // Backend scopes by role automatically — team leads get their recursive sub-tree,
@@ -942,8 +1137,9 @@ function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'c
                 u.days?.forEach(d => { dayMap[d.date] = d })
                 return (
                   <tr key={u.user?.id || ui} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
-                    <td className="sticky left-0 bg-white dark:bg-[#1a1a1a] px-4 py-2.5 z-10">
-                      <div className="font-medium text-gray-700 dark:text-gray-200 truncate max-w-[160px]">{u.user?.full_name}</div>
+                    <td className="sticky left-0 bg-white dark:bg-[#1a1a1a] px-4 py-2.5 z-10 cursor-pointer"
+                      onClick={() => u.user?.id && setHistoryUser(u.user)}>
+                      <div className="font-medium text-gray-700 dark:text-gray-200 truncate max-w-[160px] hover:text-brand transition-colors">{u.user?.full_name}</div>
                       <div className="text-[10px] text-gray-400 capitalize">{u.user?.role?.replace(/_/g, ' ')}</div>
                     </td>
                     {allDays.map(d => {
@@ -973,7 +1169,18 @@ function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'c
         {[['P','Present','bg-emerald-100 text-emerald-700'],['L','Late','bg-amber-100 text-amber-700'],['A','Absent','bg-red-100 text-red-600'],['LV','Leave','bg-indigo-100 text-indigo-700'],['H','Holiday','bg-fuchsia-100 text-fuchsia-700'],['NJ','Not Joined','bg-gray-100 text-gray-400']].map(([ab, label, cls]) => (
           <span key={ab} className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${cls}`}>{ab} = {label}</span>
         ))}
+        <span className="text-[10px] text-gray-400 ml-auto italic">Click on any employee name to view details</span>
       </div>
+
+      {historyUser && (
+        <UserHistoryDrawer
+          userId={historyUser.id}
+          userName={historyUser.full_name}
+          defaultFrom={`${year}-${String(month).padStart(2,'0')}-01`}
+          defaultTo={new Date(year, month, 0).toISOString().split('T')[0]}
+          onClose={() => setHistoryUser(null)}
+        />
+      )}
     </div>
   )
 }
