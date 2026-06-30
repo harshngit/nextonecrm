@@ -3,12 +3,12 @@ import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { useModulePermissions } from '../hooks/usePermission'
-import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw, StarIcon, MoreVertical, Phone } from 'lucide-react'
+import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw, StarIcon, MoreVertical, Phone, MapPin, CalendarClock } from 'lucide-react'
 import {
   fetchSiteVisits, fetchMySiteVisits, createSiteVisit, updateSiteVisit,
   updateSiteVisitStatus, cancelSiteVisit, clearSiteVisitError,
 } from '../store/siteVisitSlice'
-import { fetchLeads } from '../store/leadSlice'
+import { fetchLeads, fetchLeadSources } from '../store/leadSlice'
 import { fetchProjects } from '../store/projectSlice'
 import { fetchTeamTree } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
@@ -43,6 +43,15 @@ const defaultForm = {
   assigned_to: '',
   notes: '',
   transport_arranged: false,
+}
+const defaultLeadWithVisitForm = {
+  // Lead fields
+  name: '', phone: '', alternate_phone_number: '', email: '',
+  source: '', source_id: '', project_id: '', assigned_to: '',
+  budget: '', location_preference: '', configuration: '',
+  lead_notes: '', callback_time: '', next_followup_time: '',
+  // Site visit fields
+  visit_date: '', visit_time: '10:00', notes: '', transport_arranged: false
 }
 const defaultFeedback = { status: 'done', feedback: '' }
 
@@ -391,6 +400,241 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit,
   )
 }
 
+// ── Lead + Site Visit Form Component ───────────────────────────────────────────
+function LeadWithVisitForm({ formData, setFormData, activeTab, setActiveTab, sourceList, teamMembers, projects, currentUser, errors, onNext }) {
+  const inputClass = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
+  const labelClass = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+  const isRestricted = ['sales_executive', 'external_caller'].includes(currentUser?.role)
+
+  const sourceOptions = sourceList.map(s => ({ value: s.id, label: s.name }))
+  const execOptions = [
+    ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
+    ...teamMembers.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
+  ]
+  const searchProjects = async (q) => {
+    const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.locality ? ` — ${p.locality}` : p.city ? ` — ${p.city}` : ''}` }))
+  }
+  const projectOptions = projects.map(p => ({ value: p.id, label: `${p.name}${p.locality ? ` — ${p.locality}` : p.city ? ` — ${p.city}` : ''}` }))
+
+  useEffect(() => {
+    if (isRestricted && !formData.assigned_to && currentUser?.id) {
+      setFormData(prev => ({ ...prev, assigned_to: currentUser.id }))
+    }
+  }, [isRestricted, currentUser?.id])
+
+  const updateForm = (key, value) => {
+    setFormData(prev => ({ ...prev, [key]: value }))
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Tabs */}
+      <div className="flex bg-gray-50 dark:bg-gray-800/40 rounded-xl p-1 gap-1">
+        <button
+          onClick={() => setActiveTab('lead')}
+          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${activeTab === 'lead' ? 'bg-brand text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+        >
+          Lead Details
+        </button>
+        <button
+          onClick={() => setActiveTab('visit')}
+          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${activeTab === 'visit' ? 'bg-brand text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+        >
+          Site Visit
+        </button>
+      </div>
+
+      {activeTab === 'lead' ? (
+        <div className="space-y-4">
+          {/* Name + Phone */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Full Name *</label>
+              <input required value={formData.name} onChange={e => updateForm('name', e.target.value)} placeholder="Jane Smith" className={inputClass} />
+              {errors?.name && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.name}</p>}
+            </div>
+            <div>
+              <label className={labelClass}>Phone *</label>
+              <input required value={formData.phone} onChange={e => updateForm('phone', e.target.value)} placeholder="+919876543212" className={inputClass} />
+              {errors?.phone && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.phone}</p>}
+            </div>
+          </div>
+
+          {/* Alt Phone + Email */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Alternate Phone</label>
+              <input value={formData.alternate_phone_number} onChange={e => updateForm('alternate_phone_number', e.target.value)} placeholder="+919876543213" className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Email</label>
+              <input type="email" value={formData.email} onChange={e => updateForm('email', e.target.value)} placeholder="jane.smith@example.com" className={inputClass} />
+            </div>
+          </div>
+
+          {/* Budget + Location */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Budget</label>
+              <input value={formData.budget} onChange={e => updateForm('budget', e.target.value)} placeholder="1Cr+" className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Finding Location</label>
+              <div className="relative">
+                <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input value={formData.location_preference} onChange={e => updateForm('location_preference', e.target.value)} placeholder="Bandra" className={inputClass + ' pl-8'} />
+              </div>
+            </div>
+          </div>
+
+          {/* Configuration */}
+          <div>
+            <label className={labelClass}>Configuration</label>
+            <input value={formData.configuration} onChange={e => updateForm('configuration', e.target.value)} placeholder="3BHK" className={inputClass} />
+          </div>
+
+          {/* Project Name — async search */}
+          <div>
+            <AsyncSearchSelect
+              label="Project Name"
+              value={formData.project_id}
+              onChange={val => updateForm('project_id', val)}
+              onSearch={searchProjects}
+              initialOptions={projectOptions.slice(0, 20)}
+              placeholder="Type to search projects..."
+            />
+          </div>
+
+          {/* Callback + Follow-up */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}><span className="flex items-center gap-1"><Clock size={11} /> Callback Time</span></label>
+              <input type="datetime-local" value={formData.callback_time ? formData.callback_time.slice(0, 16) : ''}
+                onChange={e => updateForm('callback_time', e.target.value ? new Date(e.target.value).toISOString() : '')} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}><span className="flex items-center gap-1"><CalendarClock size={11} /> Next Follow-up</span></label>
+              <input type="datetime-local" value={formData.next_followup_time ? formData.next_followup_time.slice(0, 16) : ''}
+                onChange={e => updateForm('next_followup_time', e.target.value ? new Date(e.target.value).toISOString() : '')} className={inputClass} />
+            </div>
+          </div>
+
+          {/* Source */}
+          <CustomSelect
+            label="Lead Source"
+            value={(() => {
+              if (formData.source_id) {
+                const hasMatchingId = sourceOptions.some(opt => opt.value === formData.source_id)
+                if (hasMatchingId) return formData.source_id
+              }
+              if (formData.source) {
+                const matchedOpt = sourceOptions.find(opt => opt.label.toLowerCase() === formData.source.toLowerCase())
+                if (matchedOpt) return matchedOpt.value
+              }
+              return ''
+            })()}
+            onChange={val => {
+              const selected = sourceList.find(s => s.id === val)
+              updateForm('source_id', selected?.id || val)
+              updateForm('source', selected?.name || val)
+            }}
+            options={sourceOptions}
+            placeholder="Select Platform"
+          />
+
+          {/* Assign To */}
+          <div>
+            {isRestricted ? (
+              <div>
+                <label className={labelClass}>Assign To</label>
+                <input readOnly value={`${currentUser?.first_name ?? ''} ${currentUser?.last_name ?? ''}`.trim()} className={inputClass + ' cursor-not-allowed opacity-60 bg-gray-50 dark:bg-gray-800/40'} />
+              </div>
+            ) : (
+              <CustomSelect label="Assign To" value={formData.assigned_to} onChange={val => updateForm('assigned_to', val)} options={execOptions} placeholder="Select team member" searchable />
+            )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className={labelClass}>Lead Notes</label>
+            <textarea rows={3} value={formData.lead_notes} onChange={e => updateForm('lead_notes', e.target.value)}
+              placeholder="Interested in 3BHK units" className={inputClass} />
+          </div>
+
+          {/* Errors */}
+          {errors && Object.keys(errors).length > 0 && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3">
+              {Object.entries(errors).filter(([k]) => k !== 'submit').map(([key, msg]) => (
+                <p key={key} className="text-xs text-red-600 dark:text-red-400">{msg}</p>
+              ))}
+              {errors?.submit && <p className="text-xs text-red-600 dark:text-red-400">{errors.submit}</p>}
+            </div>
+          )}
+
+          {/* Next Button */}
+          <div className="pt-2">
+            <Button type="button" className="w-full" onClick={onNext}>Next</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Project — async search */}
+          <AsyncSearchSelect
+            label="Project *"
+            required
+            value={formData.project_id}
+            onChange={val => updateForm('project_id', val)}
+            onSearch={searchProjects}
+            initialOptions={projectOptions.slice(0, 20)}
+            placeholder="Type to search projects..."
+          />
+
+          {/* Date + Time */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Visit Date *</label>
+              <input required type="date" value={formData.visit_date}
+                onChange={e => updateForm('visit_date', e.target.value)}
+                className={inputClass} />
+            </div>
+            <ClockPicker
+              label="Visit Time"
+              required
+              value={formData.visit_time}
+              onChange={val => updateForm('visit_time', val)}
+              icon={Clock}
+            />
+          </div>
+
+          {/* Transport arranged */}
+          <div className="flex items-center gap-3 p-3 bg-[#f8fafc] dark:bg-[#0f0f0f] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl">
+            <input
+              type="checkbox"
+              id="transport-visit"
+              checked={formData.transport_arranged}
+              onChange={e => updateForm('transport_arranged', e.target.checked)}
+              className="w-4 h-4 accent-brand rounded border-gray-300"
+            />
+            <label htmlFor="transport-visit" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none font-medium">
+              Transport arranged for client
+            </label>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className={labelClass}>Notes</label>
+            <textarea rows={3} value={formData.notes}
+              onChange={e => updateForm('notes', e.target.value)}
+              placeholder="Bring brochure and price list"
+              className={inputClass} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function FeedbackForm({ formData, setFormData }) {
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
   const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
@@ -535,7 +779,7 @@ export default function SiteVisits() {
   const navigate = useNavigate()
   const dispatch = useDispatch()
   const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.siteVisits)
-  const { list: leadList }    = useSelector(s => s.leads)
+  const { list: leadList, sources: sourceList } = useSelector(s => s.leads)
   const { list: projectList } = useSelector(s => s.projects)
   const { user: currentUser } = useSelector(s => s.auth)
   const { teamTree: teamMembers, teamTreeLoading } = useSelector(s => s.users)
@@ -564,6 +808,13 @@ export default function SiteVisits() {
   const [openMenuVisitId, setOpenMenuVisitId] = useState(null)
   const [menuPos,         setMenuPos]         = useState(null)
   const menuRef = useRef(null)
+  
+  // New lead + site visit state
+  const [showLeadWithVisitModal, setShowLeadWithVisitModal] = useState(false)
+  const [leadWithVisitForm, setLeadWithVisitForm] = useState(defaultLeadWithVisitForm)
+  const [leadWithVisitTab, setLeadWithVisitTab] = useState('lead')
+  const [leadWithVisitErrors, setLeadWithVisitErrors] = useState({})
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
 
   const loadVisits = () => {
     const params = { page, per_page: 20 }
@@ -580,6 +831,7 @@ export default function SiteVisits() {
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
     dispatch(fetchProjects({ per_page: 100, status: 'active' }))
+    dispatch(fetchLeadSources())
   }, [dispatch])
 
   useEffect(() => {
@@ -651,6 +903,70 @@ export default function SiteVisits() {
   const confirmCancel = (visit) => {
     setVisitToCancel(visit)
     setShowCancelModal(true)
+  }
+
+  const handleLeadWithVisitNext = () => {
+    const errors = {}
+    if (!leadWithVisitForm.name) errors.name = 'Full name is required'
+    if (!leadWithVisitForm.phone) errors.phone = 'Phone is required'
+    
+    setLeadWithVisitErrors(errors)
+    
+    if (Object.keys(errors).length === 0) {
+      setLeadWithVisitTab('visit')
+    }
+  }
+
+  const handleAddLeadWithVisit = async (e) => {
+    e.preventDefault()
+    dispatch(clearSiteVisitError())
+    try {
+      // Build the payload
+      const payload = {
+        // Lead fields
+        name: leadWithVisitForm.name,
+        phone: leadWithVisitForm.phone,
+        ...(leadWithVisitForm.alternate_phone_number && { alternate_phone_number: leadWithVisitForm.alternate_phone_number }),
+        ...(leadWithVisitForm.email && { email: leadWithVisitForm.email }),
+        ...(leadWithVisitForm.source && { source: leadWithVisitForm.source }),
+        ...(leadWithVisitForm.source_id && { source_id: leadWithVisitForm.source_id }),
+        ...(leadWithVisitForm.project_id && { project_id: leadWithVisitForm.project_id }),
+        ...(leadWithVisitForm.assigned_to && { assigned_to: leadWithVisitForm.assigned_to }),
+        ...(leadWithVisitForm.budget && { budget: leadWithVisitForm.budget }),
+        ...(leadWithVisitForm.location_preference && { location_preference: leadWithVisitForm.location_preference }),
+        ...(leadWithVisitForm.configuration && { configuration: leadWithVisitForm.configuration }),
+        ...(leadWithVisitForm.lead_notes && { lead_notes: leadWithVisitForm.lead_notes }),
+        ...(leadWithVisitForm.callback_time && { callback_time: leadWithVisitForm.callback_time }),
+        ...(leadWithVisitForm.next_followup_time && { next_followup_time: leadWithVisitForm.next_followup_time }),
+        // Site visit fields
+        visit_date: leadWithVisitForm.visit_date,
+        visit_time: leadWithVisitForm.visit_time,
+        notes: leadWithVisitForm.notes,
+        transport_arranged: leadWithVisitForm.transport_arranged
+      }
+
+      // Call the API
+      const response = await api.post('/site-visits/create-with-lead', payload)
+
+      if (response.status === 200 || response.status === 201) {
+        setSuccess('Lead and site visit created!')
+        loadVisits()
+        // Also reload leads if needed
+        dispatch(fetchLeads({ per_page: 100 }))
+        setTimeout(() => {
+          setShowLeadWithVisitModal(false)
+          setSuccess('')
+          setLeadWithVisitForm(defaultLeadWithVisitForm)
+          setLeadWithVisitTab('lead')
+          setLeadWithVisitErrors({})
+        }, 800)
+      }
+    } catch (err) {
+      console.error('Error creating lead with site visit:', err)
+      if (err.response?.data?.message) {
+        setLeadWithVisitErrors({ submit: err.response.data.message })
+      }
+    }
   }
 
   const openEdit = (visit) => {
@@ -772,9 +1088,44 @@ export default function SiteVisits() {
           {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button> */}
-          <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearSiteVisitError()); setShowAddModal(true) }}>
-            Schedule Visit
-          </Button>
+          <div className="relative">
+            <Button icon={Plus} onClick={() => setAddMenuOpen(o => !o)}>
+              Schedule Visit
+            </Button>
+            {addMenuOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40"
+                  onClick={() => setAddMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-full mt-2 z-50 w-60 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg py-1">
+                  <button 
+                    onClick={() => { 
+                      setAddForm(defaultForm); 
+                      dispatch(clearSiteVisitError()); 
+                      setShowAddModal(true); 
+                      setAddMenuOpen(false); 
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    <User size={16} />
+                    <span>Existing Lead</span>
+                  </button>
+                  <button 
+                    onClick={() => { 
+                      setLeadWithVisitForm(defaultLeadWithVisitForm); 
+                      setLeadWithVisitTab('lead'); 
+                      dispatch(clearSiteVisitError()); 
+                      setShowLeadWithVisitModal(true); 
+                      setAddMenuOpen(false); 
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    <Plus size={16} />
+                    <span>New Lead + Site Visit</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1154,6 +1505,32 @@ export default function SiteVisits() {
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="outline" className="flex-1" onClick={() => setShowEditModal(false)}>Cancel</Button>
             <Button type="submit" className="flex-1" loading={actionLoading}>Update Visit</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Create Lead + Site Visit Modal */}
+      <Modal isOpen={showLeadWithVisitModal} onClose={() => { setShowLeadWithVisitModal(false); setSuccess(''); setLeadWithVisitErrors({}) }} title="Create Lead + Site Visit">
+        <form onSubmit={handleAddLeadWithVisit} className="space-y-4">
+          <LeadWithVisitForm 
+            formData={leadWithVisitForm} 
+            setFormData={setLeadWithVisitForm} 
+            activeTab={leadWithVisitTab}
+            setActiveTab={setLeadWithVisitTab}
+            sourceList={sourceList}
+            teamMembers={teamMembers}
+            projects={projectList}
+            currentUser={currentUser}
+            errors={leadWithVisitErrors}
+            onNext={handleLeadWithVisitNext}
+          />
+          {success && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
+          {leadWithVisitErrors?.submit && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{leadWithVisitErrors.submit}</p>}
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowLeadWithVisitModal(false); setLeadWithVisitErrors({}) }}>Cancel</Button>
+            {leadWithVisitTab === 'visit' && (
+              <Button type="submit" className="flex-1" loading={actionLoading}>Create</Button>
+            )}
           </div>
         </form>
       </Modal>

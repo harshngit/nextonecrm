@@ -3,15 +3,15 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { useModulePermissions } from '../hooks/usePermission'
 import {
-  CheckCircle, Clock, AlertCircle, Phone, Plus,
+  CheckCircle, Clock, AlertCircle, Phone, Plus, MapPin,
   Edit2, Trash2, Download, RefreshCw, ChevronDown, Filter, Eye, X,
-  ArrowRightCircle, CheckCircle2, CalendarPlus, Loader2, MoreVertical,
+  ArrowRightCircle, CheckCircle2, CalendarPlus, Loader2, MoreVertical, CalendarClock, User,
 } from 'lucide-react'
 import {
   fetchFollowUps, fetchMyFollowUps, createFollowUp, updateFollowUp,
   completeFollowUp, deleteFollowUp, clearFollowUpError, markCompleted,
 } from '../store/followUpSlice'
-import { fetchLeads } from '../store/leadSlice'
+import { fetchLeads, fetchLeadSources } from '../store/leadSlice'
 import { fetchTeamTree } from '../store/userSlice'
 import { fetchProjects } from '../store/projectSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
@@ -199,6 +199,16 @@ const defaultForm = {
   assigned_to: '', priority: 'medium', notes: '',
 }
 
+const defaultLeadWithTaskForm = {
+  // Lead fields
+  name: '', phone: '', alternate_phone_number: '', email: '',
+  source: '', source_id: '', project_id: '', assigned_to: '',
+  budget: '', location_preference: '', configuration: '',
+  lead_notes: '', callback_time: '', next_followup_time: '',
+  // Task fields
+  title: '', due_date: '', due_time: '10:00', priority: 'medium', notes: ''
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function classifyTask(task) {
@@ -316,6 +326,263 @@ function FollowUpForm({ formData, setFormData, leads, teamMembers = [], isEdit, 
           className={ic}
         />
       </div>
+    </div>
+  )
+}
+
+// ── Lead + Task Form Component ─────────────────────────────────────────────────
+function LeadWithTaskForm({ formData, setFormData, activeTab, setActiveTab, sourceList, teamMembers = [], projects, currentUser, errors, onNext }) {
+  const inputClass = 'w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200'
+  const labelClass = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1'
+  const isRestricted = ['sales_executive', 'external_caller'].includes(currentUser?.role)
+  const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
+  
+  const sourceOptions = sourceList.map(s => ({ value: s.id, label: s.name }))
+  const execOptions = [
+    ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
+    ...teamMembers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
+  ]
+  const projectOptions = projects.map(p => ({ value: p.id, label: p.name || p.project_name }))
+  const searchProjects = async (q) => {
+    const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` — ${p.city}` : ''}` }))
+  }
+
+  useEffect(() => {
+    if (isRestricted && !formData.assigned_to && currentUser?.id) {
+      setFormData(prev => ({ ...prev, assigned_to: currentUser.id }))
+    }
+  }, [isRestricted, currentUser?.id])
+
+  const updateForm = (key, value) => {
+    setFormData(prev => ({ ...prev, [key]: value }))
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Tabs */}
+      <div className="flex bg-gray-50 dark:bg-gray-800/40 rounded-xl p-1 gap-1">
+        <button
+          onClick={() => setActiveTab('lead')}
+          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${activeTab === 'lead' ? 'bg-brand text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+        >
+          Lead Details
+        </button>
+        <button
+          onClick={() => setActiveTab('task')}
+          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${activeTab === 'task' ? 'bg-brand text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+        >
+          Follow-up Task
+        </button>
+      </div>
+
+      {activeTab === 'lead' ? (
+        <div className="space-y-4">
+          {/* Name + Phone */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Full Name *</label>
+              <input required value={formData.name} onChange={e => updateForm('name', e.target.value)} placeholder="Suresh Patel" className={inputClass} />
+              {errors?.name && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.name}</p>}
+            </div>
+            <div>
+              <label className={labelClass}>Phone *</label>
+              <input required value={formData.phone} onChange={e => updateForm('phone', e.target.value)} placeholder="+919876543210" className={inputClass} />
+              {errors?.phone && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{errors.phone}</p>}
+            </div>
+          </div>
+
+          {/* Alt Phone + Email */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Alternate Phone</label>
+              <input value={formData.alternate_phone_number} onChange={e => updateForm('alternate_phone_number', e.target.value)} placeholder="+919876543211" className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Email</label>
+              <input type="email" value={formData.email} onChange={e => updateForm('email', e.target.value)} placeholder="suresh.patel@gmail.com" className={inputClass} />
+            </div>
+          </div>
+
+          {/* Budget + Location */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Budget</label>
+              <input value={formData.budget} onChange={e => updateForm('budget', e.target.value)} placeholder="80-100L" className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Finding Location</label>
+              <div className="relative">
+                <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input value={formData.location_preference} onChange={e => updateForm('location_preference', e.target.value)} placeholder="Andheri West" className={inputClass + ' pl-8'} />
+              </div>
+            </div>
+          </div>
+
+          {/* Configuration */}
+          <div>
+            <label className={labelClass}>Configuration</label>
+            <input value={formData.configuration} onChange={e => updateForm('configuration', e.target.value)} placeholder="2BHK" className={inputClass} />
+          </div>
+
+          {/* Project Name — async search */}
+          <div>
+            <AsyncSearchSelect
+              label="Project Name"
+              value={formData.project_id}
+              onChange={val => updateForm('project_id', val)}
+              onSearch={searchProjects}
+              initialOptions={projectOptions.slice(0, 20)}
+              placeholder="Type to search projects..."
+            />
+          </div>
+
+          {/* Callback + Follow-up */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}><span className="flex items-center gap-1"><Clock size={11} /> Callback Time</span></label>
+              <input type="datetime-local" value={formData.callback_time ? formData.callback_time.slice(0, 16) : ''}
+                onChange={e => updateForm('callback_time', e.target.value ? new Date(e.target.value).toISOString() : '')} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}><span className="flex items-center gap-1"><CalendarClock size={11} /> Next Follow-up</span></label>
+              <input type="datetime-local" value={formData.next_followup_time ? formData.next_followup_time.slice(0, 16) : ''}
+                onChange={e => updateForm('next_followup_time', e.target.value ? new Date(e.target.value).toISOString() : '')} className={inputClass} />
+            </div>
+          </div>
+
+          {/* Source */}
+          <CustomSelect 
+            label="Lead Source" 
+            value={(() => {
+              if (formData.source_id) {
+                const hasMatchingId = sourceOptions.some(opt => opt.value === formData.source_id)
+                if (hasMatchingId) return formData.source_id
+              }
+              if (formData.source) {
+                const matchedOpt = sourceOptions.find(opt => 
+                  opt.label.toLowerCase() === formData.source.toLowerCase()
+                )
+                if (matchedOpt) return matchedOpt.value
+              }
+              return ''
+            })()}
+            onChange={val => {
+              const selected = sourceList.find(s => s.id === val)
+              updateForm('source_id', selected?.id || val)
+              updateForm('source', selected?.name || val)
+            }}
+            options={sourceOptions} 
+            placeholder="Select Platform" 
+          />
+
+          {/* Assign To */}
+          <div>
+            {isRestricted ? (
+              <div>
+                <label className={labelClass}>Assign To</label>
+                <input readOnly value={`${currentUser?.first_name ?? ''} ${currentUser?.last_name ?? ''}`.trim()} className={inputClass + ' cursor-not-allowed opacity-60 bg-gray-50 dark:bg-gray-800/40'} />
+              </div>
+            ) : (
+              <CustomSelect label="Assign To" value={formData.assigned_to} onChange={val => updateForm('assigned_to', val)} options={execOptions} placeholder="Select team member" searchable />
+            )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className={labelClass}>Lead Notes</label>
+            <textarea rows={3} value={formData.lead_notes} onChange={e => updateForm('lead_notes', e.target.value)}
+              placeholder="Interested in 2BHK units" className={inputClass} />
+          </div>
+
+          {/* Errors */}
+          {errors && Object.keys(errors).length > 0 && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3">
+              {Object.entries(errors).filter(([k]) => k !== 'submit').map(([key, msg]) => (
+                <p key={key} className="text-xs text-red-600 dark:text-red-400">{msg}</p>
+              ))}
+              {errors?.submit && <p className="text-xs text-red-600 dark:text-red-400">{errors.submit}</p>}
+            </div>
+          )}
+
+          {/* Next Button */}
+          <div className="pt-2">
+            <Button 
+              type="button" 
+              className="w-full" 
+              onClick={onNext}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Task Title */}
+          <div>
+            <label className={labelClass}>Task Title *</label>
+            <input
+              required
+              value={formData.title}
+              onChange={e => updateForm('title', e.target.value)}
+              placeholder="Follow up with John Doe"
+              className={inputClass}
+            />
+          </div>
+
+          {/* Due Date + Time */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Due Date *</label>
+              <input
+                required
+                type="date"
+                value={formData.due_date}
+                onChange={e => updateForm('due_date', e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <ClockPicker
+              label="Due Time"
+              value={formData.due_time}
+              onChange={val => updateForm('due_time', val)}
+              icon={Clock}
+            />
+          </div>
+
+          {/* Priority + Assign To */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <CustomSelect
+              label="Priority"
+              value={formData.priority}
+              onChange={val => updateForm('priority', val)}
+              options={priorityOptions}
+            />
+            {!isRestricted && (
+              <CustomSelect
+                label="Assign To"
+                value={formData.assigned_to}
+                onChange={val => updateForm('assigned_to', val)}
+                options={execOptions}
+                placeholder="Select team member"
+                searchable
+              />
+            )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className={labelClass}>Task Notes</label>
+            <textarea
+              rows={3}
+              value={formData.notes}
+              onChange={e => updateForm('notes', e.target.value)}
+              placeholder="Discuss project details"
+              className={inputClass}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -699,7 +966,8 @@ export default function FollowUps() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.followUps)
-  const { list: leadList } = useSelector(s => s.leads)
+  const { list: leadList, sources: sourceList = [] } = useSelector(s => s.leads)
+  const { list: projectList = [] } = useSelector(s => s.projects)
   const { user: currentUser } = useSelector(s => s.auth)
   const { teamTree: teamMembers = [] } = useSelector(s => s.users)
 
@@ -731,6 +999,11 @@ export default function FollowUps() {
   const [editLoading,       setEditLoading]       = useState(null) // Track which task is loading
   const [openMenuTaskId,    setOpenMenuTaskId]    = useState(null)
   const [menuPos,           setMenuPos]           = useState(null)
+  const [showLeadWithTaskModal, setShowLeadWithTaskModal] = useState(false)
+  const [leadWithTaskForm, setLeadWithTaskForm] = useState(defaultLeadWithTaskForm)
+  const [leadWithTaskTab, setLeadWithTaskTab] = useState('lead') // 'lead' or 'task'
+  const [leadWithTaskErrors, setLeadWithTaskErrors] = useState({})
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
   const menuRef = useRef(null)
 
   const canManage = true // All roles can manage follow-ups and convert to site visits
@@ -759,6 +1032,7 @@ export default function FollowUps() {
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
     dispatch(fetchProjects())
+    dispatch(fetchLeadSources())
   }, [dispatch])
 
   useEffect(() => {
@@ -795,6 +1069,71 @@ export default function FollowUps() {
       setSuccess('Follow-up created!')
       loadTasks()
       setTimeout(() => { setShowAddModal(false); setSuccess(''); setAddForm(defaultForm) }, 800)
+    }
+  }
+
+  const handleLeadWithTaskNext = () => {
+    const errors = {}
+    if (!leadWithTaskForm.name) errors.name = 'Full name is required'
+    if (!leadWithTaskForm.phone) errors.phone = 'Phone is required'
+    
+    setLeadWithTaskErrors(errors)
+    
+    if (Object.keys(errors).length === 0) {
+      setLeadWithTaskTab('task')
+    }
+  }
+
+  const handleAddLeadWithTask = async (e) => {
+    e.preventDefault()
+    dispatch(clearFollowUpError())
+    try {
+      // Build the payload
+      const payload = {
+        // Lead fields
+        name: leadWithTaskForm.name,
+        phone: leadWithTaskForm.phone,
+        ...(leadWithTaskForm.alternate_phone_number && { alternate_phone_number: leadWithTaskForm.alternate_phone_number }),
+        ...(leadWithTaskForm.email && { email: leadWithTaskForm.email }),
+        ...(leadWithTaskForm.source && { source: leadWithTaskForm.source }),
+        ...(leadWithTaskForm.source_id && { source_id: leadWithTaskForm.source_id }),
+        ...(leadWithTaskForm.project_id && { project_id: leadWithTaskForm.project_id }),
+        ...(leadWithTaskForm.assigned_to && { assigned_to: leadWithTaskForm.assigned_to }),
+        ...(leadWithTaskForm.budget && { budget: leadWithTaskForm.budget }),
+        ...(leadWithTaskForm.location_preference && { location_preference: leadWithTaskForm.location_preference }),
+        ...(leadWithTaskForm.configuration && { configuration: leadWithTaskForm.configuration }),
+        ...(leadWithTaskForm.lead_notes && { lead_notes: leadWithTaskForm.lead_notes }),
+        ...(leadWithTaskForm.callback_time && { callback_time: leadWithTaskForm.callback_time }),
+        ...(leadWithTaskForm.next_followup_time && { next_followup_time: leadWithTaskForm.next_followup_time }),
+        // Task fields
+        title: leadWithTaskForm.title,
+        due_date: leadWithTaskForm.due_date ? `${leadWithTaskForm.due_date}T${leadWithTaskForm.due_time || '10:00'}:00` : undefined,
+        priority: leadWithTaskForm.priority,
+        ...(leadWithTaskForm.notes && { notes: leadWithTaskForm.notes }),
+      }
+
+      // Call the API
+      const response = await api.post('/tasks/create-with-lead', payload)
+
+      if (response.status === 200 || response.status === 201) {
+        setSuccess('Lead and Follow-up created!')
+        loadTasks()
+        // Also reload leads if needed
+        dispatch(fetchLeads({ per_page: 100 }))
+        setTimeout(() => {
+          setShowLeadWithTaskModal(false)
+          setSuccess('')
+          setLeadWithTaskForm(defaultLeadWithTaskForm)
+          setLeadWithTaskTab('lead')
+          setLeadWithTaskErrors({})
+        }, 800)
+      }
+    } catch (err) {
+      console.error('Error creating lead with task:', err)
+      // If there's an error from the API, display it
+      if (err.response?.data?.message) {
+        setLeadWithTaskErrors({ submit: err.response.data.message })
+      }
     }
   }
 
@@ -1087,9 +1426,51 @@ export default function FollowUps() {
           {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button> */}
-          <Button icon={Plus} onClick={() => { setAddForm(defaultForm); dispatch(clearFollowUpError()); setShowAddModal(true) }}>
-            Add Follow-up
-          </Button>
+          <div className="relative">
+            <Button 
+              icon={Plus} 
+              onClick={() => { 
+                setAddMenuOpen(o => !o) 
+              }}
+            >
+              Add Follow-up
+            </Button>
+            {addMenuOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40"
+                  onClick={() => setAddMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-full mt-2 z-50 w-60 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg py-1">
+                  <button 
+                    onClick={() => { 
+                      setAddForm(defaultForm); 
+                      dispatch(clearFollowUpError()); 
+                      setShowAddModal(true); 
+                      setAddMenuOpen(false); 
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <User size={16} />
+                    <span>Existing Lead</span>
+                  </button>
+                  <button 
+                    onClick={() => { 
+                      setLeadWithTaskForm(defaultLeadWithTaskForm); 
+                      setLeadWithTaskTab('lead'); 
+                      dispatch(clearFollowUpError()); 
+                      setShowLeadWithTaskModal(true); 
+                      setAddMenuOpen(false); 
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <Plus size={16} />
+                    <span>New Lead + Follow-up</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1313,6 +1694,32 @@ export default function FollowUps() {
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="outline" className="flex-1" onClick={() => setShowAddModal(false)}>Cancel</Button>
             <Button type="submit" className="flex-1" loading={actionLoading}>Create Follow-up</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Create Lead + Follow-up Modal */}
+      <Modal isOpen={showLeadWithTaskModal} onClose={() => { setShowLeadWithTaskModal(false); setSuccess(''); setLeadWithTaskErrors({}) }} title="Create Lead + Follow-up">
+        <form onSubmit={handleAddLeadWithTask} className="space-y-4">
+          <LeadWithTaskForm 
+            formData={leadWithTaskForm} 
+            setFormData={setLeadWithTaskForm} 
+            activeTab={leadWithTaskTab}
+            setActiveTab={setLeadWithTaskTab}
+            sourceList={sourceList}
+            teamMembers={teamMembers}
+            projects={projectList}
+            currentUser={currentUser}
+            errors={leadWithTaskErrors}
+            onNext={handleLeadWithTaskNext}
+          />
+          {success    && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{success}</p>}
+          {leadWithTaskErrors?.submit && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{leadWithTaskErrors.submit}</p>}
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowLeadWithTaskModal(false); setLeadWithTaskErrors({}) }}>Cancel</Button>
+            {leadWithTaskTab === 'task' && (
+              <Button type="submit" className="flex-1" loading={actionLoading}>Create</Button>
+            )}
           </div>
         </form>
       </Modal>
