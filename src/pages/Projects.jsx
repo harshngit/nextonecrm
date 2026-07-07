@@ -32,15 +32,23 @@ const defaultForm = {
   developer: '',
   city: '',
   locality: '',
+  address: '',
+  configurations: [],
   price_range: '',
   total_units: '',
-  description: '',
-  status: 'active',
+  possession_date: '',
   rera_number: '',
+  amenities: [],
+  status: 'active',
+  description: '',
   brochure_url: '',
   video_url: '',
-  payment_plan: '',
+  payment_plan_url: '',
   home_loan_info: '',
+  unit_plans: [],
+  creatives: [],
+  payment_plans: [],
+  videos: [],
 }
 
 // ── ShareProjectModal ─────────────────────────────────────────────────────────
@@ -319,23 +327,99 @@ function ShareProjectModal({ projectId, projectName, onClose, projectDocuments }
   )
 }
 
+// Static class lookup so Tailwind's compiler can see the full class names
+// (dynamically interpolated `bg-${color}-50` strings are not detected at build time)
+const fileTypeClasses = {
+  blue:   { bg: 'bg-blue-50/50 dark:bg-blue-900/10',     border: 'border-blue-100 dark:border-blue-900/30',     icon: 'text-blue-500',   text: 'text-blue-600 dark:text-blue-400' },
+  purple: { bg: 'bg-purple-50/50 dark:bg-purple-900/10', border: 'border-purple-100 dark:border-purple-900/30', icon: 'text-purple-500', text: 'text-purple-600 dark:text-purple-400' },
+  green:  { bg: 'bg-green-50/50 dark:bg-green-900/10',   border: 'border-green-100 dark:border-green-900/30',   icon: 'text-green-500',  text: 'text-green-600 dark:text-green-400' },
+  amber:  { bg: 'bg-amber-50/50 dark:bg-amber-900/10',   border: 'border-amber-100 dark:border-amber-900/30',   icon: 'text-amber-500',  text: 'text-amber-600 dark:text-amber-400' },
+}
+
+// Standalone upload endpoints used before a project exists (create flow)
+const standaloneUploadEndpoints = {
+  unit_plans:    { url: '/projects/upload-unit-plan',   field: 'unit_plan' },
+  creatives:     { url: '/projects/upload-creative',    field: 'creative' },
+  payment_plans: { url: '/projects/upload-payment-plan', field: 'payment_plan' },
+  videos:        { url: '/projects/upload-video',        field: 'video' },
+}
+
+// Project card download/upload buttons — docType matches handleDownloadAll,
+// field matches the multi-file field name POST /projects/{id}/documents expects
+const documentTypeMap = [
+  { docType: 'unit_plan',    field: 'unit_plans',    label: 'Unit Plans',
+    btn:    'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40',
+    upload: 'border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20' },
+  { docType: 'creative',     field: 'creatives',     label: 'Creatives',
+    btn:    'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40',
+    upload: 'border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20' },
+  { docType: 'payment_plan', field: 'payment_plans', label: 'Payment Plans',
+    btn:    'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40',
+    upload: 'border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20' },
+  { docType: 'video',        field: 'videos',        label: 'Videos',
+    btn:    'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40',
+    upload: 'border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20' },
+]
+
 // ── Form defined OUTSIDE to prevent typing/focus loss bug ────────────────────
-function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
+function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onDeleteExisting, onFilesUploaded }) {
   const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
   const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
 
-  const handleFileChange = (e, type) => {
+  const [uploading, setUploading] = useState({})
+  const [uploadErrors, setUploadErrors] = useState({})
+
+  // Files are uploaded as soon as they're picked — never sent as raw
+  // multipart through the project create/update JSON body.
+  const handleFileChange = async (e, type) => {
     const files = Array.from(e.target.files)
-    setUploadFiles(prev => ({
-      ...prev,
-      [type]: [...prev[type], ...files]
+    e.target.value = ''
+    if (files.length === 0) return
+    setUploadErrors(prev => ({ ...prev, [type]: '' }))
+    setUploading(prev => ({ ...prev, [type]: true }))
+    try {
+      if (projectId) {
+        // Project already exists — this call attaches the files directly.
+        const fd = new FormData()
+        files.forEach(file => fd.append(type, file))
+        await api.post(`/projects/${projectId}/documents`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        await onFilesUploaded?.()
+      } else {
+        // No project yet — upload standalone, then carry the returned
+        // metadata (real file_path) in formData for the create request.
+        const { url, field } = standaloneUploadEndpoints[type]
+        const docs = []
+        for (const file of files) {
+          const fd = new FormData()
+          fd.append(field, file)
+          const res = await api.post(url, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+          if (res.data.success) docs.push(res.data.data)
+        }
+        setFormData(p => ({ ...p, [type]: [...(p[type] || []), ...docs] }))
+      }
+    } catch (err) {
+      setUploadErrors(prev => ({ ...prev, [type]: err.response?.data?.message || 'Upload failed' }))
+    } finally {
+      setUploading(prev => ({ ...prev, [type]: false }))
+    }
+  }
+
+  const removePendingFile = (type, index) => {
+    setFormData(p => ({ ...p, [type]: p[type].filter((_, i) => i !== index) }))
+  }
+
+  const addTag = (field, value) => {
+    if (!value.trim()) return
+    setFormData(p => ({
+      ...p,
+      [field]: [...(p[field] || []), value.trim()]
     }))
   }
 
-  const removeFile = (type, index) => {
-    setUploadFiles(prev => ({
-      ...prev,
-      [type]: prev[type].filter((_, i) => i !== index)
+  const removeTag = (field, index) => {
+    setFormData(p => ({
+      ...p,
+      [field]: p[field].filter((_, i) => i !== index)
     }))
   }
 
@@ -378,6 +462,23 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
         </div>
       </div>
 
+      {/* Address + Possession Date */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className={lc}>Address</label>
+          <input value={formData.address}
+            onChange={e => setFormData(p => ({ ...p, address: e.target.value }))}
+            placeholder="Plot 14, Veera Desai Road"
+            className={ic} />
+        </div>
+        <div>
+          <label className={lc}>Possession Date</label>
+          <input type="date" value={formData.possession_date}
+            onChange={e => setFormData(p => ({ ...p, possession_date: e.target.value }))}
+            className={ic} />
+        </div>
+      </div>
+
       {/* Status */}
       <div className="grid grid-cols-1 gap-2">
         <CustomSelect
@@ -388,12 +489,12 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
         />
       </div>
 
-      {/* Price Range (Simplified as per user request) */}
+      {/* Price Range */}
       <div>
-        <label className={lc}>Price Range (e.g. 80L - 1.5Cr)</label>
+        <label className={lc}>Price Range (e.g. 90L - 2.2Cr)</label>
         <input value={formData.price_range}
           onChange={e => setFormData(p => ({ ...p, price_range: e.target.value }))}
-          placeholder="80L - 1.5Cr"
+          placeholder="90L - 2.2Cr"
           className={ic} />
       </div>
 
@@ -410,30 +511,54 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
           <label className={lc}>RERA Number</label>
           <input value={formData.rera_number}
             onChange={e => setFormData(p => ({ ...p, rera_number: e.target.value }))}
-            placeholder="P51900012345"
+            placeholder="P51800045678"
             className={ic} />
         </div>
       </div>
 
-      {/* Brochure URL + Video URL */}
-      
+      {/* Configurations (Tags) */}
+      <div>
+        <label className={lc}>Configurations</label>
+        <div className="flex flex-wrap gap-1 mb-1">
+          {(formData.configurations || []).map((config, idx) => (
+            <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-brand/10 text-brand text-xs rounded-full">
+              {config}
+              <button type="button" onClick={() => removeTag('configurations', idx)} className="hover:text-red-500">
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+        </div>
+        <input onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag('configurations', e.target.value); e.target.value = ''; } }}
+          placeholder="Enter config (e.g. 1BHK, 2BHK) and press Enter"
+          className={ic} />
+      </div>
 
-      {/* Payment Plan + Home Loan Info */}
-      <div className="grid grid-cols-1 gap-2">
-        <div>
-          <label className={lc}>Payment Plan Text</label>
-          <textarea rows={2} value={formData.payment_plan}
-            onChange={e => setFormData(p => ({ ...p, payment_plan: e.target.value }))}
-            placeholder="20% on booking, 30% on construction, 50% on possession..."
-            className={ic} />
+      {/* Amenities (Tags) */}
+      <div>
+        <label className={lc}>Amenities</label>
+        <div className="flex flex-wrap gap-1 mb-1">
+          {(formData.amenities || []).map((amenity, idx) => (
+            <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-brand/10 text-brand text-xs rounded-full">
+              {amenity}
+              <button type="button" onClick={() => removeTag('amenities', idx)} className="hover:text-red-500">
+                <X size={10} />
+              </button>
+            </span>
+          ))}
         </div>
-        <div>
-          <label className={lc}>Home Loan Info</label>
-          <textarea rows={2} value={formData.home_loan_info}
-            onChange={e => setFormData(p => ({ ...p, home_loan_info: e.target.value }))}
-            placeholder="80% loan available from HDFC, ICICI at 8.5% interest..."
-            className={ic} />
-        </div>
+        <input onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag('amenities', e.target.value); e.target.value = ''; } }}
+          placeholder="Enter amenity (e.g. Swimming Pool, Gym) and press Enter"
+          className={ic} />
+      </div>
+
+      {/* Home Loan Info */}
+      <div>
+        <label className={lc}>Home Loan Info</label>
+        <textarea rows={2} value={formData.home_loan_info}
+          onChange={e => setFormData(p => ({ ...p, home_loan_info: e.target.value }))}
+          placeholder="Available through HDFC, SBI, ICICI"
+          className={ic} />
       </div>
 
       {/* Description */}
@@ -441,128 +566,61 @@ function ProjectForm({ formData, setFormData, uploadFiles, setUploadFiles }) {
         <label className={lc}>Description</label>
         <textarea rows={3} value={formData.description}
           onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
-          placeholder="Brief overview of project features, amenities..."
+          placeholder="Premium residential project in the heart of Andheri West"
           className={ic} />
       </div>
 
       {/* File Uploads */}
       <div className="grid grid-cols-1 gap-2 pt-1">
-        {/* Unit Plans */}
-        <div>
-          <label className={lc}>Unit Plans</label>
-          <div className="relative group">
-            <input 
-              type="file" 
-              multiple 
-              onChange={(e) => handleFileChange(e, 'unit_plans')}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-            />
-            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl group-hover:border-brand group-hover:bg-brand/5 transition-all">
-              <Paperclip size={14} className="text-gray-400 group-hover:text-brand" />
-              <span className="text-xs text-gray-500 group-hover:text-brand">Upload Unit Plans</span>
-            </div>
-          </div>
-          {uploadFiles.unit_plans?.length > 0 && (
-            <div className="mt-1.5 space-y-1">
-              {uploadFiles.unit_plans.map((file, idx) => (
-                <div key={idx} className="flex items-center justify-between px-2 py-1 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg group">
-                  <span className="text-[10px] text-blue-600 dark:text-blue-400 truncate flex-1 mr-2">{file.name}</span>
-                  <button onClick={() => removeFile('unit_plans', idx)} className="text-gray-400 hover:text-red-500 transition-colors">
-                    <X size={12} />
-                  </button>
+        {[
+          { type: 'unit_plans',    label: 'Unit Plans',         icon: FileText,  accept: undefined, classes: fileTypeClasses.blue },
+          { type: 'creatives',     label: 'Creatives',          icon: FileImage, accept: undefined, classes: fileTypeClasses.purple },
+          { type: 'payment_plans', label: 'Payment Plan Files', icon: FileText,  accept: undefined, classes: fileTypeClasses.green },
+          { type: 'videos',        label: 'Video Files',        icon: FileImage, accept: 'video/*',  classes: fileTypeClasses.amber },
+        ].map(({ type, label, icon: Icon, accept, classes }) => {
+          const items = projectId ? (existingFiles[type] || []) : (formData[type] || [])
+          return (
+            <div key={type}>
+              <label className={lc}>{label}</label>
+              {items.length > 0 && (
+                <div className="mb-1.5 space-y-1">
+                  {items.map((file, idx) => (
+                    <div key={file.id ?? idx} className={`flex items-center justify-between px-2 py-1 rounded-lg border ${classes.bg} ${classes.border}`}>
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0 mr-2">
+                        <Icon size={10} className={`flex-shrink-0 ${classes.icon}`} />
+                        <span className={`text-[10px] truncate ${classes.text}`}>{file.file_name}</span>
+                      </div>
+                      <button type="button"
+                        onClick={() => projectId ? onDeleteExisting?.(type, file.id) : removePendingFile(type, idx)}
+                        className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Creatives */}
-        <div>
-          <label className={lc}>Creatives</label>
-          <div className="relative group">
-            <input 
-              type="file" 
-              multiple 
-              onChange={(e) => handleFileChange(e, 'creatives')}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-            />
-            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl group-hover:border-brand group-hover:bg-brand/5 transition-all">
-              <Paperclip size={14} className="text-gray-400 group-hover:text-brand" />
-              <span className="text-xs text-gray-500 group-hover:text-brand">Upload Creatives</span>
-            </div>
-          </div>
-          {uploadFiles.creatives?.length > 0 && (
-            <div className="mt-1.5 space-y-1">
-              {uploadFiles.creatives.map((file, idx) => (
-                <div key={idx} className="flex items-center justify-between px-2 py-1 bg-purple-50/50 dark:bg-purple-900/10 rounded-lg group">
-                  <span className="text-[10px] text-purple-600 dark:text-purple-400 truncate flex-1 mr-2">{file.name}</span>
-                  <button onClick={() => removeFile('creatives', idx)} className="text-gray-400 hover:text-red-500 transition-colors">
-                    <X size={12} />
-                  </button>
+              )}
+              <div className="relative group">
+                <input
+                  type="file"
+                  multiple
+                  accept={accept}
+                  disabled={uploading[type]}
+                  onChange={(e) => handleFileChange(e, type)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-wait"
+                />
+                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl group-hover:border-brand group-hover:bg-brand/5 transition-all">
+                  {uploading[type]
+                    ? <Loader2 size={14} className="text-brand animate-spin" />
+                    : <Paperclip size={14} className="text-gray-400 group-hover:text-brand" />}
+                  <span className="text-xs text-gray-500 group-hover:text-brand">
+                    {uploading[type] ? 'Uploading…' : `Upload ${label}`}
+                  </span>
                 </div>
-              ))}
+              </div>
+              {uploadErrors[type] && <p className="text-[10px] text-red-500 mt-1">{uploadErrors[type]}</p>}
             </div>
-          )}
-        </div>
-
-        {/* Payment Plans */}
-        <div>
-          <label className={lc}>Payment Plan Files</label>
-          <div className="relative group">
-            <input 
-              type="file" 
-              multiple 
-              onChange={(e) => handleFileChange(e, 'payment_plans')}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-            />
-            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl group-hover:border-brand group-hover:bg-brand/5 transition-all">
-              <Paperclip size={14} className="text-gray-400 group-hover:text-brand" />
-              <span className="text-xs text-gray-500 group-hover:text-brand">Upload Payment Plans</span>
-            </div>
-          </div>
-          {uploadFiles.payment_plans?.length > 0 && (
-            <div className="mt-1.5 space-y-1">
-              {uploadFiles.payment_plans.map((file, idx) => (
-                <div key={idx} className="flex items-center justify-between px-2 py-1 bg-green-50/50 dark:bg-green-900/10 rounded-lg group">
-                  <span className="text-[10px] text-green-600 dark:text-green-400 truncate flex-1 mr-2">{file.name}</span>
-                  <button onClick={() => removeFile('payment_plans', idx)} className="text-gray-400 hover:text-red-500 transition-colors">
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Videos */}
-        <div>
-          <label className={lc}>Video Files</label>
-          <div className="relative group">
-            <input 
-              type="file" 
-              multiple 
-              accept="video/*"
-              onChange={(e) => handleFileChange(e, 'videos')}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-            />
-            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl group-hover:border-brand group-hover:bg-brand/5 transition-all">
-              <Paperclip size={14} className="text-gray-400 group-hover:text-brand" />
-              <span className="text-xs text-gray-500 group-hover:text-brand">Upload Videos</span>
-            </div>
-          </div>
-          {uploadFiles.videos?.length > 0 && (
-            <div className="mt-1.5 space-y-1">
-              {uploadFiles.videos.map((file, idx) => (
-                <div key={idx} className="flex items-center justify-between px-2 py-1 bg-amber-50/50 dark:bg-amber-900/10 rounded-lg group">
-                  <span className="text-[10px] text-amber-600 dark:text-amber-400 truncate flex-1 mr-2">{file.name}</span>
-                  <button onClick={() => removeFile('videos', idx)} className="text-gray-400 hover:text-red-500 transition-colors">
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -583,7 +641,6 @@ export default function Projects() {
   const [page,         setPage]         = useState(1)
 
   const [showAddModal,  setShowAddModal]  = useState(false)
-  const [uploadFiles, setUploadFiles] = useState({ unit_plans: [], creatives: [], payment_plans: [], videos: [] })
   const [showEditModal, setShowEditModal] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -593,12 +650,15 @@ export default function Projects() {
 
   const [addForm,  setAddForm]  = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
+  const [existingFiles,   setExistingFiles]   = useState({ unit_plans: [], creatives: [], payment_plans: [], videos: [] })
   const [success,    setSuccess]    = useState('')
   const [downloadError, setDownloadError] = useState('')
   const [localError, setLocalError] = useState('')
   const [exporting,  setExporting]  = useState(false)
   const [downloading, setDownloading] = useState({}) // { [projectId]: { unit_plan: bool, creative: false, payment_plan: bool, video: false } }
   const [creatingProject, setCreatingProject] = useState(false)
+  const [docCounts, setDocCounts] = useState({}) // { [projectId]: { unit_plans: n, creatives: n, payment_plans: n, videos: n } }
+  const [cardUploading, setCardUploading] = useState({}) // { [`${projectId}_${field}`]: bool }
 
   useEffect(() => {
     const params = { page, per_page: 10 }
@@ -624,6 +684,30 @@ export default function Projects() {
     }
   }, [shareProject, dispatch])
 
+  // Check which document types each listed project actually has, so cards
+  // can show an Upload button instead of a Download button where empty.
+  useEffect(() => {
+    if (list.length === 0) return
+    let cancelled = false
+    Promise.all(list.map(async (p) => {
+      try {
+        const res = await api.get(`/projects/${p.id}/documents`)
+        const docs = res.data?.data?.documents || res.data?.documents || {}
+        return [p.id, {
+          unit_plans:    (docs.unit_plans    || []).length,
+          creatives:     (docs.creatives     || []).length,
+          payment_plans: (docs.payment_plans || []).length,
+          videos:        (docs.videos        || []).length,
+        }]
+      } catch {
+        return [p.id, null]
+      }
+    })).then(entries => {
+      if (!cancelled) setDocCounts(Object.fromEntries(entries.filter(([, v]) => v)))
+    })
+    return () => { cancelled = true }
+  }, [list])
+
   const canManage = ['super_admin', 'admin'].includes(currentUser?.role)
   const isViewOnly = !canManage  // sales roles have view-only access
   const perms = useModulePermissions('projects')
@@ -633,80 +717,21 @@ export default function Projects() {
     e.preventDefault()
     dispatch(clearProjectError())
     setCreatingProject(true)
-    
     try {
-      // 1. Upload Unit Plans first
-      const unitPlanDetails = []
-      for (const file of uploadFiles.unit_plans) {
-        const formData = new FormData()
-        formData.append('unit_plan', file)
-        const res = await api.post('/projects/upload-unit-plan', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        if (res.data.success) {
-          unitPlanDetails.push(res.data.data)
-        }
-      }
-
-      // 2. Upload Creatives
-      const creativeDetails = []
-      for (const file of uploadFiles.creatives) {
-        const formData = new FormData()
-        formData.append('creative', file)
-        const res = await api.post('/projects/upload-creative', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        if (res.data.success) {
-          creativeDetails.push(res.data.data)
-        }
-      }
-
-      // 3. Upload Payment Plans
-      const paymentPlanDetails = []
-      for (const file of uploadFiles.payment_plans) {
-        const formData = new FormData()
-        formData.append('payment_plan', file)
-        const res = await api.post('/projects/upload-payment-plan', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        if (res.data.success) {
-          paymentPlanDetails.push(res.data.data)
-        }
-      }
-
-      // 4. Upload Videos
-      const videoDetails = []
-      for (const file of uploadFiles.videos) {
-        const formData = new FormData()
-        formData.append('video', file)
-        const res = await api.post('/projects/upload-video', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        if (res.data.success) {
-          videoDetails.push(res.data.data)
-        }
-      }
-
-      // 5. Prepare project data with file details
+      // Files were already uploaded (and their metadata stored in addForm)
+      // as soon as they were picked — just create the project now.
       const projectData = {
         ...addForm,
-        unit_plans: unitPlanDetails,
-        creatives: creativeDetails,
-        payment_plans: paymentPlanDetails,
-        videos: videoDetails,
         total_units: addForm.total_units ? parseInt(addForm.total_units) : 0
       }
-
-      // 6. Create Project
       const result = await dispatch(createProject(projectData))
       if (createProject.fulfilled.match(result)) {
         setSuccess('Project created!')
-        setUploadFiles({ unit_plans: [], creatives: [], payment_plans: [], videos: [] })
         dispatch(fetchProjects({ page, per_page: 10 }))
-        setTimeout(() => { 
+        setTimeout(() => {
           setShowAddModal(false)
           setSuccess('')
-          setAddForm(defaultForm) 
+          setAddForm(defaultForm)
         }, 800)
       }
     } catch (err) {
@@ -720,11 +745,27 @@ export default function Projects() {
   const handleEdit = async (e) => {
     e.preventDefault()
     dispatch(clearProjectError())
-    const result = await dispatch(updateProject({ id: selectedProject.id, data: editForm }))
-    if (updateProject.fulfilled.match(result)) {
-      setSuccess('Project updated!')
-      dispatch(fetchProjects({ page, per_page: 10 }))
-      setTimeout(() => { setShowEditModal(false); setSuccess('') }, 800)
+    setCreatingProject(true)
+    try {
+      // New documents are already attached via POST /projects/{id}/documents
+      // as soon as they were picked — the PUT only carries plain fields.
+      const updateData = {
+        ...editForm,
+        total_units: editForm.total_units ? parseInt(editForm.total_units) : 0,
+      }
+      const result = await dispatch(updateProject({ id: selectedProject.id, data: updateData }))
+      if (updateProject.fulfilled.match(result)) {
+        setSuccess('Project updated!')
+        dispatch(fetchProjects({ page, per_page: 10 }))
+        setTimeout(() => {
+          setShowEditModal(false); setSuccess('')
+          setExistingFiles({ unit_plans: [], creatives: [], payment_plans: [], videos: [] })
+        }, 800)
+      }
+    } catch (err) {
+      console.error('Project update failed:', err)
+    } finally {
+      setCreatingProject(false)
     }
   }
 
@@ -743,25 +784,78 @@ export default function Projects() {
     }
   }
 
-  const openEdit = (project) => {
+  const openEdit = async (project) => {
     setSelectedProject(project)
     setEditForm({
-      name:           project.name || '',
-      developer:      project.developer || '',
-      city:           project.city || '',
-      locality:       project.locality || '',
-      type:           project.type || 'Residential',
-      price_range:    project.price_range || '',
-      total_units:    project.total_units || '',
-      description:    project.description || '',
-      status:         project.status || 'active',
-      rera_number:    project.rera_number || '',
-      brochure_url:   project.brochure_url || '',
-      video_url:      project.video_url || '',
-      payment_plan:   project.payment_plan || '',
-      home_loan_info: project.home_loan_info || '',
+      name:              project.name || '',
+      developer:         project.developer || '',
+      city:              project.city || '',
+      locality:          project.locality || '',
+      address:           project.address || '',
+      configurations:    project.configurations || [],
+      price_range:       project.price_range || '',
+      total_units:       project.total_units || '',
+      possession_date:   project.possession_date || '',
+      rera_number:       project.rera_number || '',
+      amenities:         project.amenities || [],
+      status:            project.status || 'active',
+      description:       project.description || '',
+      brochure_url:      project.brochure_url || '',
+      video_url:         project.video_url || '',
+      payment_plan_url:  project.payment_plan_url || '',
+      home_loan_info:    project.home_loan_info || '',
     })
     setShowEditModal(true)
+    try {
+      const res = await api.get(`/projects/${project.id}`)
+      const d = res.data.data || res.data
+      setSelectedProject({ ...project, ...d })
+      setEditForm({
+        name:              d.name || '',
+        developer:         d.developer || '',
+        city:              d.city || '',
+        locality:          d.locality || '',
+        address:           d.address || '',
+        configurations:    d.configurations || [],
+        price_range:       d.price_range || '',
+        total_units:       d.total_units || '',
+        possession_date:   d.possession_date || '',
+        rera_number:       d.rera_number || '',
+        amenities:         d.amenities || [],
+        status:            d.status || 'active',
+        description:       d.description || '',
+        brochure_url:      d.brochure_url || '',
+        video_url:         d.video_url || '',
+        payment_plan_url:  d.payment_plan_url || '',
+        home_loan_info:    d.home_loan_info || '',
+      })
+      setExistingFiles({
+        unit_plans:    d.unit_plans    || [],
+        creatives:     d.creatives     || [],
+        payment_plans: d.payment_plans || [],
+        videos:        d.videos        || [],
+      })
+    } catch {}
+  }
+
+  const handleDeleteExistingFile = async (type, docId) => {
+    try {
+      await api.delete(`/projects/${selectedProject.id}/documents/${docId}`)
+      setExistingFiles(prev => ({ ...prev, [type]: prev[type].filter(f => f.id !== docId) }))
+    } catch {}
+  }
+
+  const refreshExistingFiles = async () => {
+    try {
+      const res = await api.get(`/projects/${selectedProject.id}`)
+      const d = res.data.data || res.data
+      setExistingFiles({
+        unit_plans:    d.unit_plans    || [],
+        creatives:     d.creatives     || [],
+        payment_plans: d.payment_plans || [],
+        videos:        d.videos        || [],
+      })
+    } catch {}
   }
 
   // Format price range for display
@@ -838,6 +932,30 @@ export default function Projects() {
       setTimeout(() => setDownloadError(''), 5000)
     } finally {
       setDownloading(prev => ({ ...prev, [projectId]: { ...prev[projectId], [docType]: false } }))
+    }
+  }
+
+  const handleCardUpload = async (e, project, field) => {
+    const files = Array.from(e.target.files)
+    e.target.value = ''
+    if (files.length === 0) return
+    const key = `${project.id}_${field}`
+    setCardUploading(prev => ({ ...prev, [key]: true }))
+    try {
+      const fd = new FormData()
+      files.forEach(file => fd.append(field, file))
+      await api.post(`/projects/${project.id}/documents`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      setDocCounts(prev => ({
+        ...prev,
+        [project.id]: { ...prev[project.id], [field]: (prev[project.id]?.[field] || 0) + files.length }
+      }))
+      setSuccess('Files uploaded!')
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setDownloadError(err.response?.data?.message || 'Upload failed. Please try again.')
+      setTimeout(() => setDownloadError(''), 5000)
+    } finally {
+      setCardUploading(prev => ({ ...prev, [key]: false }))
     }
   }
 
@@ -1004,32 +1122,40 @@ export default function Projects() {
                     )}
                   </div>
 
-                  {/* Download Options */}
+                  {/* Download / Upload Options */}
                   <div className="grid grid-cols-2 gap-2 mb-3">
-                    <button onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'unit_plan') }}
-                      disabled={downloading[project.id]?.unit_plan}
-                      className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50">
-                      {downloading[project.id]?.unit_plan ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                      Unit Plans
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'creative') }}
-                      disabled={downloading[project.id]?.creative}
-                      className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 text-[10px] font-bold hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors disabled:opacity-50">
-                      {downloading[project.id]?.creative ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                      Creatives
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'payment_plan') }}
-                      disabled={downloading[project.id]?.payment_plan}
-                      className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-[10px] font-bold hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors disabled:opacity-50">
-                      {downloading[project.id]?.payment_plan ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                      Payment Plans
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, 'video') }}
-                      disabled={downloading[project.id]?.video}
-                      className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:opacity-50">
-                      {downloading[project.id]?.video ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                      Videos
-                    </button>
+                    {documentTypeMap.map(({ docType, field, label, btn, upload }) => {
+                      const count = docCounts[project.id]?.[field]
+                      const hasDocs = count === undefined || count > 0
+                      if (hasDocs) {
+                        return (
+                          <button key={docType} onClick={(e) => { e.stopPropagation(); handleDownloadAll(project.id, project.name, docType) }}
+                            disabled={downloading[project.id]?.[docType]}
+                            className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold transition-colors disabled:opacity-50 ${btn}`}>
+                            {downloading[project.id]?.[docType] ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                            {label}
+                          </button>
+                        )
+                      }
+                      if (!perms.edit) {
+                        return (
+                          <div key={docType} className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 text-gray-400 text-[10px] font-bold">
+                            No {label}
+                          </div>
+                        )
+                      }
+                      const uploading = cardUploading[`${project.id}_${field}`]
+                      return (
+                        <label key={docType} onClick={(e) => e.stopPropagation()}
+                          className={`relative flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-dashed text-[10px] font-bold cursor-pointer transition-colors ${upload} ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <input type="file" multiple
+                            onChange={(e) => handleCardUpload(e, project, field)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                          {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                          {label}
+                        </label>
+                      )
+                    })}
                   </div>
 
                   <Button onClick={() => navigate(`/projects/${project.id}`)} variant="outline" size="sm" className="w-full mt-auto">View Project</Button>
@@ -1054,7 +1180,7 @@ export default function Projects() {
       {/* Add Modal */}
       <Modal isOpen={showAddModal} onClose={() => { setShowAddModal(false); setSuccess('') }} title="Add New Project" size="lg">
         <form onSubmit={handleAdd} className="space-y-4">
-          <ProjectForm formData={addForm} setFormData={setAddForm} uploadFiles={uploadFiles} setUploadFiles={setUploadFiles} />
+          <ProjectForm formData={addForm} setFormData={setAddForm} />
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="outline" className="flex-1" onClick={() => setShowAddModal(false)} disabled={creatingProject}>Cancel</Button>
             <Button type="submit" className="flex-1" loading={creatingProject}>Add Project</Button>
@@ -1063,12 +1189,22 @@ export default function Projects() {
       </Modal>
 
       {/* Edit Modal */}
-      <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSuccess('') }} title="Edit Project" size="lg">
+      <Modal isOpen={showEditModal} onClose={() => {
+        setShowEditModal(false); setSuccess('')
+        setExistingFiles({ unit_plans: [], creatives: [], payment_plans: [], videos: [] })
+      }} title="Edit Project" size="lg">
         <form onSubmit={handleEdit} className="space-y-4">
-          <ProjectForm formData={editForm} setFormData={setEditForm} uploadFiles={{ unit_plans: [], creatives: [] }} setUploadFiles={() => {}} />
+          <ProjectForm
+            formData={editForm}
+            setFormData={setEditForm}
+            projectId={selectedProject?.id}
+            existingFiles={existingFiles}
+            onDeleteExisting={handleDeleteExistingFile}
+            onFilesUploaded={refreshExistingFiles}
+          />
           <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowEditModal(false)}>Cancel</Button>
-            <Button type="submit" className="flex-1" loading={actionLoading}>Update Project</Button>
+            <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowEditModal(false); setExistingFiles({ unit_plans: [], creatives: [], payment_plans: [], videos: [] }) }} disabled={creatingProject}>Cancel</Button>
+            <Button type="submit" className="flex-1" loading={creatingProject}>Update Project</Button>
           </div>
         </form>
       </Modal>
