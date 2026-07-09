@@ -44,11 +44,22 @@ const defaultForm = {
   notes: '',
   transport_arranged: false,
 }
+const configurationOptions = [
+  { value: '1RK', label: '1RK' },
+  { value: '1BHK', label: '1BHK' },
+  { value: '2BHK', label: '2BHK' },
+  { value: '3BHK', label: '3BHK' },
+  { value: '4BHK', label: '4BHK' },
+  { value: 'Penta House / Duplex', label: 'Penta House / Duplex' },
+  { value: 'Commercial shop', label: 'Commercial shop' },
+  { value: 'Office space', label: 'Office space' },
+]
+
 const defaultLeadWithVisitForm = {
   // Lead fields
   name: '', phone: '', alternate_phone_number: '', email: '',
   source: '', source_id: '', project_id: '', project_name: '', assigned_to: '',
-  budget: '', location_preference: '', configuration: '',
+  budget: '', location_preference: '', configuration: [],
   lead_notes: '', callback_time: '', next_followup_time: '',
   // Site visit fields
   visit_date: '', visit_time: '10:00', notes: '', transport_arranged: false
@@ -508,10 +519,16 @@ function LeadWithVisitForm({ formData, setFormData, activeTab, setActiveTab, sou
             </div>
           </div>
 
-          {/* Configuration */}
+          {/* Configuration (Multi-select) */}
           <div>
-            <label className={labelClass}>Configuration</label>
-            <input value={formData.configuration} onChange={e => updateForm('configuration', e.target.value)} placeholder="3BHK" className={inputClass} />
+            <CustomSelect
+              label="Configuration"
+              value={formData.configuration}
+              onChange={val => updateForm('configuration', val)}
+              options={configurationOptions}
+              placeholder="Select configuration(s)"
+              multiple
+            />
           </div>
 
           {/* Project Name — autocomplete with plain-text fallback when no results */}

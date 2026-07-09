@@ -50,10 +50,21 @@ const defaultSources = [
   { id: 'nobroker', name: 'NoBroker' },
 ]
 
+const configurationOptions = [
+  { value: '1RK', label: '1RK' },
+  { value: '1BHK', label: '1BHK' },
+  { value: '2BHK', label: '2BHK' },
+  { value: '3BHK', label: '3BHK' },
+  { value: '4BHK', label: '4BHK' },
+  { value: 'Penta House / Duplex', label: 'Penta House / Duplex' },
+  { value: 'Commercial shop', label: 'Commercial shop' },
+  { value: 'Office space', label: 'Office space' },
+]
+
 const defaultForm = {
   name: '', phone: '', alternate_phone_number: '', email: '',
   source: '', source_id: '', project_id: '', project_name: '',
-  assigned_to: '', budget: '', location_preference: '',
+  assigned_to: '', budget: '', location_preference: '', configuration: [],
   notes: '', status: 'New',
   callback_time: '', next_followup_time: '',
 }
@@ -315,7 +326,7 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
         </div>
       </div>
 
-      {/* Budget + Location */}
+      {/* Budget + Location + Configuration */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Budget</label>
@@ -328,6 +339,18 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
             <input value={formData.location_preference} onChange={e => setFormData(prev => ({ ...prev, location_preference: e.target.value }))} placeholder="Andheri West" className={inputClass + ' pl-8'} />
           </div>
         </div>
+      </div>
+
+      {/* Configuration (Multi-select) */}
+      <div>
+        <CustomSelect
+          label="Configuration"
+          value={formData.configuration}
+          onChange={val => setFormData(prev => ({ ...prev, configuration: val }))}
+          options={configurationOptions}
+          placeholder="Select configuration(s)"
+          multiple
+        />
       </div>
       
       {/* Project Name — autocomplete with plain-text fallback when no results */}

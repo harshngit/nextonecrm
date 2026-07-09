@@ -112,7 +112,6 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
             <div className="flex flex-wrap gap-1">
               {options
                 .filter(opt => value.includes(opt.value))
-                .slice(0, 2)
                 .map(opt => (
                   <span key={opt.value} className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand/10 text-brand text-[11px] rounded-md">
                     {opt.label}
@@ -121,9 +120,6 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
                     </button>
                   </span>
                 ))}
-              {value.length > 2 && (
-                <span className="text-xs text-gray-500">+{value.length - 2} more</span>
-              )}
             </div>
           ) : (
             <span className={`truncate ${!getSelectedDisplay() || getSelectedDisplay() === placeholder ? 'text-gray-400' : ''}`}>

@@ -199,11 +199,22 @@ const defaultForm = {
   assigned_to: '', priority: 'medium', notes: '',
 }
 
+const configurationOptions = [
+  { value: '1RK', label: '1RK' },
+  { value: '1BHK', label: '1BHK' },
+  { value: '2BHK', label: '2BHK' },
+  { value: '3BHK', label: '3BHK' },
+  { value: '4BHK', label: '4BHK' },
+  { value: 'Penta House / Duplex', label: 'Penta House / Duplex' },
+  { value: 'Commercial shop', label: 'Commercial shop' },
+  { value: 'Office space', label: 'Office space' },
+]
+
 const defaultLeadWithTaskForm = {
   // Lead fields
   name: '', phone: '', alternate_phone_number: '', email: '',
   source: '', source_id: '', project_id: '', project_name: '', assigned_to: '',
-  budget: '', location_preference: '', configuration: '',
+  budget: '', location_preference: '', configuration: [],
   lead_notes: '', callback_time: '', next_followup_time: '',
   // Task fields
   title: '', due_date: '', due_time: '10:00', priority: 'medium', notes: ''
@@ -425,10 +436,16 @@ function LeadWithTaskForm({ formData, setFormData, activeTab, setActiveTab, sour
             </div>
           </div>
 
-          {/* Configuration */}
+          {/* Configuration (Multi-select) */}
           <div>
-            <label className={labelClass}>Configuration</label>
-            <input value={formData.configuration} onChange={e => updateForm('configuration', e.target.value)} placeholder="2BHK" className={inputClass} />
+            <CustomSelect
+              label="Configuration"
+              value={formData.configuration}
+              onChange={val => updateForm('configuration', val)}
+              options={configurationOptions}
+              placeholder="Select configuration(s)"
+              multiple
+            />
           </div>
 
           {/* Project Name — autocomplete with plain-text fallback when no results */}
