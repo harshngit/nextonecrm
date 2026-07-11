@@ -1068,7 +1068,7 @@ export default function Projects() {
                       {project.status}
                     </span>
                   </div>
-                  {(perms.edit || canShareProject) && (
+                  {(perms.edit || perms.delete || canShareProject) && (
                     <div className="absolute top-3 left-3 flex gap-1">
                       {perms.edit && (
                         <button onClick={() => openEdit(project)}
@@ -1080,7 +1080,7 @@ export default function Projects() {
                         className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-brand transition-colors" title="Share via email">
                         <Share2 size={11} />
                       </button>
-                      {perms.edit && (
+                      {perms.delete && (
                         <button onClick={() => handleDelete(project)}
                           className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-red-500 transition-colors" title="Delete">
                           <Trash2 size={11} />

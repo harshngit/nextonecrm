@@ -202,6 +202,7 @@ export default function Targets() {
   const refresh = () => dispatch(fetchTargets({ month: monthStr }))
 
   const canEditRow = (t) => {
+    if (!perms.edit) return false
     if (isAdmin) return true
     if (isTeamLead) return getUserId(t) !== currentUser?.id
     return false
@@ -394,7 +395,7 @@ export default function Targets() {
                                     <Edit2 size={14} />
                                     {custom ? 'Edit Target' : 'Set Custom Target'}
                                   </button>
-                                  {custom && (
+                                  {custom && perms.delete && (
                                     <button
                                       onClick={() => { openReset(t); setOpenMenuId(null) }}
                                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"

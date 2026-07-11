@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -139,6 +140,8 @@ export default function Notifications() {
   const [page,       setPage]       = useState(1)
   const [deletingId, setDeletingId] = useState(null)
   const [showDeleteAll, setShowDeleteAll] = useState(false)
+
+  useEscapeKey(showDeleteAll, () => setShowDeleteAll(false))
 
   useEffect(() => {
     const params = { page, per_page: 10 }

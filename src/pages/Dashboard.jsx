@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -158,6 +159,7 @@ function AttendanceModal({ onClose }) {
   const isAdmin=['super_admin','admin'].includes(user?.role)
   const [mode,setMode]=useState(null)
   useEffect(()=>{dispatch(fetchAttendanceToday())},[dispatch])
+  useEscapeKey(mode===null, onClose)
   if(mode==='checkin'||mode==='checkout')return<SelfieModal dispatch={dispatch} type={mode} onClose={()=>setMode(null)}/>
   if(mode==='manual')return<ManualModal dispatch={dispatch} onClose={()=>setMode(null)}/>
   const status=td?.status||'absent'

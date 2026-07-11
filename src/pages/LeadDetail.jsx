@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -318,6 +319,7 @@ export default function LeadDetail() {
   const [historyTotalPages,   setHistoryTotalPages]   = useState(1)
 
   const [showReassignAction, setShowReassignAction] = useState(false)
+  useEscapeKey(showReassignAction, () => setShowReassignAction(false))
   const [reassignTo,         setReassignTo]         = useState('')
   const [reassignReason,     setReassignReason]     = useState('')
   const [reassigning,        setReassigning]        = useState(false)

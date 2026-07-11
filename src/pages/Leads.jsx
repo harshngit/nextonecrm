@@ -422,13 +422,6 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
         )}
       </div>
 
-      {/* Notes */}
-      <div>
-        <label className={labelClass}>Configuration / Notes</label>
-        <textarea rows={3} value={formData.notes} onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-          placeholder="Client is looking for 2BHK in a gated community." className={inputClass} />
-      </div>
-
       {/* Call Recordings */}
       <CallRecordingsManager
         mode={isEdit ? 'edit' : 'add'}
@@ -1652,8 +1645,6 @@ export default function Leads() {
     setSelectedLeads(selectedLeads.length === list.length && list.length > 0 ? [] : list.map(l => l.id))
 
   const perms        = useModulePermissions('leads')
-  const canEdit      = ['super_admin', 'admin', 'sales_manager', 'sales_executive', 'external_caller'].includes(currentUser?.role)
-  const canDelete    = ['super_admin', 'admin'].includes(currentUser?.role)
   const canReassign     = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
   const canRequestPhone = ['sales_manager', 'sales_executive', 'external_caller'].includes(currentUser?.role)
   const canBulkUpload = true  // all authenticated users can bulk upload — exec/caller auto-assigned to self
@@ -1940,27 +1931,33 @@ export default function Leads() {
                                 <ArrowRightCircle size={14} />
                                 Convert
                               </button>
-                              <button 
-                                onClick={() => { openEdit(lead); setOpenMenuLeadId(null); }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                              >
-                                <Edit2 size={14} />
-                                Edit
-                              </button>
-                              <button 
-                                onClick={() => { setSelectedLead(lead); setReassignTo(lead.assigned_to || ''); setShowReassignModal(true); setOpenMenuLeadId(null); }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                              >
-                                <Users size={14} />
-                                Reassign
-                              </button>
-                              <button 
-                                onClick={() => { handleDeleteLead(lead); setOpenMenuLeadId(null); }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                              >
-                                <Trash2 size={14} />
-                                Delete
-                              </button>
+                              {perms.edit && (
+                                <button
+                                  onClick={() => { openEdit(lead); setOpenMenuLeadId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                  <Edit2 size={14} />
+                                  Edit
+                                </button>
+                              )}
+                              {canReassign && (
+                                <button
+                                  onClick={() => { setSelectedLead(lead); setReassignTo(lead.assigned_to || ''); setShowReassignModal(true); setOpenMenuLeadId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                  <Users size={14} />
+                                  Reassign
+                                </button>
+                              )}
+                              {perms.delete && (
+                                <button
+                                  onClick={() => { handleDeleteLead(lead); setOpenMenuLeadId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                >
+                                  <Trash2 size={14} />
+                                  Delete
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>

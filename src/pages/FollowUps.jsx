@@ -870,7 +870,7 @@ function BulkConvertFUModal({ taskIds, tasks, onClose, onSuccess, teamMembers = 
 }
 
 
-function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, isSelected, onSelect, editLoading, openMenuTaskId, setOpenMenuTaskId }) {
+function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, canEdit, canDelete, isSelected, onSelect, editLoading, openMenuTaskId, setOpenMenuTaskId }) {
   const navigate = useNavigate()
   const [menuPos, setMenuPos] = useState(null)
   const category = classifyTask(task)
@@ -971,19 +971,23 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, is
                         Convert to Site Visit
                       </button>
                     )}
-                    <button 
-                      onClick={() => { onEdit(task); setOpenMenuTaskId(null)}}
-                      disabled={editLoading === task.id}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
-                      {editLoading === task.id ? <Loader2 size={14} className="animate-spin" /> : <Edit2 size={14} />}
-                      Edit
-                    </button>
-                    <button 
-                      onClick={() => { onDelete(task); setOpenMenuTaskId(null)}}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                      <Trash2 size={14} />
-                      Delete
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => { onEdit(task); setOpenMenuTaskId(null)}}
+                        disabled={editLoading === task.id}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
+                        {editLoading === task.id ? <Loader2 size={14} className="animate-spin" /> : <Edit2 size={14} />}
+                        Edit
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={() => { onDelete(task); setOpenMenuTaskId(null)}}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1350,7 +1354,9 @@ export default function FollowUps() {
               onEdit={openEdit}
               onDelete={confirmDelete}
               onConvert={selectable ? (t) => { setConvertTask(t); setShowConvertModal(true) } : undefined}
-              canManage={perms.edit}
+              canManage={perms.edit || perms.delete}
+              canEdit={perms.edit}
+              canDelete={perms.delete}
               isSelected={selectedTasks.includes(task.id)}
               onSelect={selectable ? toggleTask : undefined}
               editLoading={editLoading}
@@ -1462,11 +1468,12 @@ export default function FollowUps() {
           {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button> */}
+          {perms.create && (
           <div className="relative">
-            <Button 
-              icon={Plus} 
-              onClick={() => { 
-                setAddMenuOpen(o => !o) 
+            <Button
+              icon={Plus}
+              onClick={() => {
+                setAddMenuOpen(o => !o)
               }}
             >
               Add Follow-up
@@ -1507,6 +1514,7 @@ export default function FollowUps() {
               </>
             )}
           </div>
+          )}
         </div>
       </div>
 
@@ -1681,19 +1689,23 @@ export default function FollowUps() {
                                     Convert to Site Visit
                                   </button>
                                 )}
-                                <button 
-                                  onClick={() => { openEdit(task); setOpenMenuTaskId(null)}}
-                                  disabled={editLoading === task.id}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
-                                  {editLoading === task.id ? <Loader2 size={14} className="animate-spin" /> : <Edit2 size={14} />}
-                                  Edit
-                                </button>
-                                <button 
-                                  onClick={() => { confirmDelete(task); setOpenMenuTaskId(null)}}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                                  <Trash2 size={14} />
-                                  Delete
-                                </button>
+                                {perms.edit && (
+                                  <button
+                                    onClick={() => { openEdit(task); setOpenMenuTaskId(null)}}
+                                    disabled={editLoading === task.id}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
+                                    {editLoading === task.id ? <Loader2 size={14} className="animate-spin" /> : <Edit2 size={14} />}
+                                    Edit
+                                  </button>
+                                )}
+                                {perms.delete && (
+                                  <button
+                                    onClick={() => { confirmDelete(task); setOpenMenuTaskId(null)}}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                    <Trash2 size={14} />
+                                    Delete
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>

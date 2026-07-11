@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -34,6 +35,7 @@ const FileIcon = ({ mime, size = 16, className = '' }) => {
 
 // ─── Share Project Modal ──────────────────────────────────────────────────────
 function ShareProjectModal({ projectId, projectName, onClose, projectDocuments }) {
+  useEscapeKey(true, onClose)
   const ic = "w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-brand text-gray-900 shadow-sm transition-all"
   const [emailInput, setEmailInput] = useState('')
   const [emails,     setEmails]     = useState([])
@@ -280,6 +282,7 @@ function ShareProjectModal({ projectId, projectName, onClose, projectDocuments }
 
 // ─── Document Upload Modal ────────────────────────────────────────────────────
 function UploadDocsModal({ projectId, onClose, onSuccess, initialType = null }) {
+  useEscapeKey(true, onClose)
   const [unitFiles,     setUnitFiles]     = useState([])
   const [creativeFiles, setCreativeFiles] = useState([])
   const [paymentPlanFiles, setPaymentPlanFiles] = useState([])

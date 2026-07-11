@@ -1173,35 +1173,36 @@ export default function SiteVisits() {
           {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
             Export
           </Button> */}
+          {perms.create && (
           <div className="relative">
             <Button icon={Plus} onClick={() => setAddMenuOpen(o => !o)}>
               Schedule Visit
             </Button>
             {addMenuOpen && (
               <>
-                <div 
+                <div
                   className="fixed inset-0 z-40"
                   onClick={() => setAddMenuOpen(false)}
                 />
                 <div className="absolute lg:right-0 top-full mt-2 z-50 w-60 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg py-1">
-                  <button 
-                    onClick={() => { 
-                      setAddForm(defaultForm); 
-                      dispatch(clearSiteVisitError()); 
-                      setShowAddModal(true); 
-                      setAddMenuOpen(false); 
+                  <button
+                    onClick={() => {
+                      setAddForm(defaultForm);
+                      dispatch(clearSiteVisitError());
+                      setShowAddModal(true);
+                      setAddMenuOpen(false);
                     }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                     <User size={16} />
                     <span>Existing Lead</span>
                   </button>
-                  <button 
-                    onClick={() => { 
-                      setLeadWithVisitForm(defaultLeadWithVisitForm); 
-                      setLeadWithVisitTab('lead'); 
-                      dispatch(clearSiteVisitError()); 
-                      setShowLeadWithVisitModal(true); 
-                      setAddMenuOpen(false); 
+                  <button
+                    onClick={() => {
+                      setLeadWithVisitForm(defaultLeadWithVisitForm);
+                      setLeadWithVisitTab('lead');
+                      dispatch(clearSiteVisitError());
+                      setShowLeadWithVisitModal(true);
+                      setAddMenuOpen(false);
                     }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                     <Plus size={16} />
@@ -1211,6 +1212,7 @@ export default function SiteVisits() {
               </>
             )}
           </div>
+          )}
         </div>
       </div>
 
@@ -1341,19 +1343,21 @@ export default function SiteVisits() {
                             )}
                             {visit.status === 'scheduled' && (
                               <>
-                                <button 
-                                  onClick={() => { openEdit(visit); setOpenMenuVisitId(null); }}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                                  <Edit2 size={14} />
-                                  Edit
-                                </button>
-                                <button 
+                                {perms.edit && (
+                                  <button
+                                    onClick={() => { openEdit(visit); setOpenMenuVisitId(null); }}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                    <Edit2 size={14} />
+                                    Edit
+                                  </button>
+                                )}
+                                <button
                                   onClick={() => { openFeedback(visit); setOpenMenuVisitId(null); }}
                                   className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                                   <CheckCircle size={14} />
                                   Mark Outcome
                                 </button>
-                                <button 
+                                <button
                                   onClick={() => { confirmCancel(visit); setOpenMenuVisitId(null); }}
                                   className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                                   <X size={14} />
@@ -1361,8 +1365,8 @@ export default function SiteVisits() {
                                 </button>
                               </>
                             )}
-                            {visit.status !== 'scheduled' && (
-                              <button 
+                            {visit.status !== 'scheduled' && perms.edit && (
+                              <button
                                 onClick={() => { openFeedback(visit); setOpenMenuVisitId(null); }}
                                 className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                                 <Edit2 size={14} />

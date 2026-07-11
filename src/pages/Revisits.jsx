@@ -474,7 +474,7 @@ export default function Revisits() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Follow-up visits linked to original site visits</p>
         </div>
-        <Button icon={Plus} onClick={() => setShowSchedule(true)}>Schedule Re-visit</Button>
+        {perms.create && <Button icon={Plus} onClick={() => setShowSchedule(true)}>Schedule Re-visit</Button>}
       </div>
 
       {/* Stats row */}
@@ -553,10 +553,12 @@ export default function Revisits() {
             </div>
             <p className="text-gray-500 font-medium">No re-visits found</p>
             <p className="text-sm text-gray-400 mt-1">Schedule a re-visit to get started</p>
-            <button onClick={() => setShowSchedule(true)}
-              className="mt-4 flex items-center gap-2 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand text-sm font-semibold rounded-xl mx-auto transition-colors">
-              <Plus size={14} /> Schedule Re-visit
-            </button>
+            {perms.create && (
+              <button onClick={() => setShowSchedule(true)}
+                className="mt-4 flex items-center gap-2 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand text-sm font-semibold rounded-xl mx-auto transition-colors">
+                <Plus size={14} /> Schedule Re-visit
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -679,10 +681,12 @@ export default function Revisits() {
                                 className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                                 <Eye size={14} /> View Details
                               </button>
-                              <button onClick={() => { setSelected(rv); setShowEdit(true); setOpenMenuId(null) }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                                <Edit2 size={14} /> Edit
-                              </button>
+                              {perms.edit && (
+                                <button onClick={() => { setSelected(rv); setShowEdit(true); setOpenMenuId(null) }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                  <Edit2 size={14} /> Edit
+                                </button>
+                              )}
                               {rv.status !== 'done' && (
                                 <button onClick={() => { setSelected(rv); setShowStatus(true); setOpenMenuId(null) }}
                                   className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
@@ -695,10 +699,12 @@ export default function Revisits() {
                                   <MessageSquare size={14} /> Submit Feedback
                                 </button>
                               )}
-                              <button onClick={() => { setSelected(rv); setShowDelete(true); setOpenMenuId(null) }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                                <Trash2 size={14} /> Delete
-                              </button>
+                              {perms.delete && (
+                                <button onClick={() => { setSelected(rv); setShowDelete(true); setOpenMenuId(null) }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                  <Trash2 size={14} /> Delete
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>

@@ -644,7 +644,7 @@ export default function Closures() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Booking records when leads are converted</p>
         </div>
-        <Button icon={Plus} onClick={() => setShowCreate(true)}>Book Lead</Button>
+        {perms.create && <Button icon={Plus} onClick={() => setShowCreate(true)}>Book Lead</Button>}
       </div>
 
       {/* Summary cards (admin/manager only) */}
@@ -713,10 +713,12 @@ export default function Closures() {
             </div>
             <p className="text-gray-500 font-medium">No closures found</p>
             <p className="text-sm text-gray-400 mt-1">Create a closure when a lead is booked</p>
-            <button onClick={() => setShowCreate(true)}
-              className="mt-4 flex items-center gap-2 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand text-sm font-semibold rounded-xl mx-auto transition-colors">
-              <Plus size={14} /> Book Lead
-            </button>
+            {perms.create && (
+              <button onClick={() => setShowCreate(true)}
+                className="mt-4 flex items-center gap-2 px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand text-sm font-semibold rounded-xl mx-auto transition-colors">
+                <Plus size={14} /> Book Lead
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -825,13 +827,15 @@ export default function Closures() {
                                 <ChevronRight size={14} />
                                 Quick View
                               </button>
-                              <button
-                                onClick={() => { setSelected(c); setShowEdit(true); setOpenMenuId(null); }}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                              >
-                                <Edit2 size={14} />
-                                Edit
-                              </button>
+                              {perms.edit && (
+                                <button
+                                  onClick={() => { setSelected(c); setShowEdit(true); setOpenMenuId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                  <Edit2 size={14} />
+                                  Edit
+                                </button>
+                              )}
                               <button
                                 onClick={() => { setSelected(c); setShowStatus(true); setOpenMenuId(null); }}
                                 className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
