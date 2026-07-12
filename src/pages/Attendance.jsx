@@ -1203,8 +1203,8 @@ function AttendanceListView({ dispatch, title = 'Daily Attendance View', isAdmin
   let summary = null
 
   if (scope === 'team') {
-    const records     = teamHistory?.data         || []
-    const teamMembers = teamHistory?.team_members  || []
+    const records     = Array.isArray(teamHistory?.data)         ? teamHistory.data         : []
+    const teamMembers = Array.isArray(teamHistory?.team_members) ? teamHistory.team_members : []
     const recordMap = {}
     records.forEach(r => { recordMap[r.user_id] = r })
     rows = teamMembers.map(m => {

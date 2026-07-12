@@ -51,7 +51,7 @@ function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, l
 
   const managerOptions = managers.map(m => ({
     value: m.id,
-    label: `${m.first_name} ${m.last_name}`,
+    label: m.full_name,
   }))
 
   const currentMgr = managers.find(m => m.id === targetUser.manager_id)
@@ -85,7 +85,7 @@ function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, l
             <UserCheck size={13} className="text-brand" />
             Currently under:
             <span className="font-medium text-gray-700 dark:text-gray-300 ml-1">
-              {currentMgr.first_name} {currentMgr.last_name}
+              {currentMgr.full_name}
             </span>
           </div>
         )}
@@ -97,6 +97,7 @@ function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, l
             onChange={setSelectedManager}
             options={managerOptions}
             placeholder="Select a sales manager"
+            searchable
           />
           {success && <p className="text-center text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 py-2 rounded-xl">{success}</p>}
           {error   && <p className="text-center text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 rounded-xl">{error}</p>}

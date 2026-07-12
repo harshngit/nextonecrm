@@ -39,6 +39,17 @@ const lc = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1'
 const fmtCurrency = n => n ? `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
+// Compact Indian-style abbreviation (Cr / L / K) — used as a quick-read caption
+// alongside the full amount, since deal values can run into crores.
+const fmtCompact = n => {
+  const num = Number(n)
+  if (!num) return null
+  if (num >= 1e7) return `₹${(num / 1e7).toFixed(2).replace(/\.?0+$/, '')} Cr`
+  if (num >= 1e5) return `₹${(num / 1e5).toFixed(2).replace(/\.?0+$/, '')} L`
+  if (num >= 1e3) return `₹${(num / 1e3).toFixed(2).replace(/\.?0+$/, '')} K`
+  return null
+}
+
 // ── Status Badge ──────────────────────────────────────────────────────────────
 function ClosureStatusBadge({ status }) {
   return (
@@ -316,7 +327,7 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
 
             <CustomSelect label="Reporting Manager" value={form.closed_by_manager}
               onChange={v => setForm(p => ({ ...p, closed_by_manager: v }))}
-              options={managerOptions} placeholder="Select manager(s)..." multiple />
+              options={managerOptions} placeholder="Select manager(s)..." multiple searchable />
 
             <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer">
               <input type="checkbox" checked={form.commission_paid}
@@ -577,8 +588,9 @@ export default function Closures() {
   const isAdmin   = ['super_admin','admin'].includes(user?.role)
   const perms = useModulePermissions('closures')
   
-  // Filter teamTree to get managers for the select
-  const managers = teamTree.filter(u => ['admin','super_admin','sales_manager'].includes(u.role))
+  // Reporting Manager options — everyone on the current user's team (any role)
+  // can be credited for a closure's commission, so don't filter by role here.
+  const managers = teamTree.filter(u => u.is_active !== false)
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -602,12 +614,23 @@ export default function Closures() {
     finally { setLoading(false) }
   }
 
+  // Computed from the same /closures endpoint (and same role scoping) the table
+  // below uses, rather than the separate /closures/summary endpoint — so the
+  // top numbers always match what's actually visible/accessible to this role.
   const fetchSummary = async () => {
     if (!canManage) return
     try {
-      const res = await api.get('/closures/summary')
-      setSummary(res.data.data)
-    } catch {}
+      const params = { per_page: 1000 }
+      if (filterStatus) params.status = filterStatus
+      const res = await api.get('/closures', { params })
+      const all = res.data.data || []
+      setSummary({
+        total_closures:     res.data.pagination?.total ?? all.length,
+        total_deal_value:   all.reduce((sum, c) => sum + (Number(c.agreed_price) || 0), 0),
+        commission_paid:    all.reduce((sum, c) => sum + (c.commission_paid  ? (Number(c.commission_amount) || 0) : 0), 0),
+        commission_pending: all.reduce((sum, c) => sum + (!c.commission_paid ? (Number(c.commission_amount) || 0) : 0), 0),
+      })
+    } catch { setSummary(null) }
   }
 
   const fetchSideData = async () => {
@@ -651,11 +674,11 @@ export default function Closures() {
       {summary && canManage && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'Total Closures',  value: summary.total_closures,                     icon: BadgeCheck, color: 'text-[#0082f3] bg-blue-50 dark:bg-blue-900/20' },
-            { label: 'Total Deal Value',value: fmtCurrency(summary.total_deal_value),       icon: IndianRupee,color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' },
-            { label: 'Commission Paid', value: fmtCurrency(summary.commission_paid),        icon: Banknote,   color: 'text-green-600 bg-green-50 dark:bg-green-900/20' },
-            { label: 'Comm. Pending',   value: fmtCurrency(summary.commission_pending),     icon: Clock,      color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' },
-          ].map(({ label, value, icon: Icon, color }) => (
+            { label: 'Total Closures',  value: summary.total_closures,                     compact: null,                                  icon: BadgeCheck, color: 'text-[#0082f3] bg-blue-50 dark:bg-blue-900/20' },
+            { label: 'Total Deal Value',value: fmtCurrency(summary.total_deal_value),       compact: fmtCompact(summary.total_deal_value),   icon: IndianRupee,color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' },
+            { label: 'Commission Paid', value: fmtCurrency(summary.commission_paid),        compact: fmtCompact(summary.commission_paid),    icon: Banknote,   color: 'text-green-600 bg-green-50 dark:bg-green-900/20' },
+            { label: 'Comm. Pending',   value: fmtCurrency(summary.commission_pending),     compact: fmtCompact(summary.commission_pending), icon: Clock,      color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' },
+          ].map(({ label, value, compact, icon: Icon, color }) => (
             <div key={label} className="bg-card border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-sm flex items-center gap-3">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
                 <Icon size={18} />
@@ -663,6 +686,7 @@ export default function Closures() {
               <div>
                 <p className="text-xs text-gray-400 font-medium">{label}</p>
                 <p className="text-base font-bold text-gray-900 dark:text-white">{value}</p>
+                {compact && <p className="text-[11px] text-gray-400 font-medium mt-0.5">{compact}</p>}
               </div>
             </div>
           ))}

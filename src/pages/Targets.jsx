@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useModulePermissions } from '../hooks/usePermission'
 import {
   Target, RefreshCw, Edit2, RotateCcw, MoreVertical, X,
-  CheckCircle2, AlertCircle, Users, TrendingUp, Building2,
+  CheckCircle2, AlertCircle, Users, TrendingUp, Building2, Search,
 } from 'lucide-react'
 import { fetchTargets, fetchMyTarget, createTarget, updateTarget, deleteTarget, clearTargetError } from '../store/targetSlice'
 import Avatar from '../components/ui/Avatar'
@@ -149,6 +149,7 @@ export default function Targets() {
 
   const [selectedMonth, setSelectedMonth] = useState(thisMonth)
   const [selectedYear,  setSelectedYear]  = useState(thisYear)
+  const [search,        setSearch]        = useState('')
   const [page,          setPage]          = useState(1)
   const [openMenuId,    setOpenMenuId]    = useState(null)
   const [menuPos,       setMenuPos]       = useState(null)
@@ -228,9 +229,13 @@ export default function Targets() {
   const totalSv = list.reduce((sum, t) => sum + getSvDone(t), 0)
   const totalCl = list.reduce((sum, t) => sum + getClDone(t), 0)
 
-  const totalPages = Math.max(1, Math.ceil(list.length / PER_PAGE))
+  const filteredList = canManage && search
+    ? list.filter(t => getUserName(t).toLowerCase().includes(search.toLowerCase()))
+    : list
+
+  const totalPages = Math.max(1, Math.ceil(filteredList.length / PER_PAGE))
   const currentPage = Math.min(page, totalPages)
-  const paginatedList = list.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE)
+  const paginatedList = filteredList.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE)
 
   return (
     <div className="space-y-4">
@@ -260,6 +265,17 @@ export default function Targets() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Monthly site visit & closure targets per user</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {canManage && (
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
+                placeholder="Search members..."
+                className="pl-9 pr-4 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400 shadow-sm transition-all duration-200"
+              />
+            </div>
+          )}
           <div className="w-36">
             <CustomSelect value={selectedMonth} onChange={v => setSelectedMonth(v)}
               options={MONTHS.map(m => ({ value: m.v, label: m.l }))} placeholder="Month" />
@@ -300,7 +316,7 @@ export default function Targets() {
       {!loading && (
         <div className="text-sm text-gray-500 dark:text-[#888]">
           Showing <span className="font-semibold text-gray-900 dark:text-white">{paginatedList.length}</span>
-          {list.length > paginatedList.length && <> of <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span></>} target{list.length !== 1 ? 's' : ''} for <span className="font-semibold text-gray-900 dark:text-white">{monthLabel}</span>
+          {filteredList.length > paginatedList.length && <> of <span className="font-semibold text-gray-900 dark:text-white">{filteredList.length}</span></>} target{filteredList.length !== 1 ? 's' : ''} for <span className="font-semibold text-gray-900 dark:text-white">{monthLabel}</span>
         </div>
       )}
 
@@ -308,13 +324,15 @@ export default function Targets() {
       <div className="bg-card border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm">
         {loading ? (
           <div className="p-4"><ListSkeleton rows={5} /></div>
-        ) : list.length === 0 ? (
+        ) : filteredList.length === 0 ? (
           <div className="py-16 text-center">
             <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
               <Target size={28} className="text-gray-400" strokeWidth={1.5} />
             </div>
             <p className="text-gray-500 font-medium">No targets found</p>
-            <p className="text-sm text-gray-400 mt-1">No team members visible for {monthLabel}</p>
+            <p className="text-sm text-gray-400 mt-1">
+              {search ? `No members match "${search}"` : `No team members visible for ${monthLabel}`}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -424,7 +442,7 @@ export default function Targets() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-2 text-xs text-gray-500">
-          <span>Page {currentPage} of {totalPages} · {list.length} total</span>
+          <span>Page {currentPage} of {totalPages} · {filteredList.length} total</span>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
             <Button size="sm" variant="outline" disabled={currentPage >= totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
