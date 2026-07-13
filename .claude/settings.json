@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"{/\\\\* ── Tab: Commission ── \\\\*/}\\\\|^        \\)}$\\\\|{error && \\(\" src/pages/Closures.jsx)"
+    ]
+  }
+}

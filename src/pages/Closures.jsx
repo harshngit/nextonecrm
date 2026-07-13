@@ -8,6 +8,7 @@ import {
   Loader2, AlertCircle, IndianRupee, Building2, Calendar,
   Star, Banknote, Home, Search, Users, CircleDot,
   BadgeCheck, ChevronRight, Percent, CreditCard, Clock, Eye, MoreVertical, Download,
+  Upload, FileText, Check, Trash2,
 } from 'lucide-react'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
@@ -17,6 +18,7 @@ import CustomSelect from '../components/ui/CustomSelect'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 import ExportModal from '../components/ui/ExportModal'
+import ConfirmModal from '../components/ui/ConfirmModal'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const CLOSURE_STATUSES = [
@@ -60,14 +62,164 @@ function ClosureStatusBadge({ status }) {
   )
 }
 
+const DOCUMENT_TYPES = [
+  { value: 'cost_sheet',      label: 'Cost Sheet' },
+  { value: 'payment_receipt', label: 'Payment Receipt' },
+  { value: 'booking_form',    label: 'Booking Form' },
+]
+
+// ── Closure Document Manager ──────────────────────────────────────────────────
+// Two modes: closureId absent (create flow) → files are uploaded standalone via
+// /closures/upload-document and their metadata held in `documents` until the
+// closure is created; closureId present (edit / detail view) → files attach
+// directly via /closures/{id}/documents and list/rename/delete hit real endpoints.
+export function ClosureDocumentManager({ closureId, documents = [], setDocuments = () => {} }) {
+  const isEdit = !!closureId
+  const [existingDocs, setExistingDocs] = useState([])
+  const [loadingDocs,  setLoadingDocs]  = useState(isEdit)
+  const [uploading,    setUploading]    = useState(false)
+  const [error,        setError]        = useState('')
+  const [draftType,    setDraftType]    = useState('cost_sheet')
+  const [draftName,    setDraftName]    = useState('')
+  const [editingId,    setEditingId]    = useState(null)
+  const [editName,     setEditName]     = useState('')
+
+  const fetchDocs = async () => {
+    if (!closureId) return
+    setLoadingDocs(true)
+    try {
+      const res = await api.get(`/closures/${closureId}/documents`)
+      setExistingDocs(res.data.data || [])
+    } catch {} finally { setLoadingDocs(false) }
+  }
+
+  useEffect(() => { if (isEdit) fetchDocs() }, [closureId])
+
+  const handleFileSelect = async e => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setError('')
+    setUploading(true)
+    try {
+      if (isEdit) {
+        const fd = new FormData()
+        fd.append('document', file)
+        fd.append('document_type', draftType)
+        fd.append('name', draftName.trim() || file.name)
+        await api.post(`/closures/${closureId}/documents`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        setDraftName('')
+        await fetchDocs()
+      } else {
+        const fd = new FormData()
+        fd.append('document', file)
+        const res = await api.post('/closures/upload-document', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        const { url, filename } = res.data.data || {}
+        setDocuments(prev => [...prev, { url, document_type: draftType, name: draftName.trim() || filename || file.name }])
+        setDraftName('')
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const removePending = idx => setDocuments(prev => prev.filter((_, i) => i !== idx))
+
+  const saveEditName = async docId => {
+    if (!editName.trim()) return
+    try {
+      await api.patch(`/closures/${closureId}/documents/${docId}`, { name: editName.trim() })
+      setEditingId(null)
+      await fetchDocs()
+    } catch {}
+  }
+
+  const deleteDoc = async docId => {
+    if (!window.confirm('Delete this document?')) return
+    try {
+      await api.delete(`/closures/${closureId}/documents/${docId}`)
+      await fetchDocs()
+    } catch {}
+  }
+
+  const rows = isEdit ? existingDocs : documents
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <CustomSelect label="Document Type" value={draftType} onChange={setDraftType} options={DOCUMENT_TYPES} />
+        <div>
+          <label className={lc}>Document Name</label>
+          <input value={draftName} onChange={e => setDraftName(e.target.value)}
+            placeholder="Cost Sheet - Tower B" className={ic} />
+        </div>
+      </div>
+
+      <label className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-brand hover:text-brand rounded-xl cursor-pointer w-fit ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+        {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+        {uploading ? 'Uploading…' : 'Upload Document'}
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="hidden" onChange={handleFileSelect} />
+      </label>
+
+      {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded-lg">{error}</p>}
+
+      {loadingDocs ? (
+        <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-brand" /></div>
+      ) : rows.length > 0 ? (
+        <div className="space-y-1.5">
+          {rows.map((doc, idx) => (
+            <div key={doc.id ?? idx} className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-[#0f0f0f] rounded-xl border border-gray-100 dark:border-gray-800">
+              <a href={doc.url} target="_blank" rel="noreferrer"
+                className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 text-gray-500">
+                <FileText size={14} />
+              </a>
+              <div className="flex-1 min-w-0">
+                {isEdit && editingId === doc.id ? (
+                  <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
+                    className="w-full px-2 py-1 text-xs bg-white dark:bg-gray-800 border border-brand rounded-lg outline-none" />
+                ) : (
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{doc.name}</p>
+                )}
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide">
+                  {DOCUMENT_TYPES.find(t => t.value === doc.document_type)?.label || doc.document_type}
+                </p>
+              </div>
+              {isEdit ? (
+                editingId === doc.id ? (
+                  <>
+                    <button type="button" onClick={() => saveEditName(doc.id)} className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"><Check size={13} /></button>
+                    <button type="button" onClick={() => setEditingId(null)} className="p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"><X size={13} /></button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => { setEditingId(doc.id); setEditName(doc.name) }} className="p-1 text-gray-400 hover:text-brand transition-colors"><Edit2 size={12} /></button>
+                    <button type="button" onClick={() => deleteDoc(doc.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
+                  </>
+                )
+              ) : (
+                <button type="button" onClick={() => removePending(idx)} className="p-1 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400 text-center py-3">No documents yet</p>
+      )}
+    </div>
+  )
+}
+
 // ── Create/Edit Closure Modal ─────────────────────────────────────────────────
 function ClosureFormModal({ closure, leads, projects, managers, onClose, onSuccess }) {
   const isEdit = !!closure
   const [form, setForm] = useState({
     lead_id:              closure?.lead_id              || '',
     project_id:           closure?.project_id           || '',
+    project_name:         closure?.project_name || closure?.project_name_text || '',
     site_visit_id:        closure?.site_visit_id        || '',
-    booking_date:         closure?.booking_date         || new Date().toISOString().split('T')[0],
+    booking_date:         closure?.booking_date?.split('T')[0] || new Date().toISOString().split('T')[0],
     unit_number:          closure?.unit_number          || '',
     tower_block:          closure?.tower_block          || '',
     floor_number:         closure?.floor_number         || '',
@@ -82,13 +234,63 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
     commission_amount:    closure?.commission_amount    || '',
     commission_percent:   closure?.commission_percent   || '',
     commission_paid:      closure?.commission_paid      || false,
-    commission_paid_date: closure?.commission_paid_date || '',
+    commission_paid_date: closure?.commission_paid_date?.split('T')[0] || '',
     closed_by_manager:    closure?.closed_by_manager    || closure?.closed_by_managers?.map(m => m.id) || [],
     closure_notes:        closure?.closure_notes        || '',
+    documents:            [], // create-flow only — attached via /closures/upload-document, sent with the create payload
   })
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
-  const [tab,     setTab]     = useState('booking') // booking | financials | commission
+  const [loading,       setLoading]       = useState(false)
+  const [loadingDetail, setLoadingDetail] = useState(isEdit)
+  const [error,         setError]         = useState('')
+  const [tab,           setTab]           = useState('booking') // booking | financials | commission | documents
+
+  // The list row only carries summary fields — fetch the full closure by id
+  // so the edit form is populated with true, up-to-date data.
+  useEffect(() => {
+    if (!isEdit || !closure?.id) return
+    let cancelled = false
+    setLoadingDetail(true)
+    api.get(`/closures/${closure.id}`)
+      .then(res => {
+        if (cancelled) return
+        const d = res.data.data || res.data
+        const unit        = d.unit || {}
+        const financials   = d.financials || {}
+        const commission   = d.commission || {}
+        const lead         = d.lead || {}
+        const project      = d.project || {}
+        setForm(p => ({
+          ...p,
+          lead_id:              lead.id || d.lead_id || p.lead_id,
+          project_id:           project.id || d.project_id || p.project_id,
+          project_name:         project.name || d.project_name || d.project_name_text || p.project_name,
+          site_visit_id:        d.site_visit_id ?? p.site_visit_id,
+          booking_date:         d.booking_date?.split('T')[0] || p.booking_date,
+          unit_number:          unit.unit_number ?? d.unit_number ?? p.unit_number,
+          tower_block:          unit.tower_block ?? d.tower_block ?? p.tower_block,
+          floor_number:         unit.floor_number ?? d.floor_number ?? p.floor_number,
+          unit_type:            unit.unit_type ?? d.unit_type ?? p.unit_type,
+          carpet_area_sqft:     unit.carpet_area_sqft ?? d.carpet_area_sqft ?? p.carpet_area_sqft,
+          super_area_sqft:      unit.super_area_sqft ?? d.super_area_sqft ?? p.super_area_sqft,
+          agreed_price:         financials.agreed_price ?? d.agreed_price ?? p.agreed_price,
+          booking_amount:       financials.booking_amount ?? d.booking_amount ?? p.booking_amount,
+          payment_plan:         financials.payment_plan ?? d.payment_plan ?? p.payment_plan,
+          loan_required:        financials.loan_required ?? d.loan_required ?? p.loan_required,
+          loan_bank:            financials.loan_bank ?? d.loan_bank ?? p.loan_bank,
+          commission_amount:    commission.amount ?? d.commission_amount ?? p.commission_amount,
+          commission_percent:   commission.percent ?? d.commission_percent ?? p.commission_percent,
+          commission_paid:      commission.paid ?? d.commission_paid ?? p.commission_paid,
+          commission_paid_date: (commission.paid_date ?? d.commission_paid_date)?.split('T')[0] || p.commission_paid_date,
+          closed_by_manager:    d.closed_by_managers?.map(m => m.id)
+            || (d.closed_by_manager?.id ? [d.closed_by_manager.id] : null)
+            || (Array.isArray(d.closed_by_manager) ? d.closed_by_manager : p.closed_by_manager),
+          closure_notes:        d.closure_notes ?? p.closure_notes,
+        }))
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingDetail(false) })
+    return () => { cancelled = true }
+  }, [isEdit, closure?.id])
 
   const leadOptions    = leads.map(l => ({ value: l.id,   label: `${l.name} — ${l.phone || ''}` }))
   const projectOptions = projects.map(p => ({ value: p.id, label: `${p.name}${p.city ? ` — ${p.city}` : ''}` }))
@@ -116,11 +318,17 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
     setLoading(true); setError('')
     try {
       const payload = { ...form }
+      // Project can come from a real selection or free-typed text — send whichever's set as project_id.
+      payload.project_id = form.project_id || form.project_name || undefined
+      delete payload.project_name
       // Clean empties
       Object.keys(payload).forEach(k => { if (payload[k] === '') payload[k] = undefined })
       if (isEdit) {
+        // Documents are managed via their own endpoints once the closure exists — don't touch them here.
+        delete payload.documents
         await api.put(`/closures/${closure.id}`, payload)
       } else {
+        if (!payload.documents?.length) delete payload.documents
         await api.post('/closures', payload)
       }
       onSuccess(); onClose()
@@ -132,11 +340,18 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
     { key: 'booking',    label: 'Booking Details' },
     { key: 'financials', label: 'Financials' },
     { key: 'commission', label: 'Commission' },
+    { key: 'documents',  label: 'Documents' },
   ]
 
   return (
     <Modal isOpen onClose={onClose} title={isEdit ? 'Edit Closure' : 'Create Closure — Book Lead'} size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
+
+        {loadingDetail && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-xl text-xs text-blue-600 dark:text-blue-400">
+            <Loader2 size={13} className="animate-spin" /> Loading latest details…
+          </div>
+        )}
 
         {/* Tab bar */}
         <div className="flex gap-1 bg-gray-100 dark:bg-[#141414] p-1 rounded-xl">
@@ -167,9 +382,12 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
             )}
             {!isEdit && (
               <AsyncSearchSelect label="Project" value={form.project_id}
-                onChange={v => setForm(p => ({ ...p, project_id: v }))}
+                onChange={val => setForm(p => ({ ...p, project_id: val, project_name: '' }))}
+                onTextChange={text => setForm(p => ({ ...p, project_name: text, project_id: '' }))}
                 onSearch={searchProjects} initialOptions={projectOptions.slice(0, 20)}
-                placeholder="Type to search projects (optional)..." />
+                placeholder="Type to search projects (optional)..."
+                fallbackToInput
+                defaultText={form.project_id ? '' : (form.project_name || '')} />
             )}
             <div>
               <label className={lc}>Booking Date *</label>
@@ -359,6 +577,15 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
               </div>
             )}
           </div>
+        )}
+
+        {/* ── Tab: Documents ── */}
+        {tab === 'documents' && (
+          <ClosureDocumentManager
+            closureId={closure?.id}
+            documents={form.documents}
+            setDocuments={updater => setForm(p => ({ ...p, documents: typeof updater === 'function' ? updater(p.documents) : updater }))}
+          />
         )}
 
         {error && (
@@ -580,6 +807,8 @@ export default function Closures() {
   const [showEdit,    setShowEdit]    = useState(false)
   const [showStatus,  setShowStatus]  = useState(false)
   const [showDrawer,  setShowDrawer]  = useState(false)
+  const [showDelete,  setShowDelete]  = useState(false)
+  const [deleting,    setDeleting]    = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [exporting,       setExporting]       = useState(false)
   const [selected,    setSelected]    = useState(null)
@@ -662,6 +891,17 @@ export default function Closures() {
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
       setShowExportModal(false)
     } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
+  }
+
+  const handleDeleteClosure = async () => {
+    if (!selected) return
+    setDeleting(true)
+    try {
+      await api.delete(`/closures/${selected.id}`)
+      setShowDelete(false)
+      setSelected(null)
+      fetchClosures(); fetchSummary()
+    } catch (err) { console.error('Delete failed:', err) } finally { setDeleting(false) }
   }
 
   const displayed = search
@@ -890,6 +1130,15 @@ export default function Closures() {
                                 <CircleDot size={14} />
                                 Change Status
                               </button>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => { setSelected(c); setShowDelete(true); setOpenMenuId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                >
+                                  <Trash2 size={14} />
+                                  Delete
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -939,6 +1188,17 @@ export default function Closures() {
       {showDrawer && selected && (
         <ClosureDrawer closure={selected} onClose={() => setShowDrawer(false)} />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDelete}
+        onClose={() => { setShowDelete(false); setSelected(null) }}
+        onConfirm={handleDeleteClosure}
+        title="Delete Closure"
+        message={`Delete the closure for "${selected?.lead_name || selected?.['lead name'] || 'this lead'}"? This cannot be undone.`}
+        confirmText="Delete Closure"
+        loading={deleting}
+      />
     </div>
   )
 }

@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { 
-  ArrowLeft, Calendar, User, Building2, MapPin, 
-  CheckCircle, Loader2, UserCheck, 
+import {
+  ArrowLeft, Calendar, User, Building2, MapPin,
+  CheckCircle, Loader2, UserCheck,
   ShieldCheck, ExternalLink,
-  ChevronDown, Info, IndianRupee, CreditCard, Banknote, Home, BadgeCheck
+  ChevronDown, Info, IndianRupee, CreditCard, Banknote, Home, BadgeCheck, FileText
 } from 'lucide-react'
 import api from '../api/axios'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
+import { ClosureDocumentManager } from './Closures'
 
 export default function ClosureDetail() {
   const { id } = useParams()
@@ -233,6 +234,19 @@ export default function ClosureDetail() {
               </div>
             </div>
           )}
+
+          {/* 4. Documents */}
+          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-8 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shadow-sm">
+                <FileText size={18} className="text-blue-500" />
+              </div>
+              <div>
+                <h3 className="font-display text-lg font-bold text-gray-900 dark:text-white">Documents</h3>
+              </div>
+            </div>
+            <ClosureDocumentManager closureId={closure.id} />
+          </div>
         </div>
 
         {/* RIGHT COLUMN: Sidebar (4 cols) */}

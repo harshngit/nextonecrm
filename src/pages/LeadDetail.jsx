@@ -8,7 +8,7 @@ import {
   Clock, CheckCircle, Info, ExternalLink, ShieldCheck,
   PlusCircle, CalendarPlus, ArrowRight, RefreshCw, History, Users, PhoneCall as PhoneCallIcon,
   Mic, MicOff, Play, Pause, Upload, Trash, Edit2, Plus, X, Settings2,
-  Eye
+  Eye, FileText
 } from 'lucide-react'
 import api from '../api/axios'
 import CustomSelect from '../components/ui/CustomSelect'
@@ -35,6 +35,233 @@ const defaultLeadStages = [
   { value: 'booked',               label: 'Booked' },
   { value: 'lost',                 label: 'Lost' },
 ]
+
+// Parses configuration values that may arrive as a real array, a Postgres
+// text-array literal (e.g. `{"1RK","1BHK"}`), or a plain string.
+const parseConfigList = (raw) => {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  if (typeof raw !== 'string') return []
+  const trimmed = raw.trim()
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    return trimmed.slice(1, -1)
+      .split(',')
+      .map(s => s.trim().replace(/^"|"$/g, ''))
+      .filter(Boolean)
+  }
+  return trimmed ? [trimmed] : []
+}
+
+// ── EOI Documents — Payment Proof + Booking Form Photo (visible once a lead
+// reaches the EOI stage) ────────────────────────────────────────────────────
+// Uploaded file URLs come back relative (e.g. "/uploads/leads/photos/x.png"),
+// served from the API's origin rather than the frontend's — resolve to a full,
+// clickable URL. Leaves already-absolute URLs untouched.
+const fileOrigin = api.defaults.baseURL.replace(/\/api\/v1\/?$/, '')
+const resolveFileUrl = url => {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  return `${fileOrigin}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
+const docIc = 'w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm'
+const docLc = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1'
+
+function DocLinkCard({ url, name, sub, onDelete, deleting }) {
+  return (
+    <div className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-[#0f0f0f] rounded-xl border border-gray-100 dark:border-gray-800 hover:border-brand transition-colors">
+      <a href={resolveFileUrl(url)} target="_blank" rel="noreferrer" className="flex items-center gap-2 flex-1 min-w-0">
+        <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 text-gray-500">
+          <FileText size={14} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{name || 'File'}</p>
+          {sub && <p className="text-[10px] text-brand font-semibold">{sub}</p>}
+        </div>
+      </a>
+      {onDelete && (
+        <button type="button" onClick={onDelete} disabled={deleting}
+          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 transition-colors flex-shrink-0" title="Delete">
+          {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash size={13} />}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Shared upload modal — payment proof asks for an amount, photo asks for a name.
+function UploadDocModal({ title, accept, fieldLabel, fieldPlaceholder, onClose, onSubmit }) {
+  const [field,     setField]     = useState('')
+  const [file,       setFile]      = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [error,     setError]     = useState('')
+
+  const handleSubmit = async () => {
+    if (!file) { setError('Please choose a file'); return }
+    setError(''); setUploading(true)
+    try {
+      await onSubmit({ file, field: field.trim() })
+      onClose()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Upload failed')
+      setUploading(false)
+    }
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title={title} size="sm">
+      <div className="space-y-4">
+        <div>
+          <label className={docLc}>{fieldLabel}</label>
+          <input value={field} onChange={e => setField(e.target.value)} placeholder={fieldPlaceholder} className={docIc} />
+        </div>
+        <div>
+          <label className={docLc}>File *</label>
+          <input type="file" accept={accept} onChange={e => setFile(e.target.files?.[0] || null)} className={docIc} />
+        </div>
+        {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-xl">{error}</p>}
+        <div className="flex gap-3 pt-1">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button type="button" className="flex-1" loading={uploading} onClick={handleSubmit}>Upload</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function EoiDocumentsSection({ lead, onUploaded }) {
+  const [showProofModal, setShowProofModal] = useState(false)
+  const [showPhotoModal, setShowPhotoModal] = useState(false)
+  const [deletingId,     setDeletingId]     = useState(null)
+  const [error,          setError]          = useState('')
+
+  const paymentProofs = lead.payment_proofs || []
+  const photos        = lead.photos || []
+
+  const uploadPaymentProof = async ({ file, field: amount }) => {
+    const fd = new FormData()
+    fd.append('payment_proof', file)
+    fd.append('name', file.name)
+    if (amount) fd.append('amount', amount)
+    await api.post(`/leads/${lead.id}/payment-proofs`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    onUploaded()
+  }
+
+  const uploadPhoto = async ({ file, field: name }) => {
+    const fd = new FormData()
+    fd.append('photo', file)
+    fd.append('name', name || file.name)
+    await api.post(`/leads/${lead.id}/photos`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    onUploaded()
+  }
+
+  const deletePaymentProof = async docId => {
+    setError(''); setDeletingId(docId)
+    try {
+      await api.delete(`/leads/${lead.id}/payment-proofs/${docId}`)
+      onUploaded()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Delete failed')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const deletePhoto = async docId => {
+    setError(''); setDeletingId(docId)
+    try {
+      await api.delete(`/leads/${lead.id}/photos/${docId}`)
+      onUploaded()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Delete failed')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  return (
+    <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-8 shadow-sm">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+          <FileText size={18} className="text-amber-500" />
+        </div>
+        <div>
+          <h3 className="font-display text-lg font-bold text-gray-900 dark:text-white">EOI Documents</h3>
+          <p className="text-xs text-gray-400">Payment proof and booking form photo for this EOI</p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5 mb-4">
+          <Info size={13} className="text-red-500 flex-shrink-0" />
+          <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {/* Payment Proof */}
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Payment Proof</p>
+          {paymentProofs.length > 0 ? (
+            <div className="space-y-1.5 mb-3">
+              {paymentProofs.map(p => (
+                <DocLinkCard key={p.id} url={p.url} name={p.name}
+                  sub={p.amount ? `₹${Number(p.amount).toLocaleString('en-IN')}` : null}
+                  onDelete={() => deletePaymentProof(p.id)} deleting={deletingId === p.id} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 mb-3">--</p>
+          )}
+          <button type="button" onClick={() => setShowProofModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-brand hover:text-brand rounded-xl transition-colors">
+            <Upload size={12} /> Upload Payment Proof
+          </button>
+        </div>
+
+        {/* Booking Form Photo */}
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Booking Form Photo</p>
+          {photos.length > 0 ? (
+            <div className="space-y-1.5 mb-3">
+              {photos.map(p => (
+                <DocLinkCard key={p.id} url={p.url} name={p.name}
+                  onDelete={() => deletePhoto(p.id)} deleting={deletingId === p.id} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 mb-3">--</p>
+          )}
+          <button type="button" onClick={() => setShowPhotoModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-brand hover:text-brand rounded-xl transition-colors">
+            <Upload size={12} /> Upload Photo
+          </button>
+        </div>
+      </div>
+
+      {showProofModal && (
+        <UploadDocModal
+          title="Upload Payment Proof"
+          accept="application/pdf,image/*"
+          fieldLabel="Amount"
+          fieldPlaceholder="e.g. 50000"
+          onClose={() => setShowProofModal(false)}
+          onSubmit={uploadPaymentProof}
+        />
+      )}
+      {showPhotoModal && (
+        <UploadDocModal
+          title="Upload Photo"
+          accept="image/jpeg,image/png,image/webp"
+          fieldLabel="Name"
+          fieldPlaceholder="e.g. Booking form front page"
+          onClose={() => setShowPhotoModal(false)}
+          onSubmit={uploadPhoto}
+        />
+      )}
+    </div>
+  )
+}
 
 const activityIconMap = {
   status_change: { emoji: '🔄', color: 'bg-blue-50 dark:bg-blue-900/20', icon: Clock },
@@ -435,7 +662,15 @@ export default function LeadDetail() {
               <div className="space-y-4">
                 <div className="bg-gray-50 dark:bg-[#0f0f0f] rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Configuration</p>
-                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{lead.configuration || '--'}</p>
+                  {parseConfigList(lead.configuration).length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {parseConfigList(lead.configuration).map((c, i) => (
+                        <span key={i} className="px-2.5 py-1 bg-brand/10 text-brand text-xs font-semibold rounded-full">{c}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400">--</p>
+                  )}
                 </div>
                 <div className="bg-gray-50 dark:bg-[#0f0f0f] rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Notes</p>
@@ -443,6 +678,11 @@ export default function LeadDetail() {
                 </div>
               </div>
             </div>
+
+            {/* EOI Documents — payment proof + booking form photo, once the lead reaches EOI stage */}
+            {lead.status === 'eoi' && (
+              <EoiDocumentsSection lead={lead} onUploaded={() => dispatch(fetchLeadById(id))} />
+            )}
 
             {/* 3. Activity History + Reassignment History — tabbed */}
             <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-8 shadow-sm">

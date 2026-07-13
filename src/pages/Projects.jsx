@@ -368,6 +368,8 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
 
   const [uploading, setUploading] = useState({})
   const [uploadErrors, setUploadErrors] = useState({})
+  const [configDraft, setConfigDraft] = useState({ configuration: '', carpet_area: '', price: '' })
+  const [amenityDraft, setAmenityDraft] = useState('')
 
   // Files are uploaded as soon as they're picked — never sent as raw
   // multipart through the project create/update JSON body.
@@ -421,6 +423,25 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
       ...p,
       [field]: p[field].filter((_, i) => i !== index)
     }))
+  }
+
+  const addConfigRow = () => {
+    if (!configDraft.configuration.trim()) return
+    setFormData(p => ({
+      ...p,
+      configurations: [...(p.configurations || []), {
+        configuration: configDraft.configuration.trim(),
+        carpet_area:   configDraft.carpet_area.trim(),
+        price:         configDraft.price.trim(),
+      }]
+    }))
+    setConfigDraft({ configuration: '', carpet_area: '', price: '' })
+  }
+
+  const addAmenityRow = () => {
+    if (!amenityDraft.trim()) return
+    addTag('amenities', amenityDraft)
+    setAmenityDraft('')
   }
 
   return (
@@ -516,22 +537,41 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
         </div>
       </div>
 
-      {/* Configurations (Tags) */}
+      {/* Configurations (Structured rows: configuration + carpet area + price) */}
       <div>
         <label className={lc}>Configurations</label>
-        <div className="flex flex-wrap gap-1 mb-1">
-          {(formData.configurations || []).map((config, idx) => (
-            <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-brand/10 text-brand text-xs rounded-full">
-              {config}
-              <button type="button" onClick={() => removeTag('configurations', idx)} className="hover:text-red-500">
-                <X size={10} />
-              </button>
-            </span>
-          ))}
+        {(formData.configurations || []).length > 0 && (
+          <div className="space-y-1.5 mb-2">
+            {formData.configurations.map((cfg, idx) => (
+              <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 rounded-xl">
+                <span className="flex-1 text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{typeof cfg === 'string' ? cfg : cfg.configuration}</span>
+                {typeof cfg !== 'string' && cfg.carpet_area && <span className="text-xs text-gray-400 flex-shrink-0">{cfg.carpet_area}</span>}
+                {typeof cfg !== 'string' && cfg.price && <span className="text-xs text-brand font-semibold flex-shrink-0">{cfg.price}</span>}
+                <button type="button" onClick={() => removeTag('configurations', idx)} className="text-gray-400 hover:text-red-500 flex-shrink-0">
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="grid grid-cols-3 gap-2">
+          <input value={configDraft.configuration}
+            onChange={e => setConfigDraft(d => ({ ...d, configuration: e.target.value }))}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addConfigRow() } }}
+            placeholder="1BHK" className={ic} />
+          <input value={configDraft.carpet_area}
+            onChange={e => setConfigDraft(d => ({ ...d, carpet_area: e.target.value }))}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addConfigRow() } }}
+            placeholder="450 sqft" className={ic} />
+          <input value={configDraft.price}
+            onChange={e => setConfigDraft(d => ({ ...d, price: e.target.value }))}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addConfigRow() } }}
+            placeholder="65L" className={ic} />
         </div>
-        <input onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag('configurations', e.target.value); e.target.value = ''; } }}
-          placeholder="Enter config (e.g. 1BHK, 2BHK) and press Enter"
-          className={ic} />
+        <button type="button" onClick={addConfigRow} disabled={!configDraft.configuration.trim()}
+          className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand border border-brand/30 hover:bg-brand/10 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          <Plus size={12} /> Add Configuration
+        </button>
       </div>
 
       {/* Amenities (Tags) */}
@@ -547,9 +587,17 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
             </span>
           ))}
         </div>
-        <input onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag('amenities', e.target.value); e.target.value = ''; } }}
-          placeholder="Enter amenity (e.g. Swimming Pool, Gym) and press Enter"
-          className={ic} />
+        <div className="flex gap-2">
+          <input value={amenityDraft}
+            onChange={e => setAmenityDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAmenityRow() } }}
+            placeholder="Enter amenity (e.g. Swimming Pool, Gym)"
+            className={ic + ' flex-1'} />
+          <button type="button" onClick={addAmenityRow} disabled={!amenityDraft.trim()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand border border-brand/30 hover:bg-brand/10 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0">
+            <Plus size={12} /> Add
+          </button>
+        </div>
       </div>
 
       {/* Home Loan Info */}
@@ -865,8 +913,10 @@ export default function Projects() {
   }
 
   const formatConfig = (project) => {
-    if (Array.isArray(project.configurations)) return project.configurations.join(', ')
-    return project.configurations || project.config || project.type || '—'
+    if (Array.isArray(project.configurations) && project.configurations.length > 0) {
+      return project.configurations.map(c => typeof c === 'string' ? c : c.configuration).filter(Boolean).join(', ')
+    }
+    return project.config || project.type || '—'
   }
 
   const statusBadgeColor = {

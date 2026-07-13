@@ -644,11 +644,25 @@ export default function ProjectDetail() {
                   <h3 className="font-display text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <Layers size={16} className="text-indigo-500"/> Configurations
                   </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {project.configurations.map((c, i) => (
-                      <span key={i} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full text-sm font-medium">{c}</span>
-                    ))}
-                  </div>
+                  {typeof project.configurations[0] === 'string' ? (
+                    <div className="flex flex-wrap gap-2">
+                      {project.configurations.map((c, i) => (
+                        <span key={i} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full text-sm font-medium">{c}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {project.configurations.map((c, i) => (
+                        <div key={i} className="flex items-center justify-between px-4 py-3 bg-indigo-50/60 border border-indigo-100 rounded-2xl">
+                          <span className="text-sm font-bold text-indigo-700">{c.configuration}</span>
+                          <div className="text-right">
+                            {c.carpet_area && <p className="text-xs text-gray-500">{c.carpet_area}</p>}
+                            {c.price && <p className="text-sm font-semibold text-gray-800">{c.price}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -874,7 +888,7 @@ export default function ProjectDetail() {
                       ? new Date(project.possession_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
                       : '—' },
                     { l: 'RERA',       v: project.rera_number || '—' },
-                    { l: 'Config',     v: hasConfigs ? project.configurations.join(', ') : '—' },
+                    { l: 'Config',     v: hasConfigs ? project.configurations.map(c => typeof c === 'string' ? c : c.configuration).filter(Boolean).join(', ') : '—' },
                   ].map(({ l, v }) => (
                     <div key={l} className="flex justify-between items-start gap-3 py-2.5 border-b border-gray-50 last:border-0">
                       <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider flex-shrink-0 pt-0.5">{l}</span>
