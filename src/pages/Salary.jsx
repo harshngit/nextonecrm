@@ -7,7 +7,7 @@ import {
   Plus, RefreshCw, FileText, CheckCircle, AlertCircle,
   Clock, Banknote, Wallet, BarChart3, Edit2, History,
   X, Eye, Loader2, DollarSign, LogIn, LogOut, Timer, ArrowRight,
-  MoreVertical,
+  MoreVertical, Download,
 } from 'lucide-react'
 import {
   fetchAllEmployeeSalaries,
@@ -25,6 +25,7 @@ import api from '../api/axios'
 import Modal from '../components/ui/Modal'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
+import ExportModal from '../components/ui/ExportModal'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -206,7 +207,11 @@ function AdminSalaryView({ user }) {
 
   // Result modal (after generate)
   const [resultModal, setResultModal] = useState(false)
-  
+
+  // Export modal
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exporting,       setExporting]       = useState(false)
+
   // Appraisal modal
   const [appraisalModal, setAppraisalModal] = useState(false)
   const [appraisalTarget, setAppraisalTarget] = useState(null)
@@ -371,6 +376,18 @@ function AdminSalaryView({ user }) {
     setGenAllModal(false)
   }
 
+  const handleExport = async (dateRange) => {
+    try {
+      setExporting(true)
+      const params = { ...dateRange, month: filterMonth, year: filterYear }
+      const res = await api.get('/export/salary', { params, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a'); a.href = url; a.download = `Salary_${dateRange.from}_to_${dateRange.to}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+      setShowExportModal(false)
+    } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
+  }
+
   // Quick stats
   const totalSet      = employees.data?.filter(e => e.salary_set).length || 0
   const totalNotSet   = (employees.data?.length || 0) - totalSet
@@ -392,6 +409,14 @@ function AdminSalaryView({ user }) {
           >
             <RefreshCw size={13} className={loading.employees || loading.slips ? 'animate-spin' : ''} />
             Refresh
+          </button>
+          <button
+            onClick={() => setShowExportModal(true)}
+            disabled={exporting}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl transition-all disabled:opacity-50"
+          >
+            {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            Export
           </button>
           {perms.create && (
             <button
@@ -1175,6 +1200,15 @@ function AdminSalaryView({ user }) {
           </button>
         </div>
       </Modal>
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
+        loading={exporting}
+        title="Export Salary"
+      />
     </div>
   )
 }

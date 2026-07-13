@@ -873,6 +873,7 @@ function UserHistoryDrawer({ userId, userName, defaultFrom, defaultTo, onClose }
   const [loading, setLoading] = useState(true)
   const [page,    setPage]    = useState(1)
   const [lightboxRecord, setLightboxRecord] = useState(null)
+  const [statusFilter, setStatusFilter] = useState(null)
 
   useEffect(() => {
     setLoading(true)
@@ -882,9 +883,14 @@ function UserHistoryDrawer({ userId, userName, defaultFrom, defaultTo, onClose }
       .finally(() => setLoading(false))
   }, [userId, from, to, page])
 
+  useEffect(() => { setStatusFilter(null) }, [from, to])
+
   const records = data?.data || []
   const summary = data?.summary || {}
   const user    = data?.user    || {}
+  const filteredRecords = statusFilter
+    ? records.filter(rec => (displayStatus(rec) || rec.status) === statusFilter)
+    : records
 
   return (
     <>
@@ -930,16 +936,29 @@ function UserHistoryDrawer({ userId, userName, defaultFrom, defaultTo, onClose }
               {summary && (
                 <div className="grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-800 border-b border-gray-100 dark:border-gray-800">
                   {[
-                    { v: summary.present,  l: 'Present',  c: 'text-emerald-600 dark:text-emerald-400' },
-                    { v: summary.absent,   l: 'Absent',   c: 'text-red-500 dark:text-red-400' },
-                    { v: summary.late,     l: 'Late',     c: 'text-amber-600 dark:text-amber-400' },
-                    { v: summary.leave,    l: 'Leave',    c: 'text-indigo-600 dark:text-indigo-400' },
+                    { k: 'present', v: summary.present,  l: 'Present',  c: 'text-emerald-600 dark:text-emerald-400' },
+                    { k: 'absent',  v: summary.absent,   l: 'Absent',   c: 'text-red-500 dark:text-red-400' },
+                    { k: 'late',    v: summary.late,     l: 'Late',     c: 'text-amber-600 dark:text-amber-400' },
+                    { k: 'leave',   v: summary.leave,    l: 'Leave',    c: 'text-indigo-600 dark:text-indigo-400' },
                   ].map(x => (
-                    <div key={x.l} className="py-3 text-center">
-                      <p className={`text-lg font-bold ${x.c}`}>{x.v ?? 0}</p>
-                      <p className="text-[10px] text-gray-400 font-medium">{x.l}</p>
-                    </div>
+                    <button
+                      key={x.l}
+                      type="button"
+                      onClick={() => setStatusFilter(f => f === x.k ? null : x.k)}
+                      className={`py-3 text-center transition-colors ${statusFilter === x.k ? 'bg-gray-50 dark:bg-gray-800/60' : 'hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}
+                    >
+                      <p className={`text-lg font-bold ${x.c} ${statusFilter && statusFilter !== x.k ? 'opacity-40' : ''}`}>{x.v ?? 0}</p>
+                      <p className={`text-[10px] font-medium ${statusFilter === x.k ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400'}`}>{x.l}</p>
+                    </button>
                   ))}
+                </div>
+              )}
+              {statusFilter && (
+                <div className="px-5 py-2 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between">
+                  <span className="text-[11px] text-gray-500">Showing <span className="font-semibold capitalize">{statusFilter}</span> only</span>
+                  <button onClick={() => setStatusFilter(null)} className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-red-500 transition-colors">
+                    <X size={10} /> Clear filter
+                  </button>
                 </div>
               )}
               {summary?.total_working_hours && (
@@ -951,11 +970,13 @@ function UserHistoryDrawer({ userId, userName, defaultFrom, defaultTo, onClose }
               )}
 
               {/* Records */}
-              {records.length === 0 ? (
-                <div className="py-16 text-center text-gray-400 text-sm">No records found for this period</div>
+              {filteredRecords.length === 0 ? (
+                <div className="py-16 text-center text-gray-400 text-sm">
+                  {statusFilter ? `No ${statusFilter} records for this period` : 'No records found for this period'}
+                </div>
               ) : (
                 <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
-                  {[...records].sort((a, b) => new Date(b.date) - new Date(a.date)).map((rec, i) => {
+                  {[...filteredRecords].sort((a, b) => new Date(b.date) - new Date(a.date)).map((rec, i) => {
                     const status = displayStatus(rec) || rec.status || 'absent'
                     const cfg    = STATUS_CONFIG[status] || STATUS_CONFIG.absent
                     const d      = rec.date?.split('T')[0] || rec.date
@@ -1988,7 +2009,7 @@ function HolidayFormModal({ holiday, onClose, onSaved, dispatch }) {
 }
 
 // ─── Holidays Panel (admin/super_admin only — full CRUD) ──────────────────────
-function HolidaysPanel({ dispatch }) {
+function HolidaysPanel({ dispatch, onExport, exporting }) {
   const { list, pagination, loading } = useSelector(s => s.holidays)
   const [showForm,    setShowForm]    = useState(false)
   const [editingItem, setEditingItem] = useState(null)
@@ -2041,6 +2062,10 @@ function HolidaysPanel({ dispatch }) {
                 <option key={y} value={y} className="text-gray-900">{y}</option>
               ))}
             </select>
+            <button onClick={onExport} disabled={exporting}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/20 text-white text-xs font-semibold hover:bg-white/30 transition-all disabled:opacity-50">
+              {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Export
+            </button>
             <button onClick={openCreate}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-fuchsia-700 text-xs font-semibold hover:shadow-md transition-all">
               <Plus size={14} /> New Holiday
@@ -2271,7 +2296,13 @@ export default function Attendance() {
       {activeTab === 'summary' && isAdmin && <SummaryView dispatch={dispatch} isAdmin={isAdmin} />}
       {activeTab === 'late'    && isAdmin && <LateArrivalsReport dispatch={dispatch} onOpenPhoto={openLightbox} />}
       {activeTab === 'approvals' && isAdmin && <ApprovalPanel dispatch={dispatch} onOpenPhoto={openLightbox} />}
-      {activeTab === 'holidays'  && isAdmin && <HolidaysPanel dispatch={dispatch} />}
+      {activeTab === 'holidays'  && isAdmin && (
+        <HolidaysPanel
+          dispatch={dispatch}
+          exporting={exportingKey === 'holidays'}
+          onExport={() => { setExportModule('holidays'); setShowExportModal(true) }}
+        />
+      )}
 
       {/* Admin Manual Entry Modal */}
       {showManualEntry && (
@@ -2294,7 +2325,7 @@ export default function Attendance() {
         onClose={() => setShowExportModal(false)}
         onExport={handleExportSubmit}
         loading={!!exportingKey}
-        title="Export Attendance"
+        title={exportModule === 'holidays' ? 'Export Holidays' : 'Export Attendance'}
       />
     </div>
   )

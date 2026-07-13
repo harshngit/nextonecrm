@@ -1170,9 +1170,11 @@ export default function SiteVisits() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
-            Export
-          </Button> */}
+          {['admin', 'super_admin'].includes(currentUser?.role) && (
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+              Export
+            </Button>
+          )}
           {perms.create && (
           <div className="relative">
             <Button icon={Plus} onClick={() => setAddMenuOpen(o => !o)}>

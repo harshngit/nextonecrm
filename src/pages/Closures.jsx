@@ -7,7 +7,7 @@ import {
   Plus, RefreshCw, Edit2, X, CheckCircle2, TrendingUp,
   Loader2, AlertCircle, IndianRupee, Building2, Calendar,
   Star, Banknote, Home, Search, Users, CircleDot,
-  BadgeCheck, ChevronRight, Percent, CreditCard, Clock, Eye, MoreVertical,
+  BadgeCheck, ChevronRight, Percent, CreditCard, Clock, Eye, MoreVertical, Download,
 } from 'lucide-react'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
@@ -16,6 +16,7 @@ import Button from '../components/ui/Button'
 import CustomSelect from '../components/ui/CustomSelect'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
+import ExportModal from '../components/ui/ExportModal'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const CLOSURE_STATUSES = [
@@ -579,6 +580,8 @@ export default function Closures() {
   const [showEdit,    setShowEdit]    = useState(false)
   const [showStatus,  setShowStatus]  = useState(false)
   const [showDrawer,  setShowDrawer]  = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exporting,       setExporting]       = useState(false)
   const [selected,    setSelected]    = useState(null)
   const [openMenuId,  setOpenMenuId]  = useState(null)
   const [menuPos,     setMenuPos]     = useState(null)
@@ -648,6 +651,19 @@ export default function Closures() {
   useEffect(() => { fetchSideData() }, [])
   useEffect(() => { if (user?.id) dispatch(fetchTeamTree(user.id)) }, [user?.id, dispatch])
 
+  const handleExport = async (dateRange) => {
+    try {
+      setExporting(true)
+      const params = { ...dateRange }
+      if (filterStatus) params.status = filterStatus
+      const res = await api.get('/export/closures', { params, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a'); a.href = url; a.download = `Closures_${dateRange.from}_to_${dateRange.to}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+      setShowExportModal(false)
+    } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
+  }
+
   const displayed = search
     ? closures.filter(c =>
         c.lead_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -667,7 +683,14 @@ export default function Closures() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Booking records when leads are converted</p>
         </div>
-        {perms.create && <Button icon={Plus} onClick={() => setShowCreate(true)}>Book Lead</Button>}
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+              Export
+            </Button>
+          )}
+          {perms.create && <Button icon={Plus} onClick={() => setShowCreate(true)}>Book Lead</Button>}
+        </div>
       </div>
 
       {/* Summary cards (admin/manager only) */}
@@ -890,6 +913,15 @@ export default function Closures() {
           </div>
         </div>
       )}
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
+        loading={exporting}
+        title="Export Closures"
+      />
 
       {/* Modals */}
       {showCreate && (

@@ -6,7 +6,7 @@ import { fetchTeamTree } from '../store/userSlice'
 import {
   Plus, RefreshCw, Eye, Edit2, X, CheckCircle2, Clock, CalendarDays,
   Loader2, AlertCircle, ChevronDown, RotateCcw, Star, MessageSquare,
-  Users, Building2, Car, Trash2, Search, Filter, Phone, MoreVertical,
+  Users, Building2, Car, Trash2, Search, Filter, Phone, MoreVertical, Download,
 } from 'lucide-react'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
@@ -15,6 +15,7 @@ import Button from '../components/ui/Button'
 import CustomSelect from '../components/ui/CustomSelect'
 import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 import ConfirmModal from '../components/ui/ConfirmModal'
+import ExportModal from '../components/ui/ExportModal'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -641,6 +642,8 @@ export default function Revisits() {
   const [showStatus,    setShowStatus]    = useState(false)
   const [showFeedback,  setShowFeedback]  = useState(false)
   const [showDelete,    setShowDelete]    = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exporting,       setExporting]       = useState(false)
   const [selected,      setSelected]      = useState(null)
 
   const menuRef = useRef(null)
@@ -688,6 +691,19 @@ export default function Revisits() {
     } catch {}
   }
 
+  const handleExport = async (dateRange) => {
+    try {
+      setExporting(true)
+      const params = { ...dateRange }
+      if (filterStatus) params.status = filterStatus
+      const res = await api.get('/export/site-revisits', { params, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a'); a.href = url; a.download = `Revisits_${dateRange.from}_to_${dateRange.to}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+      setShowExportModal(false)
+    } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
+  }
+
   const displayed = search
     ? revisits.filter(r =>
         r.lead_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -713,7 +729,14 @@ export default function Revisits() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Follow-up visits linked to original site visits</p>
         </div>
-        {perms.create && <Button icon={Plus} onClick={() => setShowSchedule(true)}>Schedule Re-visit</Button>}
+        <div className="flex items-center gap-2">
+          {['admin', 'super_admin'].includes(user?.role) && (
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+              Export
+            </Button>
+          )}
+          {perms.create && <Button icon={Plus} onClick={() => setShowSchedule(true)}>Schedule Re-visit</Button>}
+        </div>
       </div>
 
       {/* Stats row */}
@@ -967,6 +990,15 @@ export default function Revisits() {
           </div>
         </div>
       )}
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
+        loading={exporting}
+        title="Export Re-visits"
+      />
 
       {/* Modals */}
       {showSchedule && (

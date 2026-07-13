@@ -4,6 +4,7 @@ import { CalendarPlus, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import api from '../../api/axios'
 import Modal from '../ui/Modal'
 import CustomSelect from '../ui/CustomSelect'
+import AsyncSearchSelect from '../ui/AsyncSearchSelect'
 import ClockPicker from '../ui/ClockPicker'
 
 export default function ConvertFollowUpModal({ task, onClose, onSuccess }) {
@@ -12,7 +13,7 @@ export default function ConvertFollowUpModal({ task, onClose, onSuccess }) {
   const [options, setOptions] = useState(null)
   const [loadingOptions, setLoadingOptions] = useState(true)
   const [form, setForm] = useState({
-    project_id: '', visit_date: '', visit_time: '10:00',
+    project_id: '', project_name: '', visit_date: '', visit_time: '10:00',
     assigned_to: '', transport_arranged: false, notes: '',
   })
 
@@ -28,6 +29,7 @@ export default function ConvertFollowUpModal({ task, onClose, onSuccess }) {
         setForm(f => ({
           ...f,
           project_id:        pf.project_id || '',
+          project_name:      pf.project_name || task.project_name || '',
           assigned_to:       pf.assigned_to || task.assigned_to || '',
           transport_arranged: pf.transport_arranged || false,
         }))
@@ -41,18 +43,22 @@ export default function ConvertFollowUpModal({ task, onClose, onSuccess }) {
 
   const projectOpts = (options?.projects || projectList || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
   const userOpts    = (options?.users    || salesExecs    || []).map(u => ({ value: u.id, label: u.name || `${u.first_name} ${u.last_name}` }))
+  const searchProjects = async (q) => {
+    const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
+  }
 
   const svAvailable = options?.conversions?.to_site_visit?.available !== false
 
   const handleConvert = async () => {
     setError('')
-    if (!form.project_id) { setError('Project is required'); return }
+    if (!form.project_id && !form.project_name) { setError('Project is required'); return }
     if (!form.visit_date) { setError('Visit date is required'); return }
     if (!form.visit_time) { setError('Visit time is required'); return }
     setConverting(true)
     try {
       await api.post(`/convert/follow-up/${task.id}/to-site-visit`, {
-        project_id:        form.project_id,
+        project_id:        form.project_id || form.project_name,
         visit_date:        form.visit_date,
         visit_time:        form.visit_time,
         assigned_to:       form.assigned_to || undefined,
@@ -94,7 +100,18 @@ export default function ConvertFollowUpModal({ task, onClose, onSuccess }) {
             </div>
           </div>
 
-          <CustomSelect label="Project *" value={form.project_id} onChange={v => setForm(f => ({...f, project_id: v}))} options={projectOpts} placeholder="Select project" />
+          <AsyncSearchSelect
+            label="Project *"
+            required
+            value={form.project_id}
+            onChange={val => setForm(f => ({ ...f, project_id: val, project_name: '' }))}
+            onTextChange={text => setForm(f => ({ ...f, project_name: text, project_id: '' }))}
+            onSearch={searchProjects}
+            initialOptions={projectOpts.slice(0, 20)}
+            placeholder="Type to search projects..."
+            fallbackToInput
+            defaultText={form.project_id ? '' : (form.project_name || '')}
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Visit Date *</label>

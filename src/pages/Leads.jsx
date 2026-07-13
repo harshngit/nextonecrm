@@ -18,6 +18,7 @@ import CustomSelect from '../components/ui/CustomSelect'
 import ClockPicker from '../components/ui/ClockPicker'
 import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 import ConvertLeadModal from '../components/modals/ConvertLeadModal'
+import LeadStatusManagementModal from '../components/modals/LeadStatusManagementModal'
 
 const leadStages = [
   { value: 'new',                  label: 'New' },
@@ -67,6 +68,7 @@ const defaultForm = {
   assigned_to: '', budget: '', location_preference: '', configuration: [],
   notes: '', status: 'New',
   callback_time: '', next_followup_time: '',
+  photos: [], payment_proof: [],
 }
 
 // ─── CallRecordingsManager ────────────────────────────────────────────────────
@@ -277,6 +279,73 @@ function CallRecordingsManager({ mode, leadId, pending, setPending, existingRecs
   )
 }
 
+// ─── LeadFileManager (Photos / Payment Proof) ──────────────────────────────────
+function LeadFileManager({ label, items, onChange, uploadUrl, fieldName, accept, showAmount = false }) {
+  const ic = 'w-full px-2.5 py-1.5 text-xs bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-lg outline-none focus:border-brand text-gray-900 dark:text-gray-100'
+  const [uploading, setUploading] = useState(false)
+  const [error,     setError]     = useState('')
+
+  const onFileInput = async e => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    e.target.value = ''
+    setError('')
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append(fieldName, f)
+      const res = await api.post(uploadUrl, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const { url, filename } = res.data.data || {}
+      onChange([...items, { url, name: filename || f.name, ...(showAmount ? { amount: '' } : {}) }])
+    } catch (err) {
+      setError(err.response?.data?.message || 'Upload failed.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const updateItem = (idx, patch) => onChange(items.map((it, i) => i === idx ? { ...it, ...patch } : it))
+  const removeItem = idx => onChange(items.filter((_, i) => i !== idx))
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+          {label} <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+        {items.length > 0 && <span className="text-[11px] text-gray-400">{items.length} file{items.length > 1 ? 's' : ''}</span>}
+      </div>
+
+      {items.length > 0 && (
+        <div className="space-y-1.5">
+          {items.map((it, idx) => (
+            <div key={idx} className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-[#141414] rounded-xl border border-gray-100 dark:border-gray-800">
+              <a href={it.url} target="_blank" rel="noreferrer" className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                <img src={it.url} alt="" className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none' }} />
+              </a>
+              <input value={it.name || ''} onChange={e => updateItem(idx, { name: e.target.value })} placeholder="Label" className={ic + ' flex-1'} />
+              {showAmount && (
+                <input value={it.amount || ''} onChange={e => updateItem(idx, { amount: e.target.value })} placeholder="Amount" className={ic + ' w-24'} />
+              )}
+              <button type="button" onClick={() => removeItem(idx)} className="p-1 rounded-lg text-gray-400 hover:text-red-500 transition-colors">
+                <Trash size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <label className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-brand hover:text-brand rounded-xl cursor-pointer w-fit ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+        {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+        {uploading ? 'Uploading…' : `Upload ${label}`}
+        <input type="file" accept={accept} className="hidden" onChange={onFileInput} />
+      </label>
+
+      {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded-lg">{error}</p>}
+    </div>
+  )
+}
+
 // ─── LeadForm ─────────────────────────────────────────────────────────────────
 function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, teamMembers = [], projects, currentUser, leadId, pendingRecordings, setPendingRecordings, existingRecordings, onExistingChange }) {
   const inputClass = 'w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200'
@@ -383,9 +452,9 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
       </div>
 
       {/* Source + Status */}
-      <div className={`grid gap-3 ${isEdit ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
-        <CustomSelect 
-          label="Lead Source" 
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <CustomSelect
+          label="Lead Source"
           value={(() => {
             // Try to find source by ID first, then by name
             if (formData.source_id) {
@@ -393,7 +462,7 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
               if (hasMatchingId) return formData.source_id
             }
             if (formData.source) {
-              const matchedOpt = sourceOptions.find(opt => 
+              const matchedOpt = sourceOptions.find(opt =>
                 opt.label.toLowerCase() === formData.source.toLowerCase()
               )
               if (matchedOpt) return matchedOpt.value
@@ -404,10 +473,10 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
             const selected = sourceList.find(s => s.id === val)
             setFormData(prev => ({ ...prev, source_id: selected?.id || val, source: selected?.name || val }))
           }}
-          options={sourceOptions} 
-          placeholder="Select Platform" 
+          options={sourceOptions}
+          placeholder="Select Platform"
         />
-        {isEdit && <CustomSelect label="Stage" value={formData.status} onChange={val => setFormData(prev => ({ ...prev, status: val }))} options={stageOptions} />}
+        <CustomSelect label="Status" value={formData.status} onChange={val => setFormData(prev => ({ ...prev, status: val }))} options={stageOptions} placeholder="Select status" />
       </div>
 
       {/* Assign To */}
@@ -422,12 +491,40 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
         )}
       </div>
 
-      {/* Notes */}
+      {/* Remark */}
       <div>
-        <label className={labelClass}>Notes</label>
+        <label className={labelClass}>Remark</label>
         <textarea rows={3} value={formData.notes} onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
           placeholder="Client is looking for 2BHK in a gated community." className={inputClass} />
       </div>
+
+      {/* EOI Documents — only relevant once the lead has reached the EOI stage */}
+      {formData.status === 'eoi' && (
+        <div className="p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/30 rounded-xl space-y-4">
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">📋 EOI Documents</p>
+
+          {/* EOI Front Page Photo */}
+          <LeadFileManager
+            label="EOI Front Page Photo"
+            items={formData.photos || []}
+            onChange={items => setFormData(prev => ({ ...prev, photos: items }))}
+            uploadUrl="/leads/upload-photo"
+            fieldName="photo"
+            accept="image/jpeg,image/png,image/webp"
+          />
+
+          {/* Payment Proof */}
+          <LeadFileManager
+            label="Payment Proof"
+            items={formData.payment_proof || []}
+            onChange={items => setFormData(prev => ({ ...prev, payment_proof: items }))}
+            uploadUrl="/upload/payment-proof"
+            fieldName="payment_proof"
+            accept="image/*,.pdf"
+            showAmount
+          />
+        </div>
+      )}
 
       {/* Call Recordings */}
       <CallRecordingsManager
@@ -1424,6 +1521,7 @@ export default function Leads() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showSourceModal, setShowSourceModal] = useState(false)
+  const [showStatusManageModal, setShowStatusManageModal] = useState(false)
   const [showReassignModal,     setShowReassignModal]     = useState(false)
   const [showBulkReassignModal, setShowBulkReassignModal] = useState(false)
   const [showBulkUploadModal,   setShowBulkUploadModal]   = useState(false)
@@ -1509,6 +1607,8 @@ export default function Leads() {
         url, phone_number: phone_number || undefined, name: name || undefined,
       }))
     }
+    if (!payload.photos?.length) delete payload.photos
+    if (!payload.payment_proof?.length) delete payload.payment_proof
     const result = await dispatch(createLead(payload))
     if (createLead.fulfilled.match(result)) {
       setAddSuccess('Lead created successfully!')
@@ -1530,6 +1630,8 @@ export default function Leads() {
       delete leadData.project_id
       delete leadData.project_name
     }
+    if (!leadData.photos?.length) delete leadData.photos
+    if (!leadData.payment_proof?.length) delete leadData.payment_proof
     const result = await dispatch(updateLead({ id: selectedLead.id, leadData }))
     if (updateLead.fulfilled.match(result)) {
       setEditSuccess('Lead updated!')
@@ -1594,6 +1696,8 @@ export default function Leads() {
         status: leadData.status || 'New',
         callback_time: leadData.callback_time || '',
         next_followup_time: leadData.next_followup_time || '',
+        photos: leadData.photos || [],
+        payment_proof: leadData.payment_proof || [],
       })
     } catch (err) {
       // Fall back to the original lead data if API fails
@@ -1624,6 +1728,8 @@ export default function Leads() {
         location_preference: lead.location_preference || '',
         notes: lead.notes || '',
         status: lead.status || 'New',
+        photos: lead.photos || [],
+        payment_proof: lead.payment_proof || [],
         callback_time: lead.callback_time || '',
         next_followup_time: lead.next_followup_time || '',
       })
@@ -1752,14 +1858,21 @@ export default function Leads() {
               Manage Sources
             </Button>
           )}
+          {['admin', 'super_admin'].includes(currentUser?.role) && (
+            <Button variant="outline" size="sm" icon={Settings2} onClick={() => setShowStatusManageModal(true)}>
+              Manage Status
+            </Button>
+          )}
           {perms.create && (
             <Button variant="outline" size="sm" icon={Upload} onClick={() => setShowBulkUploadModal(true)}>
               Bulk Upload
             </Button>
           )}
-          {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
-            Export
-          </Button> */}
+          {['admin', 'super_admin'].includes(currentUser?.role) && (
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+              Export
+            </Button>
+          )}
           {perms.create && (
             <Button icon={Plus} onClick={() => {
               const r = ['sales_executive','external_caller','sales_manager'].includes(currentUser?.role)
@@ -2123,6 +2236,12 @@ export default function Leads() {
       <LeadSourceManagementModal
         isOpen={showSourceModal}
         onClose={() => setShowSourceModal(false)}
+      />
+
+      {/* Lead Status Management Modal */}
+      <LeadStatusManagementModal
+        isOpen={showStatusManageModal}
+        onClose={() => setShowStatusManageModal(false)}
       />
 
       {/* Delete Confirmation Modal */}

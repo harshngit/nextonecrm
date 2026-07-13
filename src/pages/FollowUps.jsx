@@ -623,12 +623,13 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
   const [options, setOptions] = useState(null)
   const [loadingOptions, setLoadingOptions] = useState(true)
   const [form, setForm] = useState({
-    project_id: '', visit_date: '', visit_time: '10:00',
+    project_id: '', project_name: '', visit_date: '', visit_time: '10:00',
     assigned_to: '', transport_arranged: false, notes: '',
   })
 
   const { list: projectList } = useSelector(s => s.projects)
   const { user: currentUser } = useSelector(s => s.auth)
+  const isAdmin = ['admin', 'super_admin'].includes(currentUser?.role)
 
   useEffect(() => {
     api.get(`/convert/follow-up/${task.id}/options`)
@@ -646,7 +647,7 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
         setForm(f => ({
           ...f,
           project_id:         projectId,
-          assigned_to:        pf.assigned_to || task.assigned_to || '',
+          assigned_to:        isAdmin ? (pf.assigned_to || task.assigned_to || '') : (currentUser?.id || ''),
           transport_arranged: pf.transport_arranged || false,
         }))
       })
@@ -658,6 +659,10 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
   const labelCls = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5"
 
   const projectOpts = (options?.projects || projectList || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
+  const searchProjects = async (q) => {
+    const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
+  }
   const _baseUsers  = options?.users || teamMembers || []
   const userOpts    = [
     ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
@@ -668,16 +673,16 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
 
   const handleConvert = async () => {
     setError('')
-    if (!form.project_id) { setError('Project is required'); return }
+    if (!form.project_id && !form.project_name) { setError('Project is required'); return }
     if (!form.visit_date) { setError('Visit date is required'); return }
     if (!form.visit_time) { setError('Visit time is required'); return }
     setConverting(true)
     try {
       await api.post(`/convert/follow-up/${task.id}/to-site-visit`, {
-        project_id:        form.project_id,
+        project_id:        form.project_id || form.project_name,
         visit_date:        form.visit_date,
         visit_time:        form.visit_time,
-        assigned_to:       form.assigned_to || undefined,
+        assigned_to:       (isAdmin ? form.assigned_to : currentUser?.id) || undefined,
         transport_arranged: Boolean(form.transport_arranged),
         notes:             form.notes || undefined,
       })
@@ -717,7 +722,18 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
             </div>
           </div>
 
-          <CustomSelect label="Project *" value={form.project_id} onChange={v => setForm(f => ({...f, project_id: v}))} options={projectOpts} placeholder="Select project" />
+          <AsyncSearchSelect
+            label="Project *"
+            required
+            value={form.project_id}
+            onChange={val => setForm(f => ({ ...f, project_id: val, project_name: '' }))}
+            onTextChange={text => setForm(f => ({ ...f, project_name: text, project_id: '' }))}
+            onSearch={searchProjects}
+            initialOptions={projectOpts.slice(0, 20)}
+            placeholder="Type to search projects..."
+            fallbackToInput
+            defaultText={form.project_id ? '' : (form.project_name || '')}
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Visit Date *</label>
@@ -728,7 +744,11 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
               <ClockPicker label="Visit Time *" value={form.visit_time} onChange={v => setForm(f => ({...f, visit_time: v}))} required />
             </div>
           </div>
-          <CustomSelect label="Assign To" value={form.assigned_to} onChange={v => setForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" searchable />
+          {isAdmin ? (
+            <CustomSelect label="Assign To" value={form.assigned_to} onChange={v => setForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" searchable />
+          ) : (
+            <p className="text-xs text-gray-500 dark:text-gray-400 px-1">This site visit will be assigned to you.</p>
+          )}
           <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 cursor-pointer"
             onClick={() => setForm(f => ({...f, transport_arranged: !f.transport_arranged}))}>
             <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors flex-shrink-0 ${form.transport_arranged ? 'bg-[#0082f3] border-[#0082f3]' : 'border-gray-300 dark:border-gray-600'}`}>
@@ -1465,9 +1485,11 @@ export default function FollowUps() {
               Convert {selectedTasks.length}
             </button>
           )}
-          {/* <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
-            Export
-          </Button> */}
+          {['admin', 'super_admin'].includes(currentUser?.role) && (
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+              Export
+            </Button>
+          )}
           {perms.create && (
           <div className="relative">
             <Button

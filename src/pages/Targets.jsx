@@ -3,13 +3,15 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useModulePermissions } from '../hooks/usePermission'
 import {
   Target, RefreshCw, Edit2, RotateCcw, MoreVertical, X,
-  CheckCircle2, AlertCircle, Users, TrendingUp, Building2, Search,
+  CheckCircle2, AlertCircle, Users, TrendingUp, Building2, Search, Download,
 } from 'lucide-react'
 import { fetchTargets, fetchMyTarget, createTarget, updateTarget, deleteTarget, clearTargetError } from '../store/targetSlice'
+import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import ConfirmModal from '../components/ui/ConfirmModal'
+import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
 import ListSkeleton from '../components/loaders/ListSkeleton'
 
@@ -161,6 +163,8 @@ export default function Targets() {
   const [resetting,     setResetting]     = useState(false)
   const [success,       setSuccess]       = useState('')
   const [localError,    setLocalError]    = useState('')
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exporting,       setExporting]       = useState(false)
   const menuRef = useRef(null)
 
   const monthStr   = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
@@ -201,6 +205,18 @@ export default function Targets() {
   }, [])
 
   const refresh = () => dispatch(fetchTargets({ month: monthStr }))
+
+  const handleExport = async (dateRange) => {
+    try {
+      setExporting(true)
+      const params = { ...dateRange, month: monthStr }
+      const res = await api.get('/export/targets', { params, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a'); a.href = url; a.download = `Targets_${dateRange.from}_to_${dateRange.to}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+      setShowExportModal(false)
+    } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
+  }
 
   const canEditRow = (t) => {
     if (!perms.edit) return false
@@ -288,6 +304,11 @@ export default function Targets() {
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-brand hover:border-brand transition-colors">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
+          {isAdmin && (
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+              Export
+            </Button>
+          )}
         </div>
       </div>
 
@@ -473,6 +494,15 @@ export default function Targets() {
         confirmText="Reset Target"
         variant="warning"
         loading={resetting}
+      />
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
+        loading={exporting}
+        title="Export Targets"
       />
     </div>
   )

@@ -575,11 +575,11 @@ export default function UserManagement() {
           </button>
         </div>
         <div className="flex items-center gap-2">
-          {/* {isAdminUser && (
+          {isAdminUser && (
             <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
               Export
             </Button>
-          )} */}
+          )}
           {/* New User button — admin/super_admin only, NOT sales_manager */}
           {perms.create && (
             <Button icon={UserPlus} onClick={() => handleOpenModal()}>New User</Button>

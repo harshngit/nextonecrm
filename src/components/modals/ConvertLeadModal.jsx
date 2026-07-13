@@ -4,6 +4,7 @@ import { CalendarPlus, PhoneCall, Loader2, AlertCircle, CheckCircle2 } from 'luc
 import api from '../../api/axios'
 import Modal from '../ui/Modal'
 import CustomSelect from '../ui/CustomSelect'
+import AsyncSearchSelect from '../ui/AsyncSearchSelect'
 import ClockPicker from '../ui/ClockPicker'
 
 export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
@@ -16,7 +17,7 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
   // Follow-up form
   const [fuForm, setFuForm] = useState({ title: '', due_date: '', due_time: '10:00', priority: 'medium', assigned_to: '', notes: '' })
   // Site visit form
-  const [svForm, setSvForm] = useState({ project_id: '', visit_date: '', visit_time: '10:00', assigned_to: '', transport_arranged: false, notes: '' })
+  const [svForm, setSvForm] = useState({ project_id: '', project_name: '', visit_date: '', visit_time: '10:00', assigned_to: '', transport_arranged: false, notes: '' })
 
   const { list: projectList } = useSelector(s => s.projects)
   const { teamTree: teamMembers = [] } = useSelector(s => s.users)
@@ -37,6 +38,7 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
         setSvForm(f => ({
           ...f,
           project_id:        sv.project_id || lead.project_id || '',
+          project_name:      sv.project_name || lead.project_name || '',
           assigned_to:       sv.assigned_to || lead.assigned_to || '',
           transport_arranged: sv.transport_arranged || false,
         }))
@@ -51,6 +53,10 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
   const projectOptions = (options?.projects || projectList || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
   const userOptions    = (options?.users    || salesExecs    || []).map(u => ({ value: u.id, label: u.name || `${u.first_name} ${u.last_name}` }))
   const priorityOpts   = [{ value:'low', label:'Low' }, { value:'medium', label:'Medium' }, { value:'high', label:'High' }]
+  const searchProjects = async (q) => {
+    const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
+  }
 
   const handleConvertFollowUp = async () => {
     setError('')
@@ -78,13 +84,13 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
 
   const handleConvertSiteVisit = async () => {
     setError('')
-    if (!svForm.project_id)  { setError('Project is required'); return }
+    if (!svForm.project_id && !svForm.project_name) { setError('Project is required'); return }
     if (!svForm.visit_date)  { setError('Visit date is required'); return }
     if (!svForm.visit_time)  { setError('Visit time is required'); return }
     setConverting(true)
     try {
       await api.post(`/convert/lead/${lead.id}/to-site-visit`, {
-        project_id:        svForm.project_id,
+        project_id:        svForm.project_id || svForm.project_name,
         visit_date:        svForm.visit_date,
         visit_time:        svForm.visit_time,
         assigned_to:       svForm.assigned_to || undefined,
@@ -189,7 +195,18 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
         </div>
       ) : (
         <div className="space-y-4">
-          <CustomSelect label="Project *" value={svForm.project_id} onChange={v => setSvForm(f => ({...f, project_id: v}))} options={projectOptions} placeholder="Select project" />
+          <AsyncSearchSelect
+            label="Project *"
+            required
+            value={svForm.project_id}
+            onChange={val => setSvForm(f => ({ ...f, project_id: val, project_name: '' }))}
+            onTextChange={text => setSvForm(f => ({ ...f, project_name: text, project_id: '' }))}
+            onSearch={searchProjects}
+            initialOptions={projectOptions.slice(0, 20)}
+            placeholder="Type to search projects..."
+            fallbackToInput
+            defaultText={svForm.project_id ? '' : (svForm.project_name || '')}
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Visit Date *</label>
