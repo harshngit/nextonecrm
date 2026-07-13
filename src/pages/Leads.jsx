@@ -422,6 +422,13 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
         )}
       </div>
 
+      {/* Notes */}
+      <div>
+        <label className={labelClass}>Notes</label>
+        <textarea rows={3} value={formData.notes} onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+          placeholder="Client is looking for 2BHK in a gated community." className={inputClass} />
+      </div>
+
       {/* Call Recordings */}
       <CallRecordingsManager
         mode={isEdit ? 'edit' : 'add'}
