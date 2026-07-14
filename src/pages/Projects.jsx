@@ -116,11 +116,13 @@ function useAuthImages(paths) {
 
 // Project logo component to use inside map loops (can call hooks!)
 function ProjectLogo({ logo, alt }) {
-  const src = useAuthImage(logo)
-  if (!src) return null
   return (
     <div className="w-8 h-8 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden">
-      <img src={src} alt={alt || 'Developer logo'} className="w-full h-full object-contain p-0.5" />
+      {logo ? (
+        <AuthImage path={logo} alt={alt || 'Developer logo'} className="w-full h-full object-contain p-0.5" />
+      ) : (
+        <Building2 size={16} className="text-gray-400" />
+      )}
     </div>
   )
 }
@@ -1006,7 +1008,33 @@ export default function Projects() {
   // Check which document types each listed project actually has, so cards
   // can show an Upload button instead of a Download button where empty.
   useEffect(() => {
-    if (list.length === 0) return
+    if (list.length === 0) {
+      setCardMedia({})
+      setDocCounts({})
+      return
+    }
+    // FIRST: set initial card media using just what's available on the list items!
+    const initialMedia = {}
+    const initialCounts = {}
+    list.forEach(p => {
+      initialMedia[p.id] = {
+        photos: [
+          ...(p.photos || []),
+          ...(p.creatives || []),
+        ],
+        logo: p.developer_logo || null,
+      }
+      initialCounts[p.id] = {
+        unit_plans:    (p.unit_plans    || []).length,
+        creatives:     (p.creatives     || []).length,
+        payment_plans: (p.payment_plans || []).length,
+        videos:        (p.videos        || []).length,
+      }
+    })
+    setCardMedia(initialMedia)
+    setDocCounts(initialCounts)
+
+    // THEN: update with data from the documents API calls!
     let cancelled = false
     Promise.all(list.map(async (p) => {
       try {
@@ -1027,7 +1055,20 @@ export default function Projects() {
           logo:   docs.developer_logo || p.developer_logo || null,
         }]
       } catch {
-        return [p.id, null]
+        // If the API call fails, still use whatever is available on the project!
+        return [p.id, {
+          counts: {
+            unit_plans:    (p.unit_plans    || []).length,
+            creatives:     (p.creatives     || []).length,
+            payment_plans: (p.payment_plans || []).length,
+            videos:        (p.videos        || []).length,
+          },
+          photos: [
+            ...(p.photos || []),
+            ...(p.creatives || []),
+          ],
+          logo: p.developer_logo || null,
+        }]
       }
     })).then(entries => {
       if (cancelled) return
