@@ -17,22 +17,31 @@ import CustomSelect from '../components/ui/CustomSelect'
 // served from the API's origin rather than the frontend's — resolve to a full URL.
 const fileOrigin = api.defaults.baseURL.replace(/\/api\/v1\/?$/, '')
 const resolveFileUrl = path => {
-  if (!path) return ''
-  if (/^https?:\/\//i.test(path)) return path
-  return `${fileOrigin}${path.startsWith('/') ? '' : '/'}${path}`
+  let urlPath
+  if (typeof path === 'object' && path !== null) {
+    urlPath = path?.url || path?.file_path || path?.path || path?.file
+  } else {
+    urlPath = path
+  }
+  if (!urlPath || typeof urlPath !== 'string') return ''
+  // Also handle any leading/trailing backticks or whitespace!
+  urlPath = urlPath.trim().replace(/^`+|`+$/g, '')
+  if (/^https?:\/\//i.test(urlPath)) return urlPath
+  return `${fileOrigin}${urlPath.startsWith('/') ? '' : '/'}${urlPath}`
 }
 
 // Uploaded files are served from a protected route that requires the auth
 // token — a plain <img src> can't send an Authorization header, so fetch the
 // image through the authenticated api client and render it as a blob URL.
-function AuthImage({ path, alt, className }) {
+function AuthImage({ path, alt, className, onClick }) {
   const [src, setSrc] = useState(null)
+  const normalizedPath = typeof path === 'object' ? (path?.url || path?.file_path) : path
 
   useEffect(() => {
-    if (!path) { setSrc(null); return }
+    if (!normalizedPath || typeof normalizedPath !== 'string') { setSrc(null); return }
     let cancelled = false
     let objectUrl
-    api.get(resolveFileUrl(path), { responseType: 'blob' })
+    api.get(resolveFileUrl(normalizedPath), { responseType: 'blob' })
       .then(res => {
         if (cancelled) return
         objectUrl = URL.createObjectURL(res.data)
@@ -43,10 +52,132 @@ function AuthImage({ path, alt, className }) {
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [path])
+  }, [normalizedPath])
 
   if (!src) return <div className={`${className} bg-gray-100 dark:bg-gray-800 animate-pulse`} />
-  return <img src={src} alt={alt} className={className} />
+  return <img src={src} alt={alt} className={className} onClick={onClick ? () => onClick(src) : undefined} />
+}
+
+// Single protected file path to blob URL
+function useAuthImage(path) {
+  const [src, setSrc] = useState(null)
+  // Normalize path to string (handle object cases first)
+  const normalizedPath = typeof path === 'object' ? (path?.url || path?.file_path) : path
+  useEffect(() => {
+    if (!normalizedPath || typeof normalizedPath !== 'string') { setSrc(null); return }
+    let cancelled = false
+    let objectUrl
+    api.get(resolveFileUrl(normalizedPath), { responseType: 'blob' })
+      .then(res => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(res.data)
+        setSrc(objectUrl)
+      })
+      .catch(() => { if (!cancelled) setSrc(null) })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [normalizedPath])
+  return src
+}
+
+// Resolves a batch of protected file paths to blob URLs once, so a slider can
+// cycle through pre-fetched images instead of re-fetching on every rotation.
+// Silently drops any path that fails so a single broken file doesn't blank the whole set.
+function useAuthImages(paths) {
+  const normalizedPaths = (paths || []).map(p => typeof p === 'object' ? (p?.url || p?.file_path) : p).filter(Boolean)
+  const [srcs, setSrcs] = useState([])
+  const key = normalizedPaths.join('|')
+
+  useEffect(() => {
+    if (!normalizedPaths || normalizedPaths.length === 0) { setSrcs([]); return }
+    let cancelled = false
+    const objectUrls = []
+    Promise.all(normalizedPaths.map(p =>
+      api.get(resolveFileUrl(p), { responseType: 'blob' })
+        .then(res => URL.createObjectURL(res.data))
+        .catch(() => null)
+    )).then(results => {
+      if (cancelled) return
+      const valid = results.filter(Boolean)
+      objectUrls.push(...valid)
+      setSrcs(valid)
+    })
+    return () => {
+      cancelled = true
+      objectUrls.forEach(u => URL.revokeObjectURL(u))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+
+  return srcs
+}
+
+// Project logo component to use inside map loops (can call hooks!)
+function ProjectLogo({ logo, alt }) {
+  const src = useAuthImage(logo)
+  if (!src) return null
+  return (
+    <div className="w-8 h-8 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden">
+      <img src={src} alt={alt || 'Developer logo'} className="w-full h-full object-contain p-0.5" />
+    </div>
+  )
+}
+
+// Project card cover — auto-rotating slider when there's more than one photo,
+// a single static image for exactly one, and the gradient + icon placeholder
+// when there are none (or none could be loaded).
+function ProjectCardCover({ photos, colorClass, children }) {
+  const srcs = useAuthImages(photos || [])
+  const [index, setIndex] = useState(0)
+
+  useEffect(() => {
+    if (srcs.length <= 1) return
+    const timer = setInterval(() => setIndex(i => (i + 1) % srcs.length), 3000)
+    return () => clearInterval(timer)
+  }, [srcs.length])
+
+  return (
+    <div className={`h-40 relative flex-shrink-0 overflow-hidden ${srcs.length === 0 ? `bg-gradient-to-br ${colorClass} flex items-center justify-center` : 'bg-gray-100 dark:bg-gray-800'}`}>
+      {srcs.length === 0 ? (
+        <div className="w-12 h-12 rounded-2xl bg-white/80 dark:bg-black/30 backdrop-blur flex items-center justify-center shadow-sm">
+          <Building2 size={22} className="text-brand" />
+        </div>
+      ) : (
+        <>
+          {srcs.map((src, i) => (
+            <img key={i} src={src} alt=""
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${i === index ? 'opacity-100' : 'opacity-0'}`} />
+          ))}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/0 to-black/0" />
+          {srcs.length > 1 && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+              {srcs.map((_, i) => (
+                <span key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${i === index ? 'bg-white' : 'bg-white/40'}`} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {children}
+    </div>
+  )
+}
+
+// Small developer-logo badge shown next to "by {developer}" — hides itself
+// entirely if there's no logo or it fails to load, rather than showing a
+// permanently broken/empty box.
+function DeveloperBadge({ logo, name }) {
+  const srcs = useAuthImages(logo ? [logo.url || logo.file_path].filter(Boolean) : [])
+  return (
+    <p className="text-xs text-gray-400 mb-0.5 flex items-center gap-1.5">
+      {srcs[0] && (
+        <img src={srcs[0]} alt="" className="w-4 h-4 rounded object-contain bg-white border border-gray-200 dark:border-gray-700 flex-shrink-0" />
+      )}
+      by {name}
+    </p>
+  )
 }
 
 const projectColors = [
@@ -845,6 +976,7 @@ export default function Projects() {
   const [downloading, setDownloading] = useState({}) // { [projectId]: { unit_plan: bool, creative: false, payment_plan: bool, video: false } }
   const [creatingProject, setCreatingProject] = useState(false)
   const [docCounts, setDocCounts] = useState({}) // { [projectId]: { unit_plans: n, creatives: n, payment_plans: n, videos: n } }
+  const [cardMedia, setCardMedia] = useState({}) // { [projectId]: { photos, logo } } — cover photos + developer logo for the card
   const [cardUploading, setCardUploading] = useState({}) // { [`${projectId}_${field}`]: bool }
 
   useEffect(() => {
@@ -881,16 +1013,27 @@ export default function Projects() {
         const res = await api.get(`/projects/${p.id}/documents`)
         const docs = res.data?.data?.documents || res.data?.documents || {}
         return [p.id, {
-          unit_plans:    (docs.unit_plans    || []).length,
-          creatives:     (docs.creatives     || []).length,
-          payment_plans: (docs.payment_plans || []).length,
-          videos:        (docs.videos        || []).length,
+          counts: {
+            unit_plans:    (docs.unit_plans    || []).length,
+            creatives:     (docs.creatives     || []).length,
+            payment_plans: (docs.payment_plans || []).length,
+            videos:        (docs.videos        || []).length,
+          },
+          // Combine both photos and creatives for cover slider!
+          photos: [
+            ...(docs.photos?.length ? docs.photos : (p.photos || [])),
+            ...(docs.creatives?.length ? docs.creatives : (p.creatives || [])),
+          ],
+          logo:   docs.developer_logo || p.developer_logo || null,
         }]
       } catch {
         return [p.id, null]
       }
     })).then(entries => {
-      if (!cancelled) setDocCounts(Object.fromEntries(entries.filter(([, v]) => v)))
+      if (cancelled) return
+      const valid = entries.filter(([, v]) => v)
+      setDocCounts(Object.fromEntries(valid.map(([id, v]) => [id, v.counts])))
+      setCardMedia(Object.fromEntries(valid.map(([id, v]) => [id, { photos: v.photos, logo: v.logo }])))
     })
     return () => { cancelled = true }
   }, [list])
@@ -1245,11 +1388,8 @@ export default function Projects() {
               <div key={project.id}
                 className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl overflow-hidden flex flex-col shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
 
-                {/* Header gradient */}
-                <div className={`h-24 bg-gradient-to-br ${projectColors[i % projectColors.length]} flex items-center justify-center relative flex-shrink-0`}>
-                  <div className="w-12 h-12 rounded-2xl bg-white/80 dark:bg-black/30 backdrop-blur flex items-center justify-center shadow-sm">
-                    <Building2 size={22} className="text-brand" />
-                  </div>
+                {/* Header — auto-rotating photo slider when available, gradient + icon fallback */}
+                <ProjectCardCover photos={cardMedia[project.id]?.photos} colorClass={projectColors[i % projectColors.length]}>
                   <div className="absolute top-3 right-3">
                     <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold tracking-wider ${statusBadgeColor[project.status] || statusBadgeColor.pre_launch}`}>
                       {project.status?.replace(/_/g, ' ').toUpperCase()}
@@ -1275,12 +1415,16 @@ export default function Projects() {
                       )}
                     </div>
                   )}
-                </div>
+                </ProjectCardCover>
 
                 <div className="p-4 flex flex-col flex-1">
-                  <h3 onClick={() => navigate(`/projects/${project.id}`)} className="font-display font-semibold text-gray-900 dark:text-white text-base mb-0.5 truncate cursor-pointer hover:text-brand transition-colors">{project.name}</h3>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    {/* Developer logo next to project name */}
+                    {cardMedia[project.id]?.logo && <ProjectLogo logo={cardMedia[project.id]?.logo} alt={project.developer} />}
+                    <h3 onClick={() => navigate(`/projects/${project.id}`)} className="font-display font-semibold text-gray-900 dark:text-white text-base truncate cursor-pointer hover:text-brand transition-colors flex-1">{project.name}</h3>
+                  </div>
                   {project.developer && (
-                    <p className="text-xs text-gray-400 mb-0.5">by {project.developer}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-0.5">{project.developer}</p>
                   )}
                   <div className="flex items-center gap-1 text-xs text-gray-400 dark:text-[#888] mb-3">
                     <MapPin size={11} />

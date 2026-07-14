@@ -33,6 +33,128 @@ const FileIcon = ({ mime, size = 16, className = '' }) => {
     : <FileText  size={size} className={className || 'text-red-500'} />
 }
 
+// Uploaded file URLs are served from a protected route that requires the auth
+// token — a plain <img src> can't send an Authorization header, so fetch the
+// image through the authenticated api client and render it as a blob URL.
+const fileOrigin = api.defaults.baseURL.replace(/\/api\/v1\/?$/, '')
+const resolveFileUrl = path => {
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path
+  return `${fileOrigin}${path.startsWith('/') ? '' : '/'}${path}`
+}
+
+function AuthImage({ path, alt, className, onClick }) {
+  const [src, setSrc] = useState(null)
+
+  useEffect(() => {
+    if (!path) { setSrc(null); return }
+    let cancelled = false
+    let objectUrl
+    api.get(resolveFileUrl(path), { responseType: 'blob' })
+      .then(res => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(res.data)
+        setSrc(objectUrl)
+      })
+      .catch(() => { if (!cancelled) setSrc(null) })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [path])
+
+  if (!src) return <div className={`${className} bg-gray-100 animate-pulse`} />
+  return <img src={src} alt={alt} className={className} onClick={onClick ? () => onClick(src) : undefined} />
+}
+
+// Like AuthImage but exposes the resolved blob URL (or null on failure) to the
+// caller, so hero elements can fall back to their icon/gradient placeholder
+// instead of getting stuck showing a permanently loading/broken box.
+function useAuthImage(path) {
+  const [src, setSrc] = useState(null)
+  useEffect(() => {
+    if (!path) { setSrc(null); return }
+    let cancelled = false
+    let objectUrl
+    api.get(resolveFileUrl(path), { responseType: 'blob' })
+      .then(res => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(res.data)
+        setSrc(objectUrl)
+      })
+      .catch(() => { if (!cancelled) setSrc(null) })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [path])
+  return src
+}
+
+// Resolve a batch of protected file paths to blob URLs
+function useAuthImages(paths) {
+  const [srcs, setSrcs] = useState([])
+  const key = (paths || []).join('|')
+
+  useEffect(() => {
+    if (!paths || paths.length === 0) { setSrcs([]); return }
+    let cancelled = false
+    const objectUrls = []
+    Promise.all(paths.map(p =>
+      api.get(resolveFileUrl(p), { responseType: 'blob' })
+        .then(res => URL.createObjectURL(res.data))
+        .catch(() => null)
+    )).then(results => {
+      if (cancelled) return
+      const valid = results.filter(Boolean)
+      objectUrls.push(...valid)
+      setSrcs(valid)
+    })
+    return () => {
+      cancelled = true
+      objectUrls.forEach(u => URL.revokeObjectURL(u))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+
+  return srcs
+}
+
+// Project photo slider component (automatic)
+function ProjectPhotoSlider({ photos }) {
+  const paths = (photos || []).map(p => p.url || p.file_path).filter(Boolean)
+  const srcs = useAuthImages(paths)
+  const [index, setIndex] = useState(0)
+
+  useEffect(() => {
+    if (srcs.length <= 1) return
+    const timer = setInterval(() => setIndex(i => (i + 1) % srcs.length), 3000)
+    return () => clearInterval(timer)
+  }, [srcs.length])
+
+  if (srcs.length === 0) return null
+
+  return (
+    <div className="relative h-52 w-full bg-gray-100 dark:bg-gray-800 overflow-hidden rounded-2xl mb-6">
+      {srcs.map((src, i) => (
+        <img key={i} src={src} alt=""
+             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${i === index ? 'opacity-100' : 'opacity-0'}`}
+             onClick={() => window.open(src, '_blank')}
+             style={{ cursor: 'pointer' }}
+        />
+      ))}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
+      {srcs.length > 1 && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+          {srcs.map((_, i) => (
+            <span key={i} className={`w-2 h-2 rounded-full transition-all ${i === index ? 'bg-white w-6 rounded-full' : 'bg-white/50'}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Share Project Modal ──────────────────────────────────────────────────────
 function ShareProjectModal({ projectId, projectName, onClose, projectDocuments }) {
   useEscapeKey(true, onClose)
@@ -442,6 +564,11 @@ export default function ProjectDetail() {
   const [activeTab,  setActiveTab]  = useState('unit_plans')
   const [directUploadInput, setDirectUploadInput] = useState(null)
 
+  // Hooks must run unconditionally (before the loading/not-found early returns below).
+  const bannerPhoto = project?.photos?.[0]
+  const bannerSrc = useAuthImage(bannerPhoto ? (bannerPhoto.url || bannerPhoto.file_path) : null)
+  const logoSrc = useAuthImage(project?.developer_logo ? (project.developer_logo.url || project.developer_logo.file_path) : null)
+
   const canAdmin         = ['super_admin', 'admin'].includes(user?.role)
   const canUpload        = canAdmin
   const isRestrictedUser = ['sales_manager', 'sales_executive', 'external_caller'].includes(user?.role)
@@ -572,18 +699,27 @@ export default function ProjectDetail() {
         <>
           {/* ─── Hero Card ──────────────────────────────────────────────────── */}
           <div className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm">
-            {/* Banner */}
+            {/* Banner — first project photo when available, gradient fallback */}
             <div className="h-32 bg-gradient-to-r from-brand to-blue-400 relative overflow-hidden">
-              <div className="absolute inset-0"
-                style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px)', backgroundSize: '18px 18px' }}/>
+              {bannerSrc ? (
+                <img src={bannerSrc} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              ) : (
+                <div className="absolute inset-0"
+                  style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px)', backgroundSize: '18px 18px' }}/>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
             </div>
 
             <div className="px-8 pb-8">
               <div className="flex flex-col md:flex-row md:items-end gap-5 -mt-12">
-                {/* Icon — floats above banner with strong shadow */}
+                {/* Floating left badge with logo (and gradient as fallback) */}
                 <div className="relative z-10 flex-shrink-0">
-                  <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-brand to-blue-500 flex items-center justify-center text-white shadow-xl shadow-brand/40 border-4 border-white">
-                    <Building2 size={44}/>
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand to-blue-500 flex items-center justify-center text-white shadow-xl shadow-brand/40 border-4 border-white overflow-hidden">
+                    {logoSrc ? (
+                      <img src={logoSrc} alt={project.developer || 'Developer logo'} className="w-full h-full object-contain bg-white p-2" />
+                    ) : (
+                      <Building2 size={36}/>
+                    )}
                   </div>
                 </div>
 
@@ -675,6 +811,27 @@ export default function ProjectDetail() {
                   <div className="flex flex-wrap gap-2">
                     {project.amenities.map((a, i) => (
                       <span key={i} className="px-3 py-1.5 bg-teal-50 text-teal-700 border border-teal-100 rounded-full text-sm font-medium">{a}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Photos Slider */}
+              {project.photos?.length > 0 && (
+                <div className="bg-white border border-gray-200 rounded-3xl p-7 shadow-sm">
+                  <h3 className="font-display text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <FileImage size={16} className="text-pink-500"/> Photos
+                    <span className="text-xs font-normal text-gray-400">({project.photos.length})</span>
+                  </h3>
+                  <ProjectPhotoSlider photos={project.photos} />
+                  {/* Keep grid below for quick access */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
+                    {project.photos.map(photo => (
+                      <div key={photo.id} className="aspect-square rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 group">
+                        <AuthImage path={photo.url || photo.file_path} alt={photo.file_name}
+                          className="w-full h-full object-cover cursor-pointer group-hover:scale-105 transition-transform duration-300"
+                          onClick={src => window.open(src, '_blank')} />
+                      </div>
                     ))}
                   </div>
                 </div>

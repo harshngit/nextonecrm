@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(grep -n \"{/\\\\* ── Tab: Commission ── \\\\*/}\\\\|^        \\)}$\\\\|{error && \\(\" src/pages/Closures.jsx)",
-      "Bash(grep -n \"{ unit_plans: \\\\[\\\\], creatives: \\\\[\\\\], payment_plans: \\\\[\\\\], videos: \\\\[\\\\] }\" src/pages/Projects.jsx)"
+      "Bash(grep -n \"{ unit_plans: \\\\[\\\\], creatives: \\\\[\\\\], payment_plans: \\\\[\\\\], videos: \\\\[\\\\] }\" src/pages/Projects.jsx)",
+      "Bash(grep -n \"{/\\\\* Amenities \\\\*/}\\\\|{/\\\\* Documents \\\\*/}\" src/pages/ProjectDetail.jsx)"
     ]
   }
 }
