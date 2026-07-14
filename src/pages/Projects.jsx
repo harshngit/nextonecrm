@@ -13,6 +13,42 @@ import ExportModal from '../components/ui/ExportModal'
 import ConfirmModal from '../components/ui/ConfirmModal'
 import CustomSelect from '../components/ui/CustomSelect'
 
+// Uploaded file paths come back relative (e.g. "/uploads/projects/x.png"),
+// served from the API's origin rather than the frontend's — resolve to a full URL.
+const fileOrigin = api.defaults.baseURL.replace(/\/api\/v1\/?$/, '')
+const resolveFileUrl = path => {
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path
+  return `${fileOrigin}${path.startsWith('/') ? '' : '/'}${path}`
+}
+
+// Uploaded files are served from a protected route that requires the auth
+// token — a plain <img src> can't send an Authorization header, so fetch the
+// image through the authenticated api client and render it as a blob URL.
+function AuthImage({ path, alt, className }) {
+  const [src, setSrc] = useState(null)
+
+  useEffect(() => {
+    if (!path) { setSrc(null); return }
+    let cancelled = false
+    let objectUrl
+    api.get(resolveFileUrl(path), { responseType: 'blob' })
+      .then(res => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(res.data)
+        setSrc(objectUrl)
+      })
+      .catch(() => { if (!cancelled) setSrc(null) })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [path])
+
+  if (!src) return <div className={`${className} bg-gray-100 dark:bg-gray-800 animate-pulse`} />
+  return <img src={src} alt={alt} className={className} />
+}
+
 const projectColors = [
   'from-blue-400/20 to-blue-600/20',
   'from-green-400/20 to-teal-400/20',
@@ -21,10 +57,10 @@ const projectColors = [
 ]
 
 const projectStatuses = [
-  { value: 'active', label: 'Active' },
-  { value: 'upcoming', label: 'Upcoming' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'inactive', label: 'Inactive' },
+  { value: 'pre_launch',         label: 'Pre Launch' },
+  { value: 'under_construction', label: 'Under Construction' },
+  { value: 'nearby_possession',  label: 'Nearby Possession' },
+  { value: 'ready_to_move',      label: 'Ready To Move' },
 ]
 
 const defaultForm = {
@@ -39,7 +75,7 @@ const defaultForm = {
   possession_date: '',
   rera_number: '',
   amenities: [],
-  status: 'active',
+  status: 'pre_launch',
   description: '',
   brochure_url: '',
   video_url: '',
@@ -49,6 +85,8 @@ const defaultForm = {
   creatives: [],
   payment_plans: [],
   videos: [],
+  photos: [],
+  developer_logo: null,
 }
 
 // ── ShareProjectModal ─────────────────────────────────────────────────────────
@@ -342,6 +380,7 @@ const standaloneUploadEndpoints = {
   creatives:     { url: '/projects/upload-creative',    field: 'creative' },
   payment_plans: { url: '/projects/upload-payment-plan', field: 'payment_plan' },
   videos:        { url: '/projects/upload-video',        field: 'video' },
+  photos:        { url: '/projects/upload-photo',        field: 'photo' },
 }
 
 // Project card download/upload buttons — docType matches handleDownloadAll,
@@ -410,6 +449,35 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
     setFormData(p => ({ ...p, [type]: p[type].filter((_, i) => i !== index) }))
   }
 
+  // Developer logo is a single file (not an array), so it gets its own
+  // upload/remove logic instead of going through handleFileChange.
+  const handleLogoChange = async e => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setUploadErrors(prev => ({ ...prev, developer_logo: '' }))
+    setUploading(prev => ({ ...prev, developer_logo: true }))
+    try {
+      if (projectId) {
+        const fd = new FormData()
+        fd.append('developer_logo', file)
+        await api.post(`/projects/${projectId}/documents`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        await onFilesUploaded?.()
+      } else {
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await api.post('/projects/upload-developer-logo', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+        if (res.data.success) setFormData(p => ({ ...p, developer_logo: res.data.data }))
+      }
+    } catch (err) {
+      setUploadErrors(prev => ({ ...prev, developer_logo: err.response?.data?.message || 'Upload failed' }))
+    } finally {
+      setUploading(prev => ({ ...prev, developer_logo: false }))
+    }
+  }
+
+  const removePendingLogo = () => setFormData(p => ({ ...p, developer_logo: null }))
+
   const addTag = (field, value) => {
     if (!value.trim()) return
     setFormData(p => ({
@@ -463,6 +531,40 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
             placeholder="Lodha Group"
             className={ic} />
         </div>
+      </div>
+
+      {/* Developer Logo */}
+      <div>
+        <label className={lc}>Developer Logo</label>
+        {(() => {
+          const logo = projectId ? existingFiles.developer_logo : formData.developer_logo
+          return logo ? (
+            <div className="flex items-center gap-3 mb-1.5 p-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 rounded-xl">
+              <AuthImage path={logo.file_path || logo.url} alt="Developer logo"
+                className="w-10 h-10 rounded-lg object-contain bg-white border border-gray-200 dark:border-gray-700 flex-shrink-0" />
+              <span className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1">{logo.file_name}</span>
+              {!projectId && (
+                <button type="button" onClick={removePendingLogo} className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          ) : null
+        })()}
+        <div className="relative group">
+          <input type="file" accept="image/*" disabled={uploading.developer_logo}
+            onChange={handleLogoChange}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-wait" />
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl group-hover:border-brand group-hover:bg-brand/5 transition-all">
+            {uploading.developer_logo
+              ? <Loader2 size={14} className="text-brand animate-spin" />
+              : <Paperclip size={14} className="text-gray-400 group-hover:text-brand" />}
+            <span className="text-xs text-gray-500 group-hover:text-brand">
+              {uploading.developer_logo ? 'Uploading…' : ((projectId ? existingFiles.developer_logo : formData.developer_logo) ? 'Replace Logo' : 'Upload Logo')}
+            </span>
+          </div>
+        </div>
+        {uploadErrors.developer_logo && <p className="text-[10px] text-red-500 mt-1">{uploadErrors.developer_logo}</p>}
       </div>
 
       {/* City + Locality */}
@@ -600,6 +702,43 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
         </div>
       </div>
 
+      {/* Project Photos */}
+      <div>
+        <label className={lc}>Project Photos</label>
+        {(() => {
+          const photoItems = projectId ? (existingFiles.photos || []) : (formData.photos || [])
+          return photoItems.length > 0 ? (
+            <div className="grid grid-cols-4 gap-2 mb-1.5">
+              {photoItems.map((photo, idx) => (
+                <div key={photo.id ?? idx} className="relative group/photo aspect-square rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
+                  <AuthImage path={photo.file_path || photo.url} alt={photo.file_name || 'Project photo'}
+                    className="w-full h-full object-cover" />
+                  <button type="button"
+                    onClick={() => projectId ? onDeleteExisting?.('photos', photo.id) : removePendingFile('photos', idx)}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity">
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null
+        })()}
+        <div className="relative group">
+          <input type="file" accept="image/*" multiple disabled={uploading.photos}
+            onChange={(e) => handleFileChange(e, 'photos')}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-wait" />
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl group-hover:border-brand group-hover:bg-brand/5 transition-all">
+            {uploading.photos
+              ? <Loader2 size={14} className="text-brand animate-spin" />
+              : <Paperclip size={14} className="text-gray-400 group-hover:text-brand" />}
+            <span className="text-xs text-gray-500 group-hover:text-brand">
+              {uploading.photos ? 'Uploading…' : 'Upload Photos'}
+            </span>
+          </div>
+        </div>
+        {uploadErrors.photos && <p className="text-[10px] text-red-500 mt-1">{uploadErrors.photos}</p>}
+      </div>
+
       {/* Home Loan Info */}
       <div>
         <label className={lc}>Home Loan Info</label>
@@ -698,7 +837,7 @@ export default function Projects() {
 
   const [addForm,  setAddForm]  = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
-  const [existingFiles,   setExistingFiles]   = useState({ unit_plans: [], creatives: [], payment_plans: [], videos: [] })
+  const [existingFiles,   setExistingFiles]   = useState({ unit_plans: [], creatives: [], payment_plans: [], videos: [], photos: [], developer_logo: null })
   const [success,    setSuccess]    = useState('')
   const [downloadError, setDownloadError] = useState('')
   const [localError, setLocalError] = useState('')
@@ -807,7 +946,7 @@ export default function Projects() {
         dispatch(fetchProjects({ page, per_page: 10 }))
         setTimeout(() => {
           setShowEditModal(false); setSuccess('')
-          setExistingFiles({ unit_plans: [], creatives: [], payment_plans: [], videos: [] })
+          setExistingFiles({ unit_plans: [], creatives: [], payment_plans: [], videos: [], photos: [], developer_logo: null })
         }, 800)
       }
     } catch (err) {
@@ -846,7 +985,7 @@ export default function Projects() {
       possession_date:   project.possession_date || '',
       rera_number:       project.rera_number || '',
       amenities:         project.amenities || [],
-      status:            project.status || 'active',
+      status:            project.status || 'pre_launch',
       description:       project.description || '',
       brochure_url:      project.brochure_url || '',
       video_url:         project.video_url || '',
@@ -870,7 +1009,7 @@ export default function Projects() {
         possession_date:   d.possession_date || '',
         rera_number:       d.rera_number || '',
         amenities:         d.amenities || [],
-        status:            d.status || 'active',
+        status:            d.status || 'pre_launch',
         description:       d.description || '',
         brochure_url:      d.brochure_url || '',
         video_url:         d.video_url || '',
@@ -878,10 +1017,12 @@ export default function Projects() {
         home_loan_info:    d.home_loan_info || '',
       })
       setExistingFiles({
-        unit_plans:    d.unit_plans    || [],
-        creatives:     d.creatives     || [],
-        payment_plans: d.payment_plans || [],
-        videos:        d.videos        || [],
+        unit_plans:     d.unit_plans     || [],
+        creatives:      d.creatives      || [],
+        payment_plans:  d.payment_plans  || [],
+        videos:         d.videos         || [],
+        photos:         d.photos         || [],
+        developer_logo: d.developer_logo || null,
       })
     } catch {}
   }
@@ -898,10 +1039,12 @@ export default function Projects() {
       const res = await api.get(`/projects/${selectedProject.id}`)
       const d = res.data.data || res.data
       setExistingFiles({
-        unit_plans:    d.unit_plans    || [],
-        creatives:     d.creatives     || [],
-        payment_plans: d.payment_plans || [],
-        videos:        d.videos        || [],
+        unit_plans:     d.unit_plans     || [],
+        creatives:      d.creatives      || [],
+        payment_plans:  d.payment_plans  || [],
+        videos:         d.videos         || [],
+        photos:         d.photos         || [],
+        developer_logo: d.developer_logo || null,
       })
     } catch {}
   }
@@ -920,10 +1063,10 @@ export default function Projects() {
   }
 
   const statusBadgeColor = {
-    active:    'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
-    upcoming:  'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-    completed: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
-    inactive:  'bg-red-100 dark:bg-red-900/20 text-red-500 dark:text-red-400',
+    pre_launch:         'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+    under_construction: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+    nearby_possession:  'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+    ready_to_move:      'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
   }
 
   const isAdminUser = ['admin','super_admin'].includes(currentUser?.role)
@@ -1046,13 +1189,7 @@ export default function Projects() {
             <CustomSelect
               value={filterStatus}
               onChange={val => { setFilterStatus(val); setPage(1) }}
-              options={[
-                { value: '', label: 'All Status' },
-                { value: 'active', label: 'Active' },
-                { value: 'upcoming', label: 'Upcoming' },
-                { value: 'completed', label: 'Completed' },
-                { value: 'inactive', label: 'Inactive' },
-              ]}
+              options={[{ value: '', label: 'All Status' }, ...projectStatuses]}
               placeholder="All Status"
             />
           </div>
@@ -1114,8 +1251,8 @@ export default function Projects() {
                     <Building2 size={22} className="text-brand" />
                   </div>
                   <div className="absolute top-3 right-3">
-                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${statusBadgeColor[project.status] || statusBadgeColor.active}`}>
-                      {project.status}
+                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold tracking-wider ${statusBadgeColor[project.status] || statusBadgeColor.pre_launch}`}>
+                      {project.status?.replace(/_/g, ' ').toUpperCase()}
                     </span>
                   </div>
                   {(perms.edit || perms.delete || canShareProject) && (
@@ -1241,7 +1378,7 @@ export default function Projects() {
       {/* Edit Modal */}
       <Modal isOpen={showEditModal} onClose={() => {
         setShowEditModal(false); setSuccess('')
-        setExistingFiles({ unit_plans: [], creatives: [], payment_plans: [], videos: [] })
+        setExistingFiles({ unit_plans: [], creatives: [], payment_plans: [], videos: [], photos: [], developer_logo: null })
       }} title="Edit Project" size="lg">
         <form onSubmit={handleEdit} className="space-y-4">
           <ProjectForm
@@ -1253,7 +1390,7 @@ export default function Projects() {
             onFilesUploaded={refreshExistingFiles}
           />
           <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowEditModal(false); setExistingFiles({ unit_plans: [], creatives: [], payment_plans: [], videos: [] }) }} disabled={creatingProject}>Cancel</Button>
+            <Button type="button" variant="outline" className="flex-1" onClick={() => { setShowEditModal(false); setExistingFiles({ unit_plans: [], creatives: [], payment_plans: [], videos: [], photos: [], developer_logo: null }) }} disabled={creatingProject}>Cancel</Button>
             <Button type="submit" className="flex-1" loading={creatingProject}>Update Project</Button>
           </div>
         </form>

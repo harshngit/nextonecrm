@@ -42,6 +42,15 @@ const lc = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1'
 const fmtCurrency = n => n ? `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
+// Uploaded file URLs come back relative (e.g. "/uploads/closures/documents/x.pdf"),
+// served from the API's origin rather than the frontend's — resolve to a full URL.
+const fileOrigin = api.defaults.baseURL.replace(/\/api\/v1\/?$/, '')
+const resolveFileUrl = path => {
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path
+  return `${fileOrigin}${path.startsWith('/') ? '' : '/'}${path}`
+}
+
 // Compact Indian-style abbreviation (Cr / L / K) — used as a quick-read caption
 // alongside the full amount, since deal values can run into crores.
 const fmtCompact = n => {
@@ -63,9 +72,9 @@ function ClosureStatusBadge({ status }) {
 }
 
 const DOCUMENT_TYPES = [
-  { value: 'cost_sheet',      label: 'Cost Sheet' },
-  { value: 'payment_receipt', label: 'Payment Receipt' },
-  { value: 'booking_form',    label: 'Booking Form' },
+  { value: 'cost_sheet',    label: 'Cost Sheet' },
+  { value: 'payment_proof', label: 'Payment Proof' },
+  { value: 'booking_form',  label: 'Booking Form' },
 ]
 
 // ── Closure Document Manager ──────────────────────────────────────────────────
@@ -89,7 +98,14 @@ export function ClosureDocumentManager({ closureId, documents = [], setDocuments
     setLoadingDocs(true)
     try {
       const res = await api.get(`/closures/${closureId}/documents`)
-      setExistingDocs(res.data.data || [])
+      // Response shape isn't fully consistent across endpoints in this API —
+      // handle data being the array directly, or nested under .documents.
+      const payload = res.data?.data ?? res.data
+      const docs = Array.isArray(payload) ? payload
+        : Array.isArray(payload?.documents) ? payload.documents
+        : Array.isArray(res.data?.documents) ? res.data.documents
+        : []
+      setExistingDocs(docs)
     } catch {} finally { setLoadingDocs(false) }
   }
 
@@ -171,7 +187,7 @@ export function ClosureDocumentManager({ closureId, documents = [], setDocuments
         <div className="space-y-1.5">
           {rows.map((doc, idx) => (
             <div key={doc.id ?? idx} className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-[#0f0f0f] rounded-xl border border-gray-100 dark:border-gray-800">
-              <a href={doc.url} target="_blank" rel="noreferrer"
+              <a href={resolveFileUrl(doc.url || doc.file_path)} target="_blank" rel="noreferrer"
                 className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 text-gray-500">
                 <FileText size={14} />
               </a>
@@ -180,7 +196,7 @@ export function ClosureDocumentManager({ closureId, documents = [], setDocuments
                   <input autoFocus value={editName} onChange={e => setEditName(e.target.value)}
                     className="w-full px-2 py-1 text-xs bg-white dark:bg-gray-800 border border-brand rounded-lg outline-none" />
                 ) : (
-                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{doc.name}</p>
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{doc.name || doc.file_name || 'Document'}</p>
                 )}
                 <p className="text-[10px] text-gray-400 uppercase tracking-wide">
                   {DOCUMENT_TYPES.find(t => t.value === doc.document_type)?.label || doc.document_type}
@@ -194,7 +210,7 @@ export function ClosureDocumentManager({ closureId, documents = [], setDocuments
                   </>
                 ) : (
                   <>
-                    <button type="button" onClick={() => { setEditingId(doc.id); setEditName(doc.name) }} className="p-1 text-gray-400 hover:text-brand transition-colors"><Edit2 size={12} /></button>
+                    <button type="button" onClick={() => { setEditingId(doc.id); setEditName(doc.name || doc.file_name || '') }} className="p-1 text-gray-400 hover:text-brand transition-colors"><Edit2 size={12} /></button>
                     <button type="button" onClick={() => deleteDoc(doc.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
                   </>
                 )
@@ -856,11 +872,23 @@ export default function Closures() {
       if (filterStatus) params.status = filterStatus
       const res = await api.get('/closures', { params })
       const all = res.data.data || []
+      // Cancelled closures shouldn't count towards the summary totals.
+      const active = all.filter(c => c.status !== 'cancelled')
+      // Per-status breakdown — count + deal value for each status bucket.
+      const byStatus = CLOSURE_STATUSES.reduce((acc, s) => {
+        const items = all.filter(c => c.status === s.value)
+        acc[s.value] = {
+          count: items.length,
+          value: items.reduce((sum, c) => sum + (Number(c.agreed_price) || 0), 0),
+        }
+        return acc
+      }, {})
       setSummary({
-        total_closures:     res.data.pagination?.total ?? all.length,
-        total_deal_value:   all.reduce((sum, c) => sum + (Number(c.agreed_price) || 0), 0),
-        commission_paid:    all.reduce((sum, c) => sum + (c.commission_paid  ? (Number(c.commission_amount) || 0) : 0), 0),
-        commission_pending: all.reduce((sum, c) => sum + (!c.commission_paid ? (Number(c.commission_amount) || 0) : 0), 0),
+        total_closures:     active.length,
+        total_deal_value:   active.reduce((sum, c) => sum + (Number(c.agreed_price) || 0), 0),
+        commission_paid:    active.reduce((sum, c) => sum + (c.commission_paid  ? (Number(c.commission_amount) || 0) : 0), 0),
+        commission_pending: active.reduce((sum, c) => sum + (!c.commission_paid ? (Number(c.commission_amount) || 0) : 0), 0),
+        byStatus,
       })
     } catch { setSummary(null) }
   }
@@ -869,7 +897,7 @@ export default function Closures() {
     try {
       const [lRes, pRes] = await Promise.all([
         api.get('/leads', { params: { per_page: 100 } }),
-        api.get('/projects', { params: { per_page: 100, status: 'active' } }),
+        api.get('/projects', { params: { per_page: 100 } }),
       ])
       setLeads(lRes.data.data || [])
       setProjects(pRes.data.data || [])
@@ -952,6 +980,32 @@ export default function Closures() {
                 {compact && <p className="text-[11px] text-gray-400 font-medium mt-0.5">{compact}</p>}
               </div>
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* Status breakdown cards (admin/manager only) */}
+      {summary?.byStatus && canManage && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { key: 'confirmed', label: 'Confirmed', color: 'text-green-600 bg-green-50 dark:bg-green-900/20' },
+            { key: 'on_hold',   label: 'On Hold',    color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' },
+            { key: 'cancelled', label: 'Cancelled',  color: 'text-red-500 bg-red-50 dark:bg-red-900/20' },
+          ].map(({ key, label, color }) => (
+            <button key={key}
+              onClick={() => { setFilterStatus(filterStatus === key ? '' : key); setPage(1) }}
+              className={`text-left bg-card border rounded-2xl p-4 shadow-sm flex items-center justify-between transition-all ${
+                filterStatus === key ? 'border-brand ring-1 ring-brand/20 bg-brand/5' : 'border-gray-200 dark:border-gray-700 hover:border-brand/40'
+              }`}>
+              <div>
+                <p className="text-xs text-gray-400 font-medium">{label}</p>
+                <p className="text-base font-bold text-gray-900 dark:text-white">{summary.byStatus[key]?.count || 0}</p>
+                {key !== 'on_hold' && (
+                  <p className="text-[11px] text-gray-400 font-medium mt-0.5">{fmtCurrency(summary.byStatus[key]?.value)}</p>
+                )}
+              </div>
+              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${color}`}>{label}</span>
+            </button>
           ))}
         </div>
       )}

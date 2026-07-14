@@ -870,7 +870,7 @@ export default function SiteVisits() {
 
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
-    dispatch(fetchProjects({ per_page: 100, status: 'active' }))
+    dispatch(fetchProjects({ per_page: 100 }))
     dispatch(fetchLeadSources())
   }, [dispatch])
 
