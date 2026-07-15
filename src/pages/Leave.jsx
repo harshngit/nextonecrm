@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { Calendar, CalendarCheck, CheckCircle2, ChevronLeft, ChevronRight, Clock, FileText, Loader2, Plus, X } from 'lucide-react'
-import { fetchLeaves, fetchTodayLeaves, applyLeave, markLeave, clearLeaveError } from '../store/leaveSlice'
+import { Calendar, CalendarCheck, CheckCircle2, ChevronLeft, ChevronRight, Clock, FileText, Loader2, Plus, X, XCircle } from 'lucide-react'
+import { fetchLeaves, fetchTodayLeaves, applyLeave, markLeave, approveLeave, disapproveLeave, clearLeaveError } from '../store/leaveSlice'
 import { fetchUsers } from '../store/userSlice'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
@@ -19,6 +19,12 @@ const LEAVE_TYPE_OPTIONS = [
 const fmtDate = (d) => {
   if (!d) return '-'
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const LEAVE_STATUS_STYLES = {
+  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  disapproved: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 }
 
 function ApplyLeaveModal({ isOpen, onClose, onSuccess, isLoading }) {
@@ -159,7 +165,51 @@ function MarkLeaveModal({ isOpen, onClose, onSuccess, isLoading, users }) {
   )
 }
 
-function LeaveList({ title, leaves, loading, emptyText }) {
+function DisapproveModal({ leave, onClose, onConfirm, isLoading }) {
+  const [reason, setReason] = useState('')
+
+  useEffect(() => {
+    setReason('')
+  }, [leave])
+
+  const name = leave ? (leave.full_name || (leave.user ? `${leave.user.first_name} ${leave.user.last_name || ''}` : 'this user')) : ''
+
+  return (
+    <Modal isOpen={!!leave} onClose={onClose} title="Disapprove Leave Request">
+      <div className="space-y-4">
+        {leave && (
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Disapprove leave for <span className="font-semibold text-gray-900 dark:text-white">{name}</span> on {fmtDate(leave.date)}?
+          </p>
+        )}
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">Reason</label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason for disapproval"
+            rows={3}
+            className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-200 resize-none"
+          />
+        </div>
+        <div className="flex gap-2 pt-2">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="danger"
+            className="flex-1"
+            loading={isLoading}
+            disabled={isLoading || !reason.trim()}
+            onClick={() => onConfirm(reason.trim())}
+          >
+            Disapprove
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function LeaveList({ title, leaves, loading, emptyText, isAdmin, processingId, onApprove, onDisapprove }) {
   const safeLeaves = Array.isArray(leaves) ? leaves : []
 
   return (
@@ -185,6 +235,11 @@ function LeaveList({ title, leaves, loading, emptyText }) {
                     <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">
                       {String(leave.leave_type || 'full_day').replace('_', ' ')}
                     </span>
+                    {leave.leave_status && (
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${LEAVE_STATUS_STYLES[leave.leave_status] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>
+                        {leave.leave_status}
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                     {leave.email && <span>✉️ {leave.email}</span>}
@@ -199,6 +254,26 @@ function LeaveList({ title, leaves, loading, emptyText }) {
               {leave.reason && (
                 <div className="mt-3 pl-2 border-l-2 border-indigo-200 dark:border-indigo-800">
                   <p className="text-sm text-gray-600 dark:text-gray-300 italic">{leave.reason}</p>
+                </div>
+              )}
+              {isAdmin && (!leave.leave_status || leave.leave_status === 'pending') && (
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => onApprove(leave)}
+                    disabled={processingId === leave.id}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors disabled:opacity-50"
+                  >
+                    {processingId === leave.id ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => onDisapprove(leave)}
+                    disabled={processingId === leave.id}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors disabled:opacity-50"
+                  >
+                    <XCircle size={12} />
+                    Disapprove
+                  </button>
                 </div>
               )}
             </div>
@@ -219,6 +294,8 @@ export default function Leaves() {
   const [activeTab, setActiveTab] = useState(isAdmin ? 'today' : 'my')
   const [showApplyModal, setShowApplyModal] = useState(false)
   const [showMarkModal, setShowMarkModal] = useState(false)
+  const [disapproveTarget, setDisapproveTarget] = useState(null)
+  const [processingId, setProcessingId] = useState(null)
 
   const [page, setPage] = useState(1)
   const [filters, setFilters] = useState({
@@ -260,6 +337,22 @@ export default function Leaves() {
   }
 
   const userOptions = (users || []).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name || ''}` }))
+
+  const handleApprove = async (leave) => {
+    setProcessingId(leave.id)
+    await dispatch(approveLeave({ id: leave.id }))
+    setProcessingId(null)
+  }
+
+  const handleDisapproveConfirm = async (reason) => {
+    if (!disapproveTarget) return
+    setProcessingId(disapproveTarget.id)
+    const res = await dispatch(disapproveLeave({ id: disapproveTarget.id, reason }))
+    setProcessingId(null)
+    if (disapproveLeave.fulfilled.match(res)) {
+      setDisapproveTarget(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -308,6 +401,10 @@ export default function Leaves() {
               leaves={todayLeaves}
               loading={todayLoading}
               emptyText="No leaves today"
+              isAdmin={isAdmin}
+              processingId={processingId}
+              onApprove={handleApprove}
+              onDisapprove={setDisapproveTarget}
             />
           )}
 
@@ -357,6 +454,10 @@ export default function Leaves() {
                 leaves={list}
                 loading={loading}
                 emptyText="No leaves found"
+                isAdmin={isAdmin}
+                processingId={processingId}
+                onApprove={handleApprove}
+                onDisapprove={setDisapproveTarget}
               />
 
               {pagination && pagination.total_pages > 1 && (
@@ -411,6 +512,13 @@ export default function Leaves() {
         onSuccess={handleRefresh}
         isLoading={actionLoading}
         users={users}
+      />
+
+      <DisapproveModal
+        leave={disapproveTarget}
+        onClose={() => setDisapproveTarget(null)}
+        onConfirm={handleDisapproveConfirm}
+        isLoading={processingId === disapproveTarget?.id}
       />
     </div>
   )

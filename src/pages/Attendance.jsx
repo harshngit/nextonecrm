@@ -965,11 +965,11 @@ function UserHistoryDrawer({ userId, userName, defaultFrom, defaultTo, onClose }
                   </button>
                 </div>
               )}
-              {summary?.total_working_hours && (
+              {!!summary?.total_working_hours && (
                 <div className="px-5 py-2 border-b border-gray-50 dark:border-gray-800 flex items-center gap-2 text-xs text-gray-500">
                   <Timer size={12} className="text-brand" />
                   Total: <span className="font-semibold text-gray-800 dark:text-gray-200">{parseFloat(summary.total_working_hours).toFixed(1)}h</span>
-                  {summary.avg_working_hours && <> · Avg: <span className="font-semibold text-gray-800 dark:text-gray-200">{parseFloat(summary.avg_working_hours).toFixed(1)}h/day</span></>}
+                  {!!summary.avg_working_hours && <> · Avg: <span className="font-semibold text-gray-800 dark:text-gray-200">{parseFloat(summary.avg_working_hours).toFixed(1)}h/day</span></>}
                 </div>
               )}
 
@@ -1012,7 +1012,7 @@ function UserHistoryDrawer({ userId, userName, defaultFrom, defaultTo, onClose }
                           <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-2.5">
                             <div className="flex items-center gap-1.5 text-gray-400 mb-1"><LogOut size={10} className="text-rose-500" /> Check Out</div>
                             <p className="font-semibold text-gray-800 dark:text-gray-200">{fmtTime(rec.check_out_time)}</p>
-                            {rec.working_hours && <p className="text-brand text-[10px] mt-0.5">{rec.working_hours}h worked</p>}
+                            {!!rec.working_hours && <p className="text-brand text-[10px] mt-0.5">{rec.working_hours}h worked</p>}
                             {rec.checkout_location?.address && <p className="text-gray-400 text-[10px] mt-0.5 line-clamp-1">{rec.checkout_location.address}</p>}
                           </div>
                         </div>
@@ -1579,7 +1579,7 @@ function ApprovalPanel({ dispatch, onOpenPhoto }) {
                           <LogOut size={10} className="text-rose-500" />
                           {rec.check_out_time ? fmtTime(rec.check_out_time) : 'Not checked out'}
                         </span>
-                        {rec.working_hours && <span className="flex items-center gap-1"><Timer size={10} className="text-brand" />{rec.working_hours}h</span>}
+                        {!!rec.working_hours && <span className="flex items-center gap-1"><Timer size={10} className="text-brand" />{rec.working_hours}h</span>}
                         {rec.checkin_address && <span className="flex items-center gap-1 max-w-[180px] truncate"><MapPin size={10} className="text-brand flex-shrink-0" />{rec.checkin_address}</span>}
                       </div>
                     </div>

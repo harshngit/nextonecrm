@@ -50,6 +50,38 @@ export const fetchLeaves = createAsyncThunk(
   }
 )
 
+export const approveLeave = createAsyncThunk(
+  'leaves/approve',
+  async ({ id }, { rejectWithValue }) => {
+    try {
+      const response = await api.patch(`/attendance/leave/${id}/approve`)
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to approve leave')
+    }
+  }
+)
+
+export const disapproveLeave = createAsyncThunk(
+  'leaves/disapprove',
+  async ({ id, reason }, { rejectWithValue }) => {
+    try {
+      const response = await api.patch(`/attendance/leave/${id}/disapprove`, { reason })
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to disapprove leave')
+    }
+  }
+)
+
+const applyLeaveUpdate = (state, payload, fallback) => {
+  const updated = payload?.data?.leave || payload?.data || fallback
+  if (!updated?.id) return
+  const patch = (arr) => (Array.isArray(arr) ? arr.map(l => (l.id === updated.id ? { ...l, ...updated } : l)) : arr)
+  state.list = patch(state.list)
+  state.todayLeaves = patch(state.todayLeaves)
+}
+
 const leaveSlice = createSlice({
   name: 'leaves',
   initialState: {
@@ -95,9 +127,15 @@ const leaveSlice = createSlice({
       .addCase(fetchTodayLeaves.rejected, (state) => {
         state.todayLoading = false
       })
+      .addCase(approveLeave.fulfilled, (state, action) => {
+        applyLeaveUpdate(state, action.payload, { id: action.meta.arg.id, leave_status: 'approved' })
+      })
+      .addCase(disapproveLeave.fulfilled, (state, action) => {
+        applyLeaveUpdate(state, action.payload, { id: action.meta.arg.id, leave_status: 'disapproved', reason: action.meta.arg.reason })
+      })
       .addMatcher(
         (action) =>
-          ['leaves/apply', 'leaves/mark'].some(t => action.type.startsWith(t)),
+          ['leaves/apply', 'leaves/mark', 'leaves/approve', 'leaves/disapprove'].some(t => action.type.startsWith(t)),
         (state, action) => {
           if (action.type.endsWith('/pending')) {
             state.actionLoading = true
