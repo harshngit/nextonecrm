@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, CalendarCheck, PhoneCall,
   Building2, UserCog, Bell, LogOut, ChevronLeft, ChevronRight,
   X, Settings, Clock, IndianRupee, RotateCcw, BadgeCheck, ShieldCheck, Target,
-  MapPin, FileText,
+  MapPin, FileText, CalendarX,
 } from 'lucide-react'
 import { logout } from '../../store/authSlice'
 import { selectPermissions } from '../../store/permissionsSlice'
@@ -15,7 +15,7 @@ const navItems = [
   { path: '/dashboard',     label: 'Dashboard',     icon: LayoutDashboard, module: 'dashboard'     },
   { path: '/projects',      label: 'Projects',      icon: Building2,       module: 'projects'      },
   { path: '/leads',         label: 'Leads',         icon: Users,           module: 'leads'         },
-  { path: '/site-visit-leads', label: 'Site Visited', icon: MapPin,       module: 'leads'         },
+  { path: '/site-visit-leads', label: 'Site Visit Done', icon: MapPin,       module: 'leads'         },
   { path: '/eoi-leads',     label: 'EOI',           icon: FileText,        module: 'leads'         },
   { path: '/follow-ups',    label: 'Follow-Ups',    icon: PhoneCall,       module: 'follow_ups'    },
   { path: '/site-visits',   label: 'Site Visits',   icon: CalendarCheck,   module: 'site_visits'   },
@@ -23,6 +23,7 @@ const navItems = [
   { path: '/closures',      label: 'Closures',      icon: BadgeCheck,      module: 'closures'      },
   { path: '/targets',       label: 'Targets',       icon: Target,          module: 'targets'       },
   { path: '/attendance',    label: 'Attendance',    icon: Clock,           module: 'attendance'    },
+  { path: '/leaves',        label: 'Leaves',        icon: CalendarX,       module: 'attendance'    },
   { path: '/salary',        label: 'Salary',        icon: IndianRupee,     module: 'salary'        },
   { path: '/team',          label: 'Team',          icon: UserCog,         module: 'team'          },
   { path: '/users',         label: 'Users',         icon: Settings,        module: 'users'         },

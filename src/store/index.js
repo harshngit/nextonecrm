@@ -13,6 +13,7 @@ import salaryReducer       from './salarySlice'
 import permissionsReducer  from './permissionsSlice'
 import targetReducer       from './targetSlice'
 import holidayReducer      from './holidaySlice'
+import leaveReducer        from './leaveSlice'
 
 export const store = configureStore({
   reducer: {
@@ -30,5 +31,6 @@ export const store = configureStore({
     permissions:   permissionsReducer,
     targets:       targetReducer,
     holidays:      holidayReducer,
+    leaves:        leaveReducer,
   },
 })

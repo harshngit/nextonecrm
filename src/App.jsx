@@ -27,6 +27,7 @@ import UserDetail     from './pages/UserDetail'
 import Notifications  from './pages/Notifications'
 import UserManagement from './pages/UserManagement'
 import Attendance     from './pages/Attendance'
+import Leaves         from './pages/Leave'
 import PhoneRequests  from './pages/PhoneRequests'
 import Salary         from './pages/Salary'
 import SalaryDetail   from './pages/SalaryDetail'
@@ -96,6 +97,7 @@ function AppRoutes() {
         <Route path="/follow-ups"         element={<PermissionProtectedRoute module="follow_ups"><Layout><FollowUps /></Layout></PermissionProtectedRoute>} />
         <Route path="/follow-ups/:id"     element={<PermissionProtectedRoute module="follow_ups"><Layout><FollowUpDetail /></Layout></PermissionProtectedRoute>} />
         <Route path="/attendance"         element={<PermissionProtectedRoute module="attendance"><Layout><Attendance /></Layout></PermissionProtectedRoute>} />
+        <Route path="/leaves"             element={<PermissionProtectedRoute module="attendance"><Layout><Leaves /></Layout></PermissionProtectedRoute>} />
         <Route path="/salary"             element={<PermissionProtectedRoute module="salary"><Layout><Salary /></Layout></PermissionProtectedRoute>} />
         <Route path="/salary/:user_id"    element={<PermissionProtectedRoute module="salary" action="approve"><Layout><SalaryDetail /></Layout></PermissionProtectedRoute>} />
         <Route path="/team"               element={<PermissionProtectedRoute module="team"><Layout><Team /></Layout></PermissionProtectedRoute>} />

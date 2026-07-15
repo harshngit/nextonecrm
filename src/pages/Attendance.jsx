@@ -522,6 +522,12 @@ function CheckInCard({ todayData, loading, dispatch, user, isAdmin, showStatusCh
               <span className="text-sm text-fuchsia-700 dark:text-fuchsia-400 font-medium">Today is a holiday — check-in is optional</span>
             </div>
           )}
+          {displayedStatus === 'leave' && (
+            <div className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl px-3 py-2.5 mb-4">
+              <Info size={14} className="text-indigo-500 flex-shrink-0" />
+              <span className="text-sm text-indigo-700 dark:text-indigo-400 font-medium">Today is marked as leave — check-in is disabled</span>
+            </div>
+          )}
 
           {/* Times */}
           <div className="grid grid-cols-2 gap-3 mb-4">
@@ -561,22 +567,20 @@ function CheckInCard({ todayData, loading, dispatch, user, isAdmin, showStatusCh
 
           {/* Action buttons — always show both, disabled based on state */}
           <div className="flex gap-2">
-            <button onClick={() => openCamera('checkin')} disabled={loading.checkin || isCheckedIn}
+            <button onClick={() => openCamera('checkin')} disabled={loading.checkin || isCheckedIn || displayedStatus === 'leave' || displayedStatus === 'holiday'}
               className={`flex-1 py-3 font-semibold rounded-xl flex items-center justify-center gap-2 transition-all ${
-                isCheckedIn
+                isCheckedIn || displayedStatus === 'leave' || displayedStatus === 'holiday'
                   ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                   : 'bg-gradient-to-r from-brand to-blue-600 text-white hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.98]'
               } disabled:opacity-60`}>
               {loading.checkin ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
               Check In
             </button>
-            <button onClick={() => openCamera('checkout')} disabled={loading.checkout || !isCheckedIn || isCheckedOut}
+            <button onClick={() => openCamera('checkout')} disabled={loading.checkout || !isCheckedIn || isCheckedOut || displayedStatus === 'leave' || displayedStatus === 'holiday'}
               className={`flex-1 py-3 font-semibold rounded-xl flex items-center justify-center gap-2 transition-all ${
-                isCheckedOut
+                isCheckedOut || !isCheckedIn || displayedStatus === 'leave' || displayedStatus === 'holiday'
                   ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                  : !isCheckedIn
-                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-rose-500 to-red-500 text-white hover:shadow-lg hover:shadow-rose-500/25 active:scale-[0.98]'
+                  : 'bg-gradient-to-r from-rose-500 to-red-500 text-white hover:shadow-lg hover:shadow-rose-500/25 active:scale-[0.98]'
               } disabled:opacity-60`}>
               {loading.checkout ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
               Check Out
