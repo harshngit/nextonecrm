@@ -76,6 +76,18 @@ export const deleteFollowUp = createAsyncThunk(
   }
 )
 
+export const bulkDeleteFollowUps = createAsyncThunk(
+  'followUps/bulkDelete',
+  async (ids, { rejectWithValue }) => {
+    try {
+      const response = await api.delete('/tasks/bulk', { data: { ids } })
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete follow-ups')
+    }
+  }
+)
+
 export const fetchFollowUpById = createAsyncThunk(
   'followUps/fetchById',
   async (id, { rejectWithValue }) => {
@@ -142,7 +154,7 @@ const followUpSlice = createSlice({
       .addCase(fetchFollowUpById.rejected, (state, action) => { state.detailLoading = false; state.error = action.payload })
 
       .addMatcher(
-        (action) => ['followUps/create', 'followUps/update', 'followUps/complete', 'followUps/delete']
+        (action) => ['followUps/create', 'followUps/update', 'followUps/complete', 'followUps/delete', 'followUps/bulkDelete']
           .some(t => action.type.startsWith(t)),
         (state, action) => {
           if (action.type.endsWith('/pending'))   { state.actionLoading = true;  state.actionError = null }

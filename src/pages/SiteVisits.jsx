@@ -3,10 +3,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { useModulePermissions } from '../hooks/usePermission'
-import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw, StarIcon, MoreVertical, Phone, MapPin, CalendarClock } from 'lucide-react'
+import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw, StarIcon, MoreVertical, Phone, MapPin, CalendarClock, Trash2, CheckCircle2 } from 'lucide-react'
 import {
   fetchSiteVisits, fetchMySiteVisits, createSiteVisit, updateSiteVisit,
-  updateSiteVisitStatus, cancelSiteVisit, clearSiteVisitError,
+  updateSiteVisitStatus, cancelSiteVisit, bulkDeleteSiteVisits, clearSiteVisitError,
 } from '../store/siteVisitSlice'
 import { fetchLeads, fetchLeadSources } from '../store/leadSlice'
 import { fetchProjects } from '../store/projectSlice'
@@ -866,6 +866,11 @@ export default function SiteVisits() {
   const [leadWithVisitErrors, setLeadWithVisitErrors] = useState({})
   const [addMenuOpen, setAddMenuOpen] = useState(false)
 
+  const [selectedVisits,      setSelectedVisits]      = useState([])
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
+  const [bulkDeleting,        setBulkDeleting]        = useState(false)
+  const [bulkDeleteSuccess,   setBulkDeleteSuccess]   = useState('')
+
   const loadVisits = () => {
     const params = { page, per_page: resolvePerPage(perPage) }
     if (filterStatus) params.status = filterStatus
@@ -892,6 +897,7 @@ export default function SiteVisits() {
   const salesExecs = teamMembers
   const canManage = true // All roles can manage site visits
   const perms = useModulePermissions('site_visits')
+  const canBulkDeleteVisits = ['admin', 'super_admin'].includes(currentUser?.role)
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -961,6 +967,30 @@ export default function SiteVisits() {
   const confirmCancel = (visit) => {
     setVisitToCancel(visit)
     setShowCancelModal(true)
+  }
+
+  const toggleSelectVisit = (id) =>
+    setSelectedVisits(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+  const toggleAllVisits = () =>
+    setSelectedVisits(selectedVisits.length === list.length && list.length > 0 ? [] : list.map(v => v.id))
+
+  const handleBulkDelete = async () => {
+    if (selectedVisits.length === 0) return
+    setBulkDeleting(true)
+    const result = await dispatch(bulkDeleteSiteVisits(selectedVisits))
+    setBulkDeleting(false)
+    if (bulkDeleteSiteVisits.fulfilled.match(result)) {
+      const { deleted_count, not_found_ids } = result.payload?.data || {}
+      setBulkDeleteSuccess(
+        not_found_ids?.length
+          ? `${deleted_count} visit(s) deleted · ${not_found_ids.length} not found`
+          : `${deleted_count ?? selectedVisits.length} visit(s) deleted`
+      )
+      setSelectedVisits([])
+      loadVisits()
+      setShowBulkDeleteModal(false)
+      setTimeout(() => setBulkDeleteSuccess(''), 4000)
+    }
   }
 
   const handleLeadWithVisitNext = () => {
@@ -1238,14 +1268,33 @@ export default function SiteVisits() {
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Summary + inline selection actions */}
       {!loading && (
-        <div className="text-sm text-gray-500 dark:text-[#888] flex items-center gap-3">
-          <span>
-            Showing <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span>
-            {pagination?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span></>} visits
-          </span>
-          <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1) }} />
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-sm text-gray-500 dark:text-[#888] flex items-center gap-3">
+            <span>
+              Showing <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span>
+              {pagination?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span></>} visits
+            </span>
+            <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1) }} />
+          </div>
+
+          {/* Inline bulk-action pills — only visible when rows are checked */}
+          {canBulkDeleteVisits && selectedVisits.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                {selectedVisits.length} selected
+              </span>
+              <button onClick={() => setShowBulkDeleteModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97]">
+                <Trash2 size={13} /> Delete {selectedVisits.length}
+              </button>
+              <button onClick={() => setSelectedVisits([])}
+                className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <X size={12} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1422,6 +1471,13 @@ export default function SiteVisits() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-[#0f0f0f]">
+                    {canBulkDeleteVisits && (
+                      <th className="py-3 pl-4 pr-2 w-8">
+                        <input type="checkbox"
+                          checked={selectedVisits.length === list.length && list.length > 0}
+                          onChange={toggleAllVisits} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
+                      </th>
+                    )}
                     {['Lead', 'Project', 'Date & Time', ...(filterView !== 'mine' ? ['Assigned To'] : []), 'Transport', 'Status', 'Feedback', 'Closing Person', 'Actions'].map(h => (
                       <th key={h} className="py-3 px-4 text-left text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
@@ -1430,6 +1486,12 @@ export default function SiteVisits() {
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                   {list.map((visit, visitIdx) => (
                     <tr key={visit.id} className="hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-colors">
+                      {canBulkDeleteVisits && (
+                        <td className="py-3 pl-4 pr-2">
+                          <input type="checkbox" checked={selectedVisits.includes(visit.id)}
+                            onChange={() => toggleSelectVisit(visit.id)} className="rounded border-gray-300" />
+                        </td>
+                      )}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
                           <Avatar name={visit.lead_name || visit['lead name'] || '?'} size="sm" />
@@ -1688,7 +1750,7 @@ export default function SiteVisits() {
         title="Export Site Visits"
       />
 
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={showCancelModal}
         onClose={() => setShowCancelModal(false)}
         onConfirm={handleCancel}
@@ -1697,6 +1759,24 @@ export default function SiteVisits() {
         confirmText="Cancel Visit"
         loading={actionLoading}
       />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={handleBulkDelete}
+        title="Delete Site Visits"
+        message={`Are you sure you want to delete ${selectedVisits.length} visit(s)? This action cannot be undone.`}
+        confirmText={`Delete ${selectedVisits.length}`}
+        loading={bulkDeleting}
+      />
+
+      {/* Bulk Delete Success Toast */}
+      {bulkDeleteSuccess && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-emerald-500 text-white px-5 py-3 rounded-2xl shadow-xl shadow-emerald-500/30 animate-in slide-in-from-bottom-2">
+          <CheckCircle2 size={16}/> {bulkDeleteSuccess}
+        </div>
+      )}
     </div>
   )
 }

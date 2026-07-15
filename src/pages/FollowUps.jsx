@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import {
   fetchFollowUps, fetchMyFollowUps, createFollowUp, updateFollowUp,
-  completeFollowUp, deleteFollowUp, clearFollowUpError, markCompleted,
+  completeFollowUp, deleteFollowUp, bulkDeleteFollowUps, clearFollowUpError, markCompleted,
 } from '../store/followUpSlice'
 import { fetchLeads, fetchLeadSources } from '../store/leadSlice'
 import { fetchTeamTree } from '../store/userSlice'
@@ -1043,6 +1043,9 @@ export default function FollowUps() {
   const [showCompleteModal, setShowCompleteModal]  = useState(false)
   const [showDeleteModal,   setShowDeleteModal]    = useState(false)
   const [taskToDelete,      setTaskToDelete]       = useState(null)
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
+  const [bulkDeleting,        setBulkDeleting]        = useState(false)
+  const [bulkDeleteSuccess,   setBulkDeleteSuccess]   = useState('')
   const [showExportModal,   setShowExportModal]    = useState(false)
   const [selectedTask,      setSelectedTask]       = useState(null)
   const [completeNotes,     setCompleteNotes]      = useState('')
@@ -1244,6 +1247,28 @@ export default function FollowUps() {
   const confirmDelete = (task) => {
     setTaskToDelete(task)
     setShowDeleteModal(true)
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedTasks.length === 0) return
+    setBulkDeleting(true)
+    const result = await dispatch(bulkDeleteFollowUps(selectedTasks))
+    setBulkDeleting(false)
+    if (bulkDeleteFollowUps.fulfilled.match(result)) {
+      const { deleted_count, denied_ids, not_found_ids } = result.payload?.data || {}
+      const extras = []
+      if (denied_ids?.length)    extras.push(`${denied_ids.length} denied`)
+      if (not_found_ids?.length) extras.push(`${not_found_ids.length} not found`)
+      setBulkDeleteSuccess(
+        extras.length
+          ? `${deleted_count} task(s) deleted · ${extras.join(' · ')}`
+          : `${deleted_count ?? selectedTasks.length} task(s) deleted`
+      )
+      setSelectedTasks([])
+      loadTasks()
+      setShowBulkDeleteModal(false)
+      setTimeout(() => setBulkDeleteSuccess(''), 4000)
+    }
   }
 
   const openEdit = async (task) => {
@@ -1581,6 +1606,12 @@ export default function FollowUps() {
                   <ArrowRightCircle size={13} /> Convert {selectedTasks.length}
                 </button>
               )}
+              {perms.delete && (
+                <button onClick={() => setShowBulkDeleteModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97]">
+                  <Trash2 size={13} /> Delete {selectedTasks.length}
+                </button>
+              )}
               <button onClick={() => setSelectedTasks([])}
                 className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                 <X size={12} />
@@ -1890,7 +1921,7 @@ export default function FollowUps() {
         title="Export Follow-ups"
       />
 
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleDelete}
@@ -1899,6 +1930,24 @@ export default function FollowUps() {
         confirmText="Delete Task"
         loading={actionLoading}
       />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={handleBulkDelete}
+        title="Delete Follow-ups"
+        message={`Are you sure you want to delete ${selectedTasks.length} task(s)? This action cannot be undone. Tasks you didn't create may be denied.`}
+        confirmText={`Delete ${selectedTasks.length}`}
+        loading={bulkDeleting}
+      />
+
+      {/* Bulk Delete Success Toast */}
+      {bulkDeleteSuccess && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-emerald-500 text-white px-5 py-3 rounded-2xl shadow-xl shadow-emerald-500/30 animate-in slide-in-from-bottom-2">
+          <CheckCircle2 size={16}/> {bulkDeleteSuccess}
+        </div>
+      )}
     </div>
   )
 }

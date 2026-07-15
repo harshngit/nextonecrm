@@ -75,6 +75,18 @@ export const cancelSiteVisit = createAsyncThunk(
   }
 )
 
+export const bulkDeleteSiteVisits = createAsyncThunk(
+  'siteVisits/bulkDelete',
+  async (ids, { rejectWithValue }) => {
+    try {
+      const response = await api.delete('/site-visits/bulk', { data: { ids } })
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete site visits')
+    }
+  }
+)
+
 export const fetchSiteVisitById = createAsyncThunk(
   'siteVisits/fetchById',
   async (id, { rejectWithValue }) => {
@@ -143,7 +155,7 @@ const siteVisitSlice = createSlice({
       .addCase(fetchSiteVisitById.rejected, (state, action) => { state.detailLoading = false; state.error = action.payload })
 
       .addMatcher(
-        (action) => ['siteVisits/create', 'siteVisits/update', 'siteVisits/updateStatus', 'siteVisits/cancel', 'siteVisits/submitFeedback']
+        (action) => ['siteVisits/create', 'siteVisits/update', 'siteVisits/updateStatus', 'siteVisits/cancel', 'siteVisits/submitFeedback', 'siteVisits/bulkDelete']
           .some(t => action.type.startsWith(t)),
         (state, action) => {
           if (action.type.endsWith('/pending')) { state.actionLoading = true; state.actionError = null }

@@ -21,7 +21,8 @@
       "Bash(curl -s -o /dev/null -w \"invalid token -> HTTP %{http_code}\\\\n\" -H \"Authorization: Bearer invalidtoken123\" \"https://api.nextonerealty.in/api/v1/projects/9e5c20cc-1359-47fd-bd61-295e2279236a/documents/1909b782-b16b-4f70-9d5e-d5224fe4cf50/download\")",
       "Bash(curl -s -H \"Authorization: Bearer invalidtoken123\" \"https://api.nextonerealty.in/api/v1/projects/9e5c20cc-1359-47fd-bd61-295e2279236a/documents/1909b782-b16b-4f70-9d5e-d5224fe4cf50/download\")",
       "Bash(curl -s -o /dev/null -w \"GET /projects -> HTTP %{http_code}\\\\n\" \"https://api.nextonerealty.in/api/v1/projects\")",
-      "Bash(curl -s -o /dev/null -w \"GET /projects/9e5c20cc.../documents -> HTTP %{http_code}\\\\n\" \"https://api.nextonerealty.in/api/v1/projects/9e5c20cc-1359-47fd-bd61-295e2279236a/documents\")"
+      "Bash(curl -s -o /dev/null -w \"GET /projects/9e5c20cc.../documents -> HTTP %{http_code}\\\\n\" \"https://api.nextonerealty.in/api/v1/projects/9e5c20cc-1359-47fd-bd61-295e2279236a/documents\")",
+      "Bash(awk '/from .\\\\.\\\\.\\\\/store\\\\/leadSlice./{print NR\": \"$0}' src/pages/Leads.jsx)"
     ]
   }
 }

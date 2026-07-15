@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Phone, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users, Mic, MicOff, Play, Pause, Trash, Clock, CalendarClock, Settings2, Check, MoreVertical } from 'lucide-react'
-import { fetchLeads, fetchMyLeads, createLead, updateLead, deleteLead, fetchLeadSources, clearLeadError, addLeadSource, updateLeadSource, deleteLeadSource, fetchLeadStatuses } from '../store/leadSlice'
+import { fetchLeads, fetchMyLeads, createLead, updateLead, deleteLead, bulkDeleteLeads, fetchLeadSources, clearLeadError, addLeadSource, updateLeadSource, deleteLeadSource, fetchLeadStatuses } from '../store/leadSlice'
 import { fetchTeamTree } from '../store/userSlice'
 import { useModulePermissions } from '../hooks/usePermission'
 import { fetchProjects } from '../store/projectSlice'
@@ -1691,6 +1691,9 @@ export default function SiteVisitLeads() {
   const [showDeleteModal,       setShowDeleteModal]        = useState(false)
   const [leadToDelete,          setLeadToDelete]           = useState(null)
   const [deleting,              setDeleting]               = useState(false)
+  const [showBulkDeleteModal,   setShowBulkDeleteModal]    = useState(false)
+  const [bulkDeleting,          setBulkDeleting]           = useState(false)
+  const [bulkDeleteSuccess,     setBulkDeleteSuccess]      = useState('')
   const [selectedLead, setSelectedLead] = useState(null)
   const [addForm, setAddForm] = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
@@ -1929,6 +1932,25 @@ export default function SiteVisitLeads() {
       reloadLeads()
       setShowDeleteModal(false)
       setLeadToDelete(null)
+    }
+  }
+
+  const confirmBulkDeleteLeads = async () => {
+    if (selectedLeads.length === 0) return
+    setBulkDeleting(true)
+    const result = await dispatch(bulkDeleteLeads(selectedLeads))
+    setBulkDeleting(false)
+    if (bulkDeleteLeads.fulfilled.match(result)) {
+      const { deleted_count, not_found_ids } = result.payload?.data || {}
+      setBulkDeleteSuccess(
+        not_found_ids?.length
+          ? `${deleted_count} lead(s) deleted · ${not_found_ids.length} not found`
+          : `${deleted_count ?? selectedLeads.length} lead(s) deleted`
+      )
+      setSelectedLeads([])
+      reloadLeads()
+      setShowBulkDeleteModal(false)
+      setTimeout(() => setBulkDeleteSuccess(''), 4000)
     }
   }
 
@@ -2226,6 +2248,12 @@ export default function SiteVisitLeads() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97] flex-shrink-0">
                 <Phone size={13} /> Request Phones {selectedLeads.length}
               </button>
+              {['admin', 'super_admin'].includes(currentUser?.role) && (
+                <button onClick={() => setShowBulkDeleteModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97] flex-shrink-0">
+                  <Trash2 size={13} /> Delete {selectedLeads.length}
+                </button>
+              )}
               <button onClick={() => setSelectedLeads([])}
                 className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0">
                 <X size={12} />
@@ -2554,6 +2582,24 @@ export default function SiteVisitLeads() {
         confirmText="Delete Lead"
         loading={deleting}
       />
+
+      {/* Bulk Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={confirmBulkDeleteLeads}
+        title="Delete Leads"
+        message={`Are you sure you want to delete ${selectedLeads.length} lead(s)? This action cannot be undone.`}
+        confirmText={`Delete ${selectedLeads.length}`}
+        loading={bulkDeleting}
+      />
+
+      {/* Bulk Delete Success Toast */}
+      {bulkDeleteSuccess && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-emerald-500 text-white px-5 py-3 rounded-2xl shadow-xl shadow-emerald-500/30 animate-in slide-in-from-bottom-2">
+          <CheckCircle2 size={16}/> {bulkDeleteSuccess}
+        </div>
+      )}
     </div>
   )
 }

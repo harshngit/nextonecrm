@@ -76,6 +76,18 @@ export const deleteLead = createAsyncThunk(
   }
 )
 
+export const bulkDeleteLeads = createAsyncThunk(
+  'leads/bulkDelete',
+  async (ids, { rejectWithValue }) => {
+    try {
+      const response = await api.delete('/leads/bulk/delete', { data: { ids } })
+      return response.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete leads')
+    }
+  }
+)
+
 export const updateLeadStatus = createAsyncThunk(
   'leads/updateStatus',
   async ({ id, status }, { rejectWithValue }) => {
@@ -347,7 +359,7 @@ const leadSlice = createSlice({
       // ── create / update / delete / status / reassign — action loading ─────
       .addMatcher(
         (action) =>
-          ['leads/create', 'leads/update', 'leads/delete', 'leads/updateStatus', 'leads/reassign', 'leads/addNote', 'leads/addSource', 'leads/updateSource', 'leads/deleteSource', 'leads/addStatus', 'leads/updateStatusConfig', 'leads/deleteStatus', 'leads/reorderStatuses']
+          ['leads/create', 'leads/update', 'leads/delete', 'leads/bulkDelete', 'leads/updateStatus', 'leads/reassign', 'leads/addNote', 'leads/addSource', 'leads/updateSource', 'leads/deleteSource', 'leads/addStatus', 'leads/updateStatusConfig', 'leads/deleteStatus', 'leads/reorderStatuses']
             .some(t => action.type.startsWith(t)),
         (state, action) => {
           if (action.type.endsWith('/pending'))   { state.actionLoading = true;  state.actionError = null }
