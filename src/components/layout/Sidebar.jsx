@@ -4,6 +4,7 @@ import {
   LayoutDashboard, Users, CalendarCheck, PhoneCall,
   Building2, UserCog, Bell, LogOut, ChevronLeft, ChevronRight,
   X, Settings, Clock, IndianRupee, RotateCcw, BadgeCheck, ShieldCheck, Target,
+  MapPin, FileText,
 } from 'lucide-react'
 import { logout } from '../../store/authSlice'
 import { selectPermissions } from '../../store/permissionsSlice'
@@ -14,6 +15,8 @@ const navItems = [
   { path: '/dashboard',     label: 'Dashboard',     icon: LayoutDashboard, module: 'dashboard'     },
   { path: '/projects',      label: 'Projects',      icon: Building2,       module: 'projects'      },
   { path: '/leads',         label: 'Leads',         icon: Users,           module: 'leads'         },
+  { path: '/site-visit-leads', label: 'Site Visited', icon: MapPin,       module: 'leads'         },
+  { path: '/eoi-leads',     label: 'EOI',           icon: FileText,        module: 'leads'         },
   { path: '/follow-ups',    label: 'Follow-Ups',    icon: PhoneCall,       module: 'follow_ups'    },
   { path: '/site-visits',   label: 'Site Visits',   icon: CalendarCheck,   module: 'site_visits'   },
   { path: '/revisits',      label: 'Re-visits',     icon: RotateCcw,       module: 'revisits'      },

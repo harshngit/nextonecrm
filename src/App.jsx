@@ -14,6 +14,8 @@ import ForgotPassword from './pages/ForgotPassword'
 import Dashboard      from './pages/Dashboard'
 import Leads          from './pages/Leads'
 import LeadDetail     from './pages/LeadDetail'
+import SiteVisitLeads from './pages/SiteVisitLeads'
+import EOILeads       from './pages/EOILeads'
 import SiteVisits     from './pages/SiteVisits'
 import SiteVisitDetail from './pages/SiteVisitDetail'
 import FollowUps      from './pages/FollowUps'
@@ -81,6 +83,8 @@ function AppRoutes() {
         {/* Permission-gated routes */}
         <Route path="/leads"              element={<PermissionProtectedRoute module="leads"><Layout><Leads /></Layout></PermissionProtectedRoute>} />
         <Route path="/leads/:id"          element={<PermissionProtectedRoute module="leads"><Layout><LeadDetail /></Layout></PermissionProtectedRoute>} />
+        <Route path="/site-visit-leads"   element={<PermissionProtectedRoute module="leads"><Layout><SiteVisitLeads /></Layout></PermissionProtectedRoute>} />
+        <Route path="/eoi-leads"          element={<PermissionProtectedRoute module="leads"><Layout><EOILeads /></Layout></PermissionProtectedRoute>} />
         <Route path="/projects"           element={<PermissionProtectedRoute module="projects"><Layout><Projects /></Layout></PermissionProtectedRoute>} />
         <Route path="/projects/:id"       element={<PermissionProtectedRoute module="projects"><Layout><ProjectDetail /></Layout></PermissionProtectedRoute>} />
         <Route path="/site-visits"        element={<PermissionProtectedRoute module="site_visits"><Layout><SiteVisits /></Layout></PermissionProtectedRoute>} />
