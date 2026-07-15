@@ -561,7 +561,16 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
           options={sourceOptions}
           placeholder="Select Platform"
         />
-        <CustomSelect label="Status" value={formData.status} onChange={val => setFormData(prev => ({ ...prev, status: val }))} options={stageOptions} placeholder="Select status" />
+        {isEdit ? (
+          <div>
+            <label className={labelClass}>Status</label>
+            <div className={inputClass + ' cursor-not-allowed opacity-70 bg-gray-50 dark:bg-gray-800/50'}>
+              {stageOptions.find(o => o.value === formData.status)?.label || formData.status || 'New'}
+            </div>
+          </div>
+        ) : (
+          <CustomSelect label="Status" value={formData.status} onChange={val => setFormData(prev => ({ ...prev, status: val }))} options={stageOptions} placeholder="Select status" />
+        )}
       </div>
 
       {/* Site Visit Details — shown when status is set to Site Visit Scheduled.
@@ -1634,7 +1643,7 @@ export default function EOILeads() {
   const { teamTree: teamMembers = [], teamTreeLoading } = useSelector(s => s.users)
 
   const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState('eoi')
+  const [filterStatus] = useState('eoi')
   const [filterSource, setFilterSource] = useState('')
   const [filterAssigned, setFilterAssigned] = useState('')
   const [filterProjectId, setFilterProjectId] = useState('')
@@ -2098,14 +2107,6 @@ export default function EOILeads() {
               onChange={e => { setSearch(e.target.value); setPage(1) }}
               placeholder="Search leads..."
               className="pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-blue-100/50 dark:shadow-blue-900/20 rounded-xl outline-none focus:border-brand w-52 text-gray-900 dark:text-gray-100 placeholder-gray-400"
-            />
-          </div>
-          <div className="w-44">
-            <CustomSelect
-              value={filterStatus}
-              onChange={val => { setFilterStatus(val); setPage(1) }}
-              options={[{ value: '', label: 'All Status' }, ...stageOptions]}
-              placeholder="All Status"
             />
           </div>
           <div className="w-44">
