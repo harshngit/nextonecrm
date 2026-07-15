@@ -70,7 +70,7 @@ const defaultForm = {
   assigned_to: '', budget: '', location_preference: '', configuration: [],
   notes: '', status: 'New',
   callback_time: '', next_followup_time: '',
-  photos: [], payment_proof: [],
+  photos: [], payment_proof_url: '', payment_proof_amount: '',
   // Shown only when status is set to site_visit_scheduled
   visit_date: '', visit_time: '10:00', transport_arranged: false,
   // Shown only when status is set to follow_up
@@ -352,6 +352,85 @@ function LeadFileManager({ label, items, onChange, uploadUrl, fieldName, accept,
   )
 }
 
+// ─── PaymentProofManager (Single URL + Amount) ─────────────────────────────────
+function PaymentProofManager({ url, amount, onUrlChange, onAmountChange }) {
+  const ic = 'w-full px-2.5 py-1.5 text-xs bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-lg outline-none focus:border-brand text-gray-900 dark:text-gray-100'
+  const [uploading, setUploading] = useState(false)
+  const [error,     setError]     = useState('')
+
+  const onFileInput = async (e) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    e.target.value = ''
+    setError('')
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('payment_proof', f)
+      const res = await api.post('/upload/payment-proof', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const { url: newUrl } = res.data.data || {}
+      onUrlChange(newUrl)
+    } catch (err) {
+      setError(err.response?.data?.message || 'Upload failed.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+          Payment Proof <span className="text-gray-400 font-normal">(optional)</span>
+        </label>
+      </div>
+
+      {/* Document URL Field */}
+      <div className="space-y-1">
+        <label className="block text-[10px] font-medium text-gray-400">Document</label>
+        <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-[#141414] rounded-xl border border-gray-100 dark:border-gray-800">
+          {url && (
+            <a href={url} target="_blank" rel="noreferrer" className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+              <img src={url} alt="" className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none' }} />
+            </a>
+          )}
+          <input 
+            value={url || ''} 
+            onChange={e => onUrlChange(e.target.value)} 
+            placeholder="Payment Proof URL" 
+            className={ic + ' flex-1'} 
+          />
+          {url && (
+            <button type="button" onClick={() => onUrlChange('')} className="p-1 rounded-lg text-gray-400 hover:text-red-500 transition-colors">
+              <Trash size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Amount Field */}
+      <div className="space-y-1">
+        <label className="block text-[10px] font-medium text-gray-400">Amount</label>
+        <input 
+          value={amount || ''} 
+          onChange={e => onAmountChange(e.target.value)} 
+          placeholder="Amount" 
+          className={ic} 
+        />
+      </div>
+
+      {/* Upload Button */}
+      <label className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-brand hover:text-brand rounded-xl cursor-pointer w-fit ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+        {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+        {uploading ? 'Uploading…' : 'Upload Payment Proof'}
+        <input type="file" accept="image/*,.pdf" className="hidden" onChange={onFileInput} />
+      </label>
+
+      {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded-lg">{error}</p>}
+    </div>
+  )
+}
+
 // ─── LeadForm ─────────────────────────────────────────────────────────────────
 function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, teamMembers = [], projects, currentUser, leadId, pendingRecordings, setPendingRecordings, existingRecordings, onExistingChange }) {
   const inputClass = 'w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200'
@@ -578,14 +657,11 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
           />
 
           {/* Payment Proof */}
-          <LeadFileManager
-            label="Payment Proof"
-            items={formData.payment_proof || []}
-            onChange={items => setFormData(prev => ({ ...prev, payment_proof: items }))}
-            uploadUrl="/upload/payment-proof"
-            fieldName="payment_proof"
-            accept="image/*,.pdf"
-            showAmount
+          <PaymentProofManager
+            url={formData.payment_proof_url}
+            amount={formData.payment_proof_amount}
+            onUrlChange={(url) => setFormData(prev => ({ ...prev, payment_proof_url: url }))}
+            onAmountChange={(amount) => setFormData(prev => ({ ...prev, payment_proof_amount: amount }))}
           />
         </div>
       )}
@@ -1717,7 +1793,8 @@ export default function Leads() {
       }))
     }
     if (!payload.photos?.length) delete payload.photos
-    if (!payload.payment_proof?.length) delete payload.payment_proof
+    if (!payload.payment_proof_url) delete payload.payment_proof_url
+    if (!payload.payment_proof_amount) delete payload.payment_proof_amount
 
     // Status set to Site Visit Scheduled — create the lead and the visit
     // together via the same API the Site Visits page's "New Lead + Site
@@ -1783,7 +1860,8 @@ export default function Leads() {
       delete leadData.project_name
     }
     if (!leadData.photos?.length) delete leadData.photos
-    if (!leadData.payment_proof?.length) delete leadData.payment_proof
+    if (!leadData.payment_proof_url) delete leadData.payment_proof_url
+    if (!leadData.payment_proof_amount) delete leadData.payment_proof_amount
 
     // Only schedule a companion visit/follow-up when the status is actually
     // being changed into that stage this save — not on every subsequent edit
@@ -1885,7 +1963,8 @@ export default function Leads() {
         callback_time: leadData.callback_time || '',
         next_followup_time: leadData.next_followup_time || '',
         photos: leadData.photos || [],
-        payment_proof: leadData.payment_proof || [],
+        payment_proof_url: leadData.payment_proof_url || '',
+        payment_proof_amount: leadData.payment_proof_amount || '',
         visit_date: '', visit_time: '10:00', transport_arranged: false,
         followup_title: '', due_date: '', due_time: '10:00', priority: 'medium',
       })
@@ -1920,7 +1999,8 @@ export default function Leads() {
         notes: lead.notes || '',
         status: lead.status || 'New',
         photos: lead.photos || [],
-        payment_proof: lead.payment_proof || [],
+        payment_proof_url: lead.payment_proof_url || '',
+        payment_proof_amount: lead.payment_proof_amount || '',
         callback_time: lead.callback_time || '',
         next_followup_time: lead.next_followup_time || '',
         visit_date: '', visit_time: '10:00', transport_arranged: false,

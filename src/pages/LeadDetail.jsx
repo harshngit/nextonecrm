@@ -135,17 +135,32 @@ function EoiDocumentsSection({ lead, onUploaded }) {
   const [showPhotoModal, setShowPhotoModal] = useState(false)
   const [deletingId,     setDeletingId]     = useState(null)
   const [error,          setError]          = useState('')
+  const [uploading,      setUploading]      = useState(false)
 
-  const paymentProofs = lead.payment_proofs || []
-  const photos        = lead.photos || []
+  const photos = lead.photos || []
 
   const uploadPaymentProof = async ({ file, field: amount }) => {
-    const fd = new FormData()
-    fd.append('payment_proof', file)
-    fd.append('name', file.name)
-    if (amount) fd.append('amount', amount)
-    await api.post(`/leads/${lead.id}/payment-proofs`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-    onUploaded()
+    setUploading(true)
+    setError('')
+    try {
+      const fd = new FormData()
+      fd.append('payment_proof', file)
+      const uploadRes = await api.post('/upload/payment-proof', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const { url } = uploadRes.data.data || {}
+      
+      // Update lead with payment proof url and amount
+      await api.patch(`/leads/${lead.id}`, {
+        payment_proof_url: url,
+        payment_proof_amount: amount || null
+      })
+      
+      onUploaded()
+      setShowProofModal(false)
+    } catch (err) {
+      setError(err.response?.data?.message || 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
   }
 
   const uploadPhoto = async ({ file, field: name }) => {
@@ -156,15 +171,18 @@ function EoiDocumentsSection({ lead, onUploaded }) {
     onUploaded()
   }
 
-  const deletePaymentProof = async docId => {
-    setError(''); setDeletingId(docId)
+  const deletePaymentProof = async () => {
+    setError(''); setUploading(true)
     try {
-      await api.delete(`/leads/${lead.id}/payment-proofs/${docId}`)
+      await api.patch(`/leads/${lead.id}`, {
+        payment_proof_url: null,
+        payment_proof_amount: null
+      })
       onUploaded()
     } catch (err) {
       setError(err.response?.data?.message || 'Delete failed')
     } finally {
-      setDeletingId(null)
+      setUploading(false)
     }
   }
 
@@ -203,20 +221,45 @@ function EoiDocumentsSection({ lead, onUploaded }) {
         {/* Payment Proof */}
         <div>
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Payment Proof</p>
-          {paymentProofs.length > 0 ? (
-            <div className="space-y-1.5 mb-3">
-              {paymentProofs.map(p => (
-                <DocLinkCard key={p.id} url={p.url} name={p.name}
-                  sub={p.amount ? `₹${Number(p.amount).toLocaleString('en-IN')}` : null}
-                  onDelete={() => deletePaymentProof(p.id)} deleting={deletingId === p.id} />
-              ))}
+          <div className="space-y-3">
+            {/* Document */}
+            <div className="space-y-1">
+              <p className="text-[10px] font-medium text-gray-400">Document</p>
+              {lead.payment_proof_url ? (
+                <div className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-[#0f0f0f] rounded-xl border border-gray-100 dark:border-gray-800 hover:border-brand transition-colors">
+                  <a href={resolveFileUrl(lead.payment_proof_url)} target="_blank" rel="noreferrer" className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 text-gray-500">
+                      <FileText size={14} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">Payment Proof</p>
+                    </div>
+                  </a>
+                  <button type="button" onClick={deletePaymentProof} disabled={uploading}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 transition-colors flex-shrink-0" title="Delete">
+                    {uploading ? <Loader2 size={13} className="animate-spin" /> : <Trash size={13} />}
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400">--</p>
+              )}
             </div>
-          ) : (
-            <p className="text-sm text-gray-400 mb-3">--</p>
-          )}
-          <button type="button" onClick={() => setShowProofModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-brand hover:text-brand rounded-xl transition-colors">
-            <Upload size={12} /> Upload Payment Proof
+
+            {/* Amount */}
+            <div className="space-y-1">
+              <p className="text-[10px] font-medium text-gray-400">Amount</p>
+              {lead.payment_proof_amount ? (
+                <p className="text-sm font-semibold text-brand">₹{Number(lead.payment_proof_amount).toLocaleString('en-IN')}</p>
+              ) : (
+                <p className="text-sm text-gray-400">--</p>
+              )}
+            </div>
+          </div>
+
+          {/* Upload Button */}
+          <button type="button" onClick={() => setShowProofModal(true)} disabled={uploading}
+            className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-brand hover:text-brand rounded-xl transition-colors disabled:opacity-50">
+            {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />} Upload Payment Proof
           </button>
         </div>
 
