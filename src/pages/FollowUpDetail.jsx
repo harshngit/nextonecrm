@@ -16,6 +16,7 @@ import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import CustomSelect from '../components/ui/CustomSelect'
 import ConvertFollowUpModal from '../components/modals/ConvertFollowUpModal'
+import PhoneActions from '../components/ui/PhoneActions'
 
 const priorities = ['low', 'medium', 'high']
 const priorityOptions = priorities.map(p => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))
@@ -553,9 +554,9 @@ export default function FollowUpDetail() {
                 <div className="mt-4">
                   <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Phone Number</p>
                   {isAdmin ? (
-                    <a href={`tel:${task.lead_phone}`} className="text-sm font-semibold text-brand hover:underline">{task.lead_phone}</a>
+                    <PhoneActions phone={task.lead_phone}><span className="text-sm font-semibold text-brand hover:underline">{task.lead_phone}</span></PhoneActions>
                   ) : showPhone ? (
-                    <a href={`tel:${task.lead_phone}`} className="text-sm font-semibold text-brand hover:underline">{task.lead_phone}</a>
+                    <PhoneActions phone={task.lead_phone}><span className="text-sm font-semibold text-brand hover:underline">{task.lead_phone}</span></PhoneActions>
                   ) : (
                     <div>
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">*****{task.lead_phone?.slice(-5)}</p>
@@ -574,15 +575,17 @@ export default function FollowUpDetail() {
               <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-[24px] p-6 shadow-sm">
                 <h3 className="font-display text-base font-bold text-gray-900 dark:text-white mb-5">Quick Contact</h3>
                 {isAdmin || showPhone ? (
-                  <a href={`tel:${task.lead_phone}`} className="flex items-center justify-between p-4 rounded-[20px] bg-green-50/50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/30 group hover:bg-green-500 transition-all">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/20 flex items-center justify-center text-green-600 group-hover:bg-white/20 group-hover:text-white">
-                        <Phone size={18} />
+                  <PhoneActions phone={task.lead_phone} className="block">
+                    <div className="flex items-center justify-between p-4 rounded-[20px] bg-green-50/50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/30 group hover:bg-green-500 transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/20 flex items-center justify-center text-green-600 group-hover:bg-white/20 group-hover:text-white">
+                          <Phone size={18} />
+                        </div>
+                        <div className="text-sm font-bold text-green-700 dark:text-green-400 group-hover:text-white">{task.lead_phone}</div>
                       </div>
-                      <div className="text-sm font-bold text-green-700 dark:text-green-400 group-hover:text-white">{task.lead_phone}</div>
+                      <ArrowLeft size={16} className="text-green-400 rotate-180 group-hover:text-white" />
                     </div>
-                    <ArrowLeft size={16} className="text-green-400 rotate-180 group-hover:text-white" />
-                  </a>
+                  </PhoneActions>
                 ) : (
                   <div className="flex items-center justify-between p-4 rounded-[20px] bg-gray-50/50 dark:bg-[#0f0f0f]/50 border border-gray-100 dark:border-gray-800">
                     <div className="flex items-center gap-3">

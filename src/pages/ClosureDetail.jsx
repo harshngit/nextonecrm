@@ -10,6 +10,7 @@ import api from '../api/axios'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
+import PhoneActions from '../components/ui/PhoneActions'
 import { ClosureDocumentManager } from './Closures'
 
 export default function ClosureDetail() {
@@ -313,7 +314,9 @@ export default function ClosureDetail() {
                       <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider bg-emerald-50 px-2 py-0.5 rounded-full inline-block">{lead.budget}</div>
                     )}
                   </div>
-                  <div className="text-[11px] text-gray-500 mt-2 truncate">{lead.phone || 'No phone available'}</div>
+                  <div className="text-[11px] text-gray-500 mt-2 truncate">
+                    {lead.phone ? <PhoneActions phone={lead.phone}><span className="hover:underline hover:text-brand">{lead.phone}</span></PhoneActions> : 'No phone available'}
+                  </div>
                   <div className="text-[11px] text-gray-400 truncate">{lead.email || 'No email available'}</div>
                   <div className="text-[11px] text-gray-400 mt-1.5 flex items-center gap-1 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">
                     <ExternalLink size={10} /> {leadId ? 'View Profile' : 'Lead unavailable'}

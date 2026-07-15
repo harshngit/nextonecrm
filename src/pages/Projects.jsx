@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useModulePermissions } from '../hooks/usePermission'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
+import { Swiper, SwiperSlide } from 'swiper/react'
+import { Autoplay } from 'swiper/modules'
+import 'swiper/css'
 import { Plus, MapPin, Building2, IndianRupee, Users, Edit2, Trash2, RefreshCw, Search, ChevronDown, Download, Upload, FileImage, FileText, X, CheckCircle2, Loader2, Eye, Paperclip, Share2, Mail, SendHorizonal, AlertCircle } from 'lucide-react'
 import { fetchProjects, createProject, updateProject, deleteProject, clearProjectError, fetchProjectDocuments } from '../store/projectSlice'
 import CardSkeleton from '../components/loaders/CardSkeleton'
@@ -12,6 +15,7 @@ import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
 import ConfirmModal from '../components/ui/ConfirmModal'
 import CustomSelect from '../components/ui/CustomSelect'
+import PageSizeSelect, { resolvePerPage } from '../components/ui/PageSizeSelect'
 
 // Uploaded file paths come back relative (e.g. "/uploads/projects/x.png"),
 // served from the API's origin rather than the frontend's — resolve to a full URL.
@@ -30,32 +34,41 @@ const resolveFileUrl = path => {
   return `${fileOrigin}${urlPath.startsWith('/') ? '' : '/'}${urlPath}`
 }
 
-// Uploaded files are served from a protected route that requires the auth
-// token — a plain <img src> can't send an Authorization header, so fetch the
-// image through the authenticated api client and render it as a blob URL.
+// Renders the document's own url directly (fast path, no extra round trip).
+// Some uploaded files are served from a route that requires an auth token —
+// when the direct request fails to load, fall back to fetching it through
+// the authenticated api client and rendering it as a blob URL.
 function AuthImage({ path, alt, className, onClick }) {
-  const [src, setSrc] = useState(null)
   const normalizedPath = typeof path === 'object' ? (path?.url || path?.file_path) : path
+  const directSrc = normalizedPath && typeof normalizedPath === 'string' ? resolveFileUrl(normalizedPath) : null
+  const [src, setSrc] = useState(directSrc)
+  const [blobTried, setBlobTried] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const blobUrlRef = useRef(null)
 
   useEffect(() => {
-    if (!normalizedPath || typeof normalizedPath !== 'string') { setSrc(null); return }
-    let cancelled = false
-    let objectUrl
+    setSrc(directSrc)
+    setBlobTried(false)
+    setFailed(false)
+    return () => {
+      if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null }
+    }
+  }, [directSrc])
+
+  const handleError = () => {
+    if (blobTried || !normalizedPath) { setFailed(true); return }
+    setBlobTried(true)
     api.get(resolveFileUrl(normalizedPath), { responseType: 'blob' })
       .then(res => {
-        if (cancelled) return
-        objectUrl = URL.createObjectURL(res.data)
+        const objectUrl = URL.createObjectURL(res.data)
+        blobUrlRef.current = objectUrl
         setSrc(objectUrl)
       })
-      .catch(() => { if (!cancelled) setSrc(null) })
-    return () => {
-      cancelled = true
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-    }
-  }, [normalizedPath])
+      .catch(() => setFailed(true))
+  }
 
-  if (!src) return <div className={`${className} bg-gray-100 dark:bg-gray-800 animate-pulse`} />
-  return <img src={src} alt={alt} className={className} onClick={onClick ? () => onClick(src) : undefined} />
+  if (!src || failed) return <div className={`${className} bg-gray-100 dark:bg-gray-800 animate-pulse`} />
+  return <img src={src} alt={alt} className={className} onClick={onClick ? () => onClick(src) : undefined} onError={handleError} />
 }
 
 // Single protected file path to blob URL
@@ -127,39 +140,47 @@ function ProjectLogo({ logo, alt }) {
   )
 }
 
-// Project card cover — auto-rotating slider when there's more than one photo,
-// a single static image for exactly one, and the gradient + icon placeholder
-// when there are none (or none could be loaded).
+// Project card cover — auto-rotating Swiper carousel (drag/swipe + autoplay)
+// when there's more than one photo, a single static image for exactly one,
+// and the gradient + icon placeholder when there are none. Each slide renders
+// the document's url directly via AuthImage (falls back to an authenticated
+// fetch on its own if the direct load fails).
 function ProjectCardCover({ photos, colorClass, children }) {
-  const srcs = useAuthImages(photos || [])
+  const validPhotos = (photos || []).filter(p => (typeof p === 'object' ? (p?.url || p?.file_path) : p))
   const [index, setIndex] = useState(0)
 
-  useEffect(() => {
-    if (srcs.length <= 1) return
-    const timer = setInterval(() => setIndex(i => (i + 1) % srcs.length), 3000)
-    return () => clearInterval(timer)
-  }, [srcs.length])
-
   return (
-    <div className={`h-40 relative flex-shrink-0 overflow-hidden ${srcs.length === 0 ? `bg-gradient-to-br ${colorClass} flex items-center justify-center` : 'bg-gray-100 dark:bg-gray-800'}`}>
-      {srcs.length === 0 ? (
+    <div className={`h-40 relative flex-shrink-0 overflow-hidden ${validPhotos.length === 0 ? `bg-gradient-to-br ${colorClass} flex items-center justify-center` : 'bg-gray-100 dark:bg-gray-800'}`}>
+      {validPhotos.length === 0 ? (
         <div className="w-12 h-12 rounded-2xl bg-white/80 dark:bg-black/30 backdrop-blur flex items-center justify-center shadow-sm">
           <Building2 size={22} className="text-brand" />
         </div>
+      ) : validPhotos.length === 1 ? (
+        <>
+          <AuthImage path={validPhotos[0]} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/0 to-black/0 pointer-events-none" />
+        </>
       ) : (
         <>
-          {srcs.map((src, i) => (
-            <img key={i} src={src} alt=""
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${i === index ? 'opacity-100' : 'opacity-0'}`} />
-          ))}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/0 to-black/0" />
-          {srcs.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
-              {srcs.map((_, i) => (
-                <span key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${i === index ? 'bg-white' : 'bg-white/40'}`} />
-              ))}
-            </div>
-          )}
+          <Swiper
+            modules={[Autoplay]}
+            autoplay={{ delay: 3000, disableOnInteraction: false }}
+            loop
+            onSlideChange={(swiper) => setIndex(swiper.realIndex)}
+            className="absolute inset-0 w-full h-full"
+          >
+            {validPhotos.map((p, i) => (
+              <SwiperSlide key={i}>
+                <AuthImage path={p} alt="" className="w-full h-full object-cover" />
+              </SwiperSlide>
+            ))}
+          </Swiper>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/0 to-black/0 pointer-events-none" />
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10 pointer-events-none">
+            {validPhotos.map((_, i) => (
+              <span key={i} className={`w-1.5 h-1.5 rounded-full transition-colors ${i === index ? 'bg-white' : 'bg-white/40'}`} />
+            ))}
+          </div>
         </>
       )}
       {children}
@@ -959,6 +980,7 @@ export default function Projects() {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterCity,   setFilterCity]   = useState('')
   const [page,         setPage]         = useState(1)
+  const [perPage,      setPerPage]      = useState('10')
 
   const [showAddModal,  setShowAddModal]  = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -982,12 +1004,12 @@ export default function Projects() {
   const [cardUploading, setCardUploading] = useState({}) // { [`${projectId}_${field}`]: bool }
 
   useEffect(() => {
-    const params = { page, per_page: 10 }
+    const params = { page, per_page: resolvePerPage(perPage) }
     if (search) params.search = search
     if (filterStatus) params.status = filterStatus
     if (filterCity) params.city = filterCity
     dispatch(fetchProjects(params))
-  }, [dispatch, search, filterStatus, filterCity, page])
+  }, [dispatch, search, filterStatus, filterCity, page, perPage])
 
   useEffect(() => {
     if (actionError) {
@@ -1005,78 +1027,29 @@ export default function Projects() {
     }
   }, [shareProject, dispatch])
 
-  // Check which document types each listed project actually has, so cards
-  // can show an Upload button instead of a Download button where empty.
+  // Card cover photos, developer logo, and document counts all come straight
+  // off each project object returned by the list endpoint — no separate
+  // per-project /documents fetch needed.
   useEffect(() => {
-    if (list.length === 0) {
-      setCardMedia({})
-      setDocCounts({})
-      return
-    }
-    // FIRST: set initial card media using just what's available on the list items!
-    const initialMedia = {}
-    const initialCounts = {}
+    const media = {}
+    const counts = {}
     list.forEach(p => {
-      initialMedia[p.id] = {
+      media[p.id] = {
         photos: [
           ...(p.photos || []),
           ...(p.creatives || []),
         ],
         logo: p.developer_logo || null,
       }
-      initialCounts[p.id] = {
+      counts[p.id] = {
         unit_plans:    (p.unit_plans    || []).length,
         creatives:     (p.creatives     || []).length,
         payment_plans: (p.payment_plans || []).length,
         videos:        (p.videos        || []).length,
       }
     })
-    setCardMedia(initialMedia)
-    setDocCounts(initialCounts)
-
-    // THEN: update with data from the documents API calls!
-    let cancelled = false
-    Promise.all(list.map(async (p) => {
-      try {
-        const res = await api.get(`/projects/${p.id}/documents`)
-        const docs = res.data?.data?.documents || res.data?.documents || {}
-        return [p.id, {
-          counts: {
-            unit_plans:    (docs.unit_plans    || []).length,
-            creatives:     (docs.creatives     || []).length,
-            payment_plans: (docs.payment_plans || []).length,
-            videos:        (docs.videos        || []).length,
-          },
-          // Combine both photos and creatives for cover slider!
-          photos: [
-            ...(docs.photos?.length ? docs.photos : (p.photos || [])),
-            ...(docs.creatives?.length ? docs.creatives : (p.creatives || [])),
-          ],
-          logo:   docs.developer_logo || p.developer_logo || null,
-        }]
-      } catch {
-        // If the API call fails, still use whatever is available on the project!
-        return [p.id, {
-          counts: {
-            unit_plans:    (p.unit_plans    || []).length,
-            creatives:     (p.creatives     || []).length,
-            payment_plans: (p.payment_plans || []).length,
-            videos:        (p.videos        || []).length,
-          },
-          photos: [
-            ...(p.photos || []),
-            ...(p.creatives || []),
-          ],
-          logo: p.developer_logo || null,
-        }]
-      }
-    })).then(entries => {
-      if (cancelled) return
-      const valid = entries.filter(([, v]) => v)
-      setDocCounts(Object.fromEntries(valid.map(([id, v]) => [id, v.counts])))
-      setCardMedia(Object.fromEntries(valid.map(([id, v]) => [id, { photos: v.photos, logo: v.logo }])))
-    })
-    return () => { cancelled = true }
+    setCardMedia(media)
+    setDocCounts(counts)
   }, [list])
 
   const canManage = ['super_admin', 'admin'].includes(currentUser?.role)
@@ -1098,7 +1071,7 @@ export default function Projects() {
       const result = await dispatch(createProject(projectData))
       if (createProject.fulfilled.match(result)) {
         setSuccess('Project created!')
-        dispatch(fetchProjects({ page, per_page: 10 }))
+        dispatch(fetchProjects({ page, per_page: resolvePerPage(perPage) }))
         setTimeout(() => {
           setShowAddModal(false)
           setSuccess('')
@@ -1127,7 +1100,7 @@ export default function Projects() {
       const result = await dispatch(updateProject({ id: selectedProject.id, data: updateData }))
       if (updateProject.fulfilled.match(result)) {
         setSuccess('Project updated!')
-        dispatch(fetchProjects({ page, per_page: 10 }))
+        dispatch(fetchProjects({ page, per_page: resolvePerPage(perPage) }))
         setTimeout(() => {
           setShowEditModal(false); setSuccess('')
           setExistingFiles({ unit_plans: [], creatives: [], payment_plans: [], videos: [], photos: [], developer_logo: null })
@@ -1149,7 +1122,7 @@ export default function Projects() {
     if (!projectToDelete) return
     const result = await dispatch(deleteProject(projectToDelete.id))
     if (deleteProject.fulfilled.match(result)) {
-      dispatch(fetchProjects({ page, per_page: 10 }))
+      dispatch(fetchProjects({ page, per_page: resolvePerPage(perPage) }))
       setShowDeleteModal(false)
       setProjectToDelete(null)
     }
@@ -1385,7 +1358,7 @@ export default function Projects() {
               className="px-3 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-xl outline-none focus:border-brand w-28 text-gray-900 dark:text-gray-100 placeholder-gray-400" />
           </div>
 
-          <button onClick={() => dispatch(fetchProjects({ page, per_page: 10 }))}
+          <button onClick={() => dispatch(fetchProjects({ page, per_page: resolvePerPage(perPage) }))}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors">
             <RefreshCw size={14} />
           </button>
@@ -1407,9 +1380,12 @@ export default function Projects() {
 
       {/* Summary */}
       {!loading && (
-        <div className="text-sm text-gray-500 dark:text-[#888]">
-          <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span> projects
-          {pagination?.total > list.length && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span> total</>}
+        <div className="text-sm text-gray-500 dark:text-[#888] flex items-center gap-3">
+          <span>
+            <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span> projects
+            {pagination?.total > list.length && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span> total</>}
+          </span>
+          <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1) }} />
         </div>
       )}
 
@@ -1431,13 +1407,13 @@ export default function Projects() {
 
                 {/* Header — auto-rotating photo slider when available, gradient + icon fallback */}
                 <ProjectCardCover photos={cardMedia[project.id]?.photos} colorClass={projectColors[i % projectColors.length]}>
-                  <div className="absolute top-3 right-3">
+                  <div className="absolute top-3 right-3 z-20">
                     <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold tracking-wider ${statusBadgeColor[project.status] || statusBadgeColor.pre_launch}`}>
                       {project.status?.replace(/_/g, ' ').toUpperCase()}
                     </span>
                   </div>
                   {(perms.edit || perms.delete || canShareProject) && (
-                    <div className="absolute top-3 left-3 flex gap-1">
+                    <div className="absolute top-3 left-3 z-20 flex gap-1">
                       {perms.edit && (
                         <button onClick={() => openEdit(project)}
                           className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/80 dark:bg-black/40 text-gray-600 hover:text-blue-600 transition-colors" title="Edit">
@@ -1539,13 +1515,18 @@ export default function Projects() {
       )}
 
       {/* Pagination */}
-      {pagination?.total_pages > 1 && (
-        <div className="flex items-center justify-between px-2 text-xs text-gray-500">
-          <span>Page {pagination.page} of {pagination.total_pages} · {pagination.total} total</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
-            <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(p => p + 1)}>Next</Button>
+      {pagination?.total > 0 && (
+        <div className="flex items-center justify-between px-2 text-xs text-gray-500 flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <span>Page {pagination.page} of {pagination.total_pages || 1} · {pagination.total} total</span>
+            <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1) }} />
           </div>
+          {pagination.total_pages > 1 && (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
+              <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(p => p + 1)}>Next</Button>
+            </div>
+          )}
         </div>
       )}
 

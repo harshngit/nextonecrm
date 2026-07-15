@@ -11,6 +11,7 @@ import api from '../api/axios'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
+import PhoneActions from '../components/ui/PhoneActions'
 
 export default function RevisitDetail() {
   const { id } = useParams()
@@ -530,9 +531,9 @@ export default function RevisitDetail() {
                 <div className="mt-4">
                   <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Phone Number</p>
                   {isAdmin ? (
-                    <a href={`tel:${revisit.lead_phone}`} className="text-sm font-semibold text-purple-600 hover:underline">{revisit.lead_phone}</a>
+                    <PhoneActions phone={revisit.lead_phone}><span className="text-sm font-semibold text-purple-600 hover:underline">{revisit.lead_phone}</span></PhoneActions>
                   ) : showPhone ? (
-                    <a href={`tel:${revisit.lead_phone}`} className="text-sm font-semibold text-purple-600 hover:underline">{revisit.lead_phone}</a>
+                    <PhoneActions phone={revisit.lead_phone}><span className="text-sm font-semibold text-purple-600 hover:underline">{revisit.lead_phone}</span></PhoneActions>
                   ) : (
                     <div>
                       <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">*****{revisit.lead_phone?.slice(-5)}</p>

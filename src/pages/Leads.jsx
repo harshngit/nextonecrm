@@ -17,6 +17,8 @@ import ConfirmModal from '../components/ui/ConfirmModal'
 import CustomSelect from '../components/ui/CustomSelect'
 import ClockPicker from '../components/ui/ClockPicker'
 import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
+import PhoneActions from '../components/ui/PhoneActions'
+import PageSizeSelect, { resolvePerPage } from '../components/ui/PageSizeSelect'
 import ConvertLeadModal from '../components/modals/ConvertLeadModal'
 import LeadStatusManagementModal from '../components/modals/LeadStatusManagementModal'
 
@@ -69,6 +71,10 @@ const defaultForm = {
   notes: '', status: 'New',
   callback_time: '', next_followup_time: '',
   photos: [], payment_proof: [],
+  // Shown only when status is set to site_visit_scheduled
+  visit_date: '', visit_time: '10:00', transport_arranged: false,
+  // Shown only when status is set to follow_up
+  followup_title: '', due_date: '', due_time: '10:00', priority: 'medium',
 }
 
 // ─── CallRecordingsManager ────────────────────────────────────────────────────
@@ -479,6 +485,64 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
         <CustomSelect label="Status" value={formData.status} onChange={val => setFormData(prev => ({ ...prev, status: val }))} options={stageOptions} placeholder="Select status" />
       </div>
 
+      {/* Site Visit Details — shown when status is set to Site Visit Scheduled.
+          Submitting schedules an actual site visit via the same API the
+          Site Visits page uses, instead of just changing the status label. */}
+      {formData.status === 'site_visit_scheduled' && (
+        <div className="p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-xl space-y-3">
+          <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">📅 Site Visit Details</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Visit Date *</label>
+              <input required type="date" value={formData.visit_date}
+                onChange={e => setFormData(prev => ({ ...prev, visit_date: e.target.value }))}
+                min={new Date().toISOString().split('T')[0]} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Visit Time</label>
+              <input type="time" value={formData.visit_time}
+                onChange={e => setFormData(prev => ({ ...prev, visit_time: e.target.value }))} className={inputClass} />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+            <input type="checkbox" checked={formData.transport_arranged}
+              onChange={e => setFormData(prev => ({ ...prev, transport_arranged: e.target.checked }))}
+              className="w-4 h-4 accent-brand rounded" />
+            Transport arranged for client
+          </label>
+        </div>
+      )}
+
+      {/* Follow-up Details — shown when status is set to Follow-up. Submitting
+          creates an actual follow-up task via the same API the Follow-ups
+          page uses, instead of just changing the status label. */}
+      {formData.status === 'follow_up' && (
+        <div className="p-3 bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-800/30 rounded-xl space-y-3">
+          <p className="text-xs font-semibold text-purple-700 dark:text-purple-400">📞 Follow-up Details</p>
+          <div>
+            <label className={labelClass}>Task Title</label>
+            <input value={formData.followup_title} onChange={e => setFormData(prev => ({ ...prev, followup_title: e.target.value }))}
+              placeholder={`Follow up with ${formData.name || 'lead'}`} className={inputClass} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Due Date *</label>
+              <input required type="date" value={formData.due_date}
+                onChange={e => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
+                min={new Date().toISOString().split('T')[0]} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Due Time</label>
+              <input type="time" value={formData.due_time}
+                onChange={e => setFormData(prev => ({ ...prev, due_time: e.target.value }))} className={inputClass} />
+            </div>
+          </div>
+          <CustomSelect label="Priority" value={formData.priority}
+            onChange={val => setFormData(prev => ({ ...prev, priority: val }))}
+            options={[{ value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }]} />
+        </div>
+      )}
+
       {/* Assign To */}
       <div>
         {isRestricted ? (
@@ -547,7 +611,9 @@ function PhoneCell({ lead, canSeePhone, visiblePhoneLeadId, setVisiblePhoneLeadI
   if (canSeePhone) {
     return (
       <div className="flex flex-col gap-0.5">
-        <a href={`tel:${lead.phone}`} className="text-brand hover:underline font-medium text-sm">{lead.phone}</a>
+        <PhoneActions phone={lead.phone}>
+          <span className="text-brand hover:underline font-medium text-sm">{lead.phone}</span>
+        </PhoneActions>
         {lead.alternate_phone_number && (
           <span className="text-[10px] text-gray-400">Alt: {lead.alternate_phone_number}</span>
         )}
@@ -558,7 +624,9 @@ function PhoneCell({ lead, canSeePhone, visiblePhoneLeadId, setVisiblePhoneLeadI
   if (visiblePhoneLeadId === lead.id) {
     return (
       <div className="flex flex-col gap-1">
-        <a href={`tel:${lead.phone}`} className="text-brand hover:underline font-medium text-sm">{lead.phone}</a>
+        <PhoneActions phone={lead.phone}>
+          <span className="text-brand hover:underline font-medium text-sm">{lead.phone}</span>
+        </PhoneActions>
         {lead.alternate_phone_number && (
           <span className="text-[10px] text-gray-400">Alt: {lead.alternate_phone_number}</span>
         )}
@@ -1493,7 +1561,15 @@ export default function Leads() {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterSource, setFilterSource] = useState('')
   const [filterAssigned, setFilterAssigned] = useState('')
+  const [filterProjectId, setFilterProjectId] = useState('')
+  const [filterProjectName, setFilterProjectName] = useState('')
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState('10')
+
+  const searchProjectsFilter = async (q) => {
+    const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
+  }
 
   const isAdminOrManager = ['admin', 'super_admin', 'manager'].includes(currentUser?.role)
   const isExternalCaller = currentUser?.role === 'external_caller'
@@ -1533,6 +1609,9 @@ export default function Leads() {
   const [selectedLead, setSelectedLead] = useState(null)
   const [addForm, setAddForm] = useState(defaultForm)
   const [editForm, setEditForm] = useState(defaultForm)
+  const [editOriginalStatus, setEditOriginalStatus] = useState('')
+  const [addSubmitError, setAddSubmitError] = useState('')
+  const [editSubmitError, setEditSubmitError] = useState('')
   const [reassignTo, setReassignTo] = useState('')
   const [selectedLeads, setSelectedLeads] = useState([])
   const [exporting,  setExporting]  = useState(false)
@@ -1559,23 +1638,33 @@ export default function Leads() {
   }, [currentUser?.id, dispatch])
 
   useEffect(() => {
-    const params = { page, per_page: 10 }
+    const params = { page, per_page: resolvePerPage(perPage) }
     if (search)         params.search      = search
     if (filterStatus)   params.status      = filterStatus
-    if (filterSource)   params.source_id   = filterSource
     if (filterAssigned) params.assigned_to = filterAssigned
+    if (filterSource) {
+      // Send both — some backends filter leads by the source's name, others
+      // by its id; sending both means whichever the API reads actually works.
+      params.source_id = filterSource
+      const matchedSource = sourceList.find(s => s.id === filterSource)
+      if (matchedSource) params.source = matchedSource.name
+    }
+    if (filterProjectId)        params.project_id = filterProjectId
+    else if (filterProjectName) params.project     = filterProjectName
     if (isExternalCaller) {
       dispatch(fetchMyLeads(params))
     } else {
       dispatch(fetchLeads(params))
     }
     if (showLeadsTabs) {
-      const myParams = { page: myPage, per_page: 10 }
+      const myParams = { page: myPage, per_page: resolvePerPage(perPage) }
       if (search)       myParams.search = search
       if (filterStatus) myParams.status = filterStatus
+      if (filterProjectId)        myParams.project_id = filterProjectId
+      else if (filterProjectName) myParams.project     = filterProjectName
       dispatch(fetchMyLeads(myParams))
     }
-  }, [dispatch, search, filterStatus, filterSource, filterAssigned, page, myPage, showLeadsTabs, isExternalCaller])
+  }, [dispatch, search, filterStatus, filterSource, filterAssigned, filterProjectId, filterProjectName, page, myPage, perPage, showLeadsTabs, isExternalCaller])
 
   useEffect(() => {
     dispatch(fetchLeadSources())
@@ -1586,13 +1675,33 @@ export default function Leads() {
   const sourceList = sources?.length > 0 ? sources : defaultSources
 
   const reloadLeads = () => {
-    dispatch(fetchLeads({ page, per_page: 10 }))
-    if (showLeadsTabs) dispatch(fetchMyLeads({ page: myPage, per_page: 10 }))
+    dispatch(fetchLeads({ page, per_page: resolvePerPage(perPage) }))
+    if (showLeadsTabs) dispatch(fetchMyLeads({ page: myPage, per_page: resolvePerPage(perPage) }))
   }
+
+  // Shared lead fields carried over into the create-with-lead payloads below
+  // (mirrors the "New Lead + Site Visit" / "New Lead + Follow-up" flows).
+  const buildLeadFieldsFor = (payload) => ({
+    name: payload.name,
+    phone: payload.phone,
+    ...(payload.alternate_phone_number && { alternate_phone_number: payload.alternate_phone_number }),
+    ...(payload.email && { email: payload.email }),
+    ...(payload.source && { source: payload.source }),
+    ...(payload.source_id && { source_id: payload.source_id }),
+    ...(payload.project_id ? { project_id: payload.project_id } : payload.project_name ? { project_name: payload.project_name } : {}),
+    ...(payload.assigned_to && { assigned_to: payload.assigned_to }),
+    ...(payload.budget && { budget: payload.budget }),
+    ...(payload.location_preference && { location_preference: payload.location_preference }),
+    ...(payload.configuration?.length && { configuration: payload.configuration }),
+    ...(payload.notes && { lead_notes: payload.notes }),
+    ...(payload.callback_time && { callback_time: payload.callback_time }),
+    ...(payload.next_followup_time && { next_followup_time: payload.next_followup_time }),
+  })
 
   const handleAddLead = async (e) => {
     e.preventDefault()
     dispatch(clearLeadError())
+    setAddSubmitError('')
     const payload = { ...addForm }
     if (payload.project_id) {
       delete payload.project_name
@@ -1609,6 +1718,48 @@ export default function Leads() {
     }
     if (!payload.photos?.length) delete payload.photos
     if (!payload.payment_proof?.length) delete payload.payment_proof
+
+    // Status set to Site Visit Scheduled — create the lead and the visit
+    // together via the same API the Site Visits page's "New Lead + Site
+    // Visit" flow uses, instead of leaving the status with no real visit.
+    if (payload.status === 'site_visit_scheduled' && payload.visit_date) {
+      try {
+        await api.post('/site-visits/create-with-lead', {
+          ...buildLeadFieldsFor(payload),
+          visit_date: payload.visit_date,
+          visit_time: payload.visit_time || '10:00',
+          transport_arranged: Boolean(payload.transport_arranged),
+        })
+        setAddSuccess('Lead created and site visit scheduled!')
+        setPendingRecordings([])
+        reloadLeads()
+        setTimeout(() => { setShowAddModal(false); setAddSuccess(''); setAddForm(defaultForm) }, 800)
+      } catch (err) {
+        setAddSubmitError(err.response?.data?.message || 'Failed to create lead with site visit')
+      }
+      return
+    }
+
+    // Status set to Follow-up — same idea via the Follow-ups page's
+    // "New Lead + Follow-up" API.
+    if (payload.status === 'follow_up' && payload.due_date) {
+      try {
+        await api.post('/tasks/create-with-lead', {
+          ...buildLeadFieldsFor(payload),
+          title: payload.followup_title || `Follow up with ${payload.name}`,
+          due_date: `${payload.due_date}T${payload.due_time || '10:00'}:00`,
+          priority: payload.priority || 'medium',
+        })
+        setAddSuccess('Lead created and follow-up scheduled!')
+        setPendingRecordings([])
+        reloadLeads()
+        setTimeout(() => { setShowAddModal(false); setAddSuccess(''); setAddForm(defaultForm) }, 800)
+      } catch (err) {
+        setAddSubmitError(err.response?.data?.message || 'Failed to create lead with follow-up')
+      }
+      return
+    }
+
     const result = await dispatch(createLead(payload))
     if (createLead.fulfilled.match(result)) {
       setAddSuccess('Lead created successfully!')
@@ -1621,6 +1772,7 @@ export default function Leads() {
   const handleEditLead = async (e) => {
     e.preventDefault()
     dispatch(clearLeadError())
+    setEditSubmitError('')
     const leadData = { ...editForm }
     if (leadData.project_id) {
       delete leadData.project_name
@@ -1632,9 +1784,45 @@ export default function Leads() {
     }
     if (!leadData.photos?.length) delete leadData.photos
     if (!leadData.payment_proof?.length) delete leadData.payment_proof
+
+    // Only schedule a companion visit/follow-up when the status is actually
+    // being changed into that stage this save — not on every subsequent edit
+    // of a lead that's already sitting in that status.
+    const schedulingVisit  = leadData.status === 'site_visit_scheduled' && editOriginalStatus !== 'site_visit_scheduled' && leadData.visit_date
+    const schedulingFollow = leadData.status === 'follow_up' && editOriginalStatus !== 'follow_up' && leadData.due_date
+
     const result = await dispatch(updateLead({ id: selectedLead.id, leadData }))
     if (updateLead.fulfilled.match(result)) {
-      setEditSuccess('Lead updated!')
+      if (schedulingVisit) {
+        try {
+          await api.post('/site-visits', {
+            lead_id: selectedLead.id,
+            project_id: leadData.project_id || leadData.project_name,
+            visit_date: leadData.visit_date,
+            visit_time: leadData.visit_time || '10:00',
+            transport_arranged: Boolean(leadData.transport_arranged),
+            ...(leadData.assigned_to && { assigned_to: leadData.assigned_to }),
+          })
+          setEditSuccess('Lead updated and site visit scheduled!')
+        } catch (err) {
+          setEditSubmitError(err.response?.data?.message || 'Lead updated, but scheduling the site visit failed')
+        }
+      } else if (schedulingFollow) {
+        try {
+          await api.post('/tasks', {
+            lead_id: selectedLead.id,
+            title: leadData.followup_title || `Follow up with ${leadData.name}`,
+            due_date: `${leadData.due_date}T${leadData.due_time || '10:00'}:00`,
+            priority: leadData.priority || 'medium',
+            ...(leadData.assigned_to && { assigned_to: leadData.assigned_to }),
+          })
+          setEditSuccess('Lead updated and follow-up scheduled!')
+        } catch (err) {
+          setEditSubmitError(err.response?.data?.message || 'Lead updated, but scheduling the follow-up failed')
+        }
+      } else {
+        setEditSuccess('Lead updated!')
+      }
       reloadLeads()
       setTimeout(() => { setShowEditModal(false); setEditSuccess('') }, 800)
     }
@@ -1698,7 +1886,10 @@ export default function Leads() {
         next_followup_time: leadData.next_followup_time || '',
         photos: leadData.photos || [],
         payment_proof: leadData.payment_proof || [],
+        visit_date: '', visit_time: '10:00', transport_arranged: false,
+        followup_title: '', due_date: '', due_time: '10:00', priority: 'medium',
       })
+      setEditOriginalStatus(leadData.status || 'New')
     } catch (err) {
       // Fall back to the original lead data if API fails
       let sourceId = lead.source_id || ''
@@ -1732,7 +1923,10 @@ export default function Leads() {
         payment_proof: lead.payment_proof || [],
         callback_time: lead.callback_time || '',
         next_followup_time: lead.next_followup_time || '',
+        visit_date: '', visit_time: '10:00', transport_arranged: false,
+        followup_title: '', due_date: '', due_time: '10:00', priority: 'medium',
       })
+      setEditOriginalStatus(lead.status || 'New')
     }
     // Fetch existing call recordings for this lead
     try {
@@ -1768,7 +1962,13 @@ export default function Leads() {
       setExporting(true)
       const params = { ...dateRange }
       if (filterStatus) params.status = filterStatus
-      if (filterSource) params.source = filterSource
+      if (filterSource) {
+        params.source_id = filterSource
+        const matchedSource = sourceList.find(s => s.id === filterSource)
+        if (matchedSource) params.source = matchedSource.name
+      }
+      if (filterProjectId)        params.project_id = filterProjectId
+      else if (filterProjectName) params.project     = filterProjectName
       const res = await api.get('/export/leads', { params, responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
       const a = document.createElement('a'); a.href = url; a.download = `Leads_${dateRange.from}_to_${dateRange.to}.xlsx`
@@ -1845,8 +2045,19 @@ export default function Leads() {
               searchable
             />
           </div>
+          <div className="w-52">
+            <AsyncSearchSelect
+              value={filterProjectId}
+              onChange={val => { setFilterProjectId(val); setFilterProjectName(''); setPage(1) }}
+              onTextChange={text => { setFilterProjectName(text); if (text) setFilterProjectId(''); setPage(1) }}
+              onSearch={searchProjectsFilter}
+              initialOptions={projectList.slice(0, 20).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))}
+              placeholder="Filter by project..."
+              fallbackToInput
+            />
+          </div>
           <button
-            onClick={() => dispatch(fetchLeads({ page, per_page: 10 }))}
+            onClick={() => dispatch(fetchLeads({ page, per_page: resolvePerPage(perPage) }))}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors"
           >
             <RefreshCw size={14} />
@@ -1904,13 +2115,16 @@ export default function Leads() {
       {/* Summary row + inline selection actions */}
       {!(showLeadsTabs ? (leadsTab === 'my' ? myLoading : loading) : loading) && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div className="text-sm text-gray-500 dark:text-[#888] flex-shrink-0">
-            {(() => {
-              const activeList = showLeadsTabs && leadsTab === 'my' ? myList : list
-              const activePag  = showLeadsTabs && leadsTab === 'my' ? myPagination : pagination
-              return <>Showing <span className="font-semibold text-gray-900 dark:text-white">{activeList.length}</span>
-                {activePag?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{activePag.total}</span></>} leads</>
-            })()}
+          <div className="text-sm text-gray-500 dark:text-[#888] flex-shrink-0 flex items-center gap-3">
+            <span>
+              {(() => {
+                const activeList = showLeadsTabs && leadsTab === 'my' ? myList : list
+                const activePag  = showLeadsTabs && leadsTab === 'my' ? myPagination : pagination
+                return <>Showing <span className="font-semibold text-gray-900 dark:text-white">{activeList.length}</span>
+                  {activePag?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{activePag.total}</span></>} leads</>
+              })()}
+            </span>
+            <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1); setMyPage(1) }} />
           </div>
 
           {/* Inline bulk-action pills — only visible when rows are checked */}
@@ -2092,13 +2306,18 @@ export default function Leads() {
       </div>
 
       {/* Pagination */}
-      {activePag?.total_pages > 1 && (
-        <div className="flex items-center justify-between px-2 text-xs text-gray-500">
-          <span>Page {activePage} of {activePag.total_pages} · {activePag.total} total</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={activePage===1} onClick={()=>setActivePage(p=>p-1)}>Prev</Button>
-            <Button size="sm" variant="outline" disabled={activePage>=activePag.total_pages} onClick={()=>setActivePage(p=>p+1)}>Next</Button>
+      {activePag?.total > 0 && (
+        <div className="flex items-center justify-between px-2 text-xs text-gray-500 flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <span>Page {activePage} of {activePag.total_pages || 1} · {activePag.total} total</span>
+            <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1); setMyPage(1) }} />
           </div>
+          {activePag.total_pages > 1 && (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" disabled={activePage===1} onClick={()=>setActivePage(p=>p-1)}>Prev</Button>
+              <Button size="sm" variant="outline" disabled={activePage>=activePag.total_pages} onClick={()=>setActivePage(p=>p+1)}>Next</Button>
+            </div>
+          )}
         </div>
       )}
       </>)})({
@@ -2121,7 +2340,7 @@ export default function Leads() {
             pendingRecordings={pendingRecordings} setPendingRecordings={setPendingRecordings}
           />
           {addSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{addSuccess}</p>}
-          {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
+          {(actionError || addSubmitError) && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError || addSubmitError}</p>}
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="outline" className="flex-1" onClick={() => setShowAddModal(false)}>Cancel</Button>
             <Button type="submit" className="flex-1" loading={actionLoading}>Add Lead</Button>
@@ -2145,7 +2364,7 @@ export default function Leads() {
             }}
           />
           {editSuccess && <p className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 py-2 text-center rounded-xl">{editSuccess}</p>}
-          {actionError && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError}</p>}
+          {(actionError || editSubmitError) && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 py-2 text-center rounded-xl">{actionError || editSubmitError}</p>}
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="outline" className="flex-1" onClick={() => setShowEditModal(false)}>Cancel</Button>
             <Button type="submit" className="flex-1" loading={actionLoading}>Update Lead</Button>

@@ -17,6 +17,8 @@ import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 import ConfirmModal from '../components/ui/ConfirmModal'
 import ExportModal from '../components/ui/ExportModal'
 import ListSkeleton from '../components/loaders/ListSkeleton'
+import PhoneActions from '../components/ui/PhoneActions'
+import PageSizeSelect, { resolvePerPage } from '../components/ui/PageSizeSelect'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ROLE_ORDER_MAP = { super_admin: 0, admin: 1, associate_partner: 2, cluster_head: 3, partner: 4, team_leader: 5, sales_manager: 6, sales_executive: 7, external_caller: 8 }
@@ -626,6 +628,7 @@ export default function Revisits() {
   const [loading,    setLoading]    = useState(true)
   const [pagination, setPagination] = useState({})
   const [page,       setPage]       = useState(1)
+  const [perPage,    setPerPage]    = useState('20')
 
   // Filters
   const isExternalCaller = user?.role === 'external_caller'
@@ -662,7 +665,7 @@ export default function Revisits() {
   const fetchRevisits = async () => {
     setLoading(true)
     try {
-      const params = { page, per_page: 20 }
+      const params = { page, per_page: resolvePerPage(perPage) }
       if (filterStatus) params.status = filterStatus
       const endpoint = filterView === 'mine' ? '/me/revisits' : '/site-revisits'
       const res = await api.get(endpoint, { params })
@@ -679,7 +682,7 @@ export default function Revisits() {
     } catch {}
   }
 
-  useEffect(() => { fetchRevisits() }, [page, filterView, filterStatus])
+  useEffect(() => { fetchRevisits() }, [page, filterView, filterStatus, perPage])
   useEffect(() => { fetchSideData() }, [])
   useEffect(() => { if (user?.id) dispatch(fetchTeamTree(user.id)) }, [user?.id, dispatch])
 
@@ -792,6 +795,7 @@ export default function Revisits() {
             options={[{ value: '', label: 'All Status' }, ...STATUS_OPTIONS]}
             placeholder="All Status" />
         </div>
+        <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1) }} />
         <button onClick={fetchRevisits}
           className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-brand hover:border-brand transition-colors">
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -926,10 +930,12 @@ export default function Revisits() {
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
                         {rv.lead_phone && (
-                          <a href={`tel:${rv.lead_phone}`} title="Call"
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
-                            <Phone size={13} />
-                          </a>
+                          <PhoneActions phone={rv.lead_phone}>
+                            <span title="Call"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
+                              <Phone size={13} />
+                            </span>
+                          </PhoneActions>
                         )}
                         <div className="relative" ref={openMenuId === rv.id ? menuRef : null}>
                           <button
@@ -981,13 +987,18 @@ export default function Revisits() {
       </div>
 
       {/* Pagination */}
-      {pagination?.total_pages > 1 && (
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>Page {pagination.page} of {pagination.total_pages} · {pagination.total} total</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
-            <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(p => p + 1)}>Next</Button>
+      {pagination?.total > 0 && (
+        <div className="flex items-center justify-between text-xs text-gray-500 flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <span>Page {pagination.page} of {pagination.total_pages || 1} · {pagination.total} total</span>
+            <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1) }} />
           </div>
+          {pagination.total_pages > 1 && (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
+              <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(p => p + 1)}>Next</Button>
+            </div>
+          )}
         </div>
       )}
 

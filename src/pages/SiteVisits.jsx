@@ -21,6 +21,8 @@ import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
 import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
+import PhoneActions from '../components/ui/PhoneActions'
+import PageSizeSelect, { resolvePerPage } from '../components/ui/PageSizeSelect'
 
 const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
 
@@ -38,6 +40,7 @@ const statusColor = {
 const defaultForm = {
   lead_id: '',
   project_id: '',
+  project_name: '',
   visit_date: '',
   visit_time: '',
   assigned_to: '',
@@ -357,15 +360,18 @@ function VisitForm({ formData, setFormData, leads, projects, salesExecs, isEdit,
         placeholder="Type to search leads..."
       />
 
-      {/* Project — async search */}
+      {/* Project — async search, falls back to plain text when there's no match */}
       <AsyncSearchSelect
         label="Project"
         required
         value={formData.project_id}
-        onChange={val => setFormData(p => ({ ...p, project_id: val }))}
+        onChange={val => setFormData(p => ({ ...p, project_id: val, project_name: '' }))}
+        onTextChange={text => setFormData(p => ({ ...p, project_name: text, project_id: '' }))}
         onSearch={searchProjects}
         initialOptions={projInitial}
-        placeholder="Type to search projects..."
+        placeholder="Type to search or enter a project name..."
+        fallbackToInput
+        defaultText={formData.project_id ? '' : (formData.project_name || '')}
       />
 
       {/* Date + Time */}
@@ -619,15 +625,18 @@ function LeadWithVisitForm({ formData, setFormData, activeTab, setActiveTab, sou
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Project — async search */}
+          {/* Project — async search, falls back to plain text when there's no match */}
           <AsyncSearchSelect
             label="Project *"
             required
             value={formData.project_id}
-            onChange={val => updateForm('project_id', val)}
+            onChange={val => setFormData(prev => ({ ...prev, project_id: val, project_name: '' }))}
+            onTextChange={text => updateForm('project_name', text)}
             onSearch={searchProjects}
             initialOptions={projectOptions.slice(0, 20)}
-            placeholder="Type to search projects..."
+            placeholder="Type to search or enter a project name..."
+            fallbackToInput
+            defaultText={formData.project_id ? '' : (formData.project_name || '')}
           />
 
           {/* Date + Time */}
@@ -830,6 +839,7 @@ export default function SiteVisits() {
   const [filterStatus,  setFilterStatus]  = useState('')
   const [selectedDate,  setSelectedDate]  = useState(new Date().toISOString().split('T')[0])
   const [page,          setPage]          = useState(1)
+  const [perPage,       setPerPage]       = useState('20')
 
   const [showAddModal,      setShowAddModal]      = useState(false)
   const [showRevisitModal,  setShowRevisitModal]  = useState(false)
@@ -857,7 +867,7 @@ export default function SiteVisits() {
   const [addMenuOpen, setAddMenuOpen] = useState(false)
 
   const loadVisits = () => {
-    const params = { page, per_page: 20 }
+    const params = { page, per_page: resolvePerPage(perPage) }
     if (filterStatus) params.status = filterStatus
     if (filterView === 'mine') {
       dispatch(fetchMySiteVisits(params))
@@ -866,7 +876,7 @@ export default function SiteVisits() {
     }
   }
 
-  useEffect(() => { loadVisits() }, [dispatch, filterView, filterStatus, page])
+  useEffect(() => { loadVisits() }, [dispatch, filterView, filterStatus, page, perPage])
 
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
@@ -885,10 +895,18 @@ export default function SiteVisits() {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
+  // project_id isn't compulsory to be a real ID — when nothing was picked
+  // from the search dropdown, the typed project_name is sent under the same
+  // project_id key instead.
+  const buildVisitPayload = (form) => {
+    const { project_id, project_name, ...rest } = form
+    return { ...rest, project_id: project_id || project_name }
+  }
+
   const handleAdd = async (e) => {
     e.preventDefault()
     dispatch(clearSiteVisitError())
-    const result = await dispatch(createSiteVisit(addForm))
+    const result = await dispatch(createSiteVisit(buildVisitPayload(addForm)))
     if (createSiteVisit.fulfilled.match(result)) {
       setSuccess('Visit scheduled!')
       loadVisits()
@@ -899,7 +917,7 @@ export default function SiteVisits() {
   const handleEdit = async (e) => {
     e.preventDefault()
     dispatch(clearSiteVisitError())
-    const result = await dispatch(updateSiteVisit({ id: selectedVisit.id, data: editForm }))
+    const result = await dispatch(updateSiteVisit({ id: selectedVisit.id, data: buildVisitPayload(editForm) }))
     if (updateSiteVisit.fulfilled.match(result)) {
       setSuccess('Visit updated!')
       loadVisits()
@@ -1027,6 +1045,7 @@ export default function SiteVisits() {
     setEditForm({
       lead_id:             visit.lead_id || '',
       project_id:          visit.project_id || '',
+      project_name:        visit.project_name || '',
       visit_date:          visit.visit_date?.split('T')[0] || '',
       visit_time:          visit.visit_time || '',
       assigned_to:         visit.assigned_to || '',
@@ -1048,6 +1067,7 @@ export default function SiteVisits() {
       setEditForm({
         lead_id:            d.lead?.id    || d.lead_id    || '',
         project_id:         d.project?.id || d.project_id || '',
+        project_name:       d.project?.name || d.project_name || visit.project_name || '',
         visit_date:         d.visit_date?.split('T')[0] || '',
         visit_time:         d.visit_time || '',
         assigned_to:        typeof d.assigned_to === 'object' ? d.assigned_to?.id : d.assigned_to || '',
@@ -1220,9 +1240,12 @@ export default function SiteVisits() {
 
       {/* Summary */}
       {!loading && (
-        <div className="text-sm text-gray-500 dark:text-[#888]">
-          Showing <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span>
-          {pagination?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span></>} visits
+        <div className="text-sm text-gray-500 dark:text-[#888] flex items-center gap-3">
+          <span>
+            Showing <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span>
+            {pagination?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span></>} visits
+          </span>
+          <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1) }} />
         </div>
       )}
 
@@ -1476,10 +1499,11 @@ export default function SiteVisits() {
                       <td className="py-3 px-4" ref={openMenuVisitId === visit.id ? menuRef : null}>
                         <div className="flex items-center justify-end gap-1">
                           {visit.lead_phone && (
-                            <a href={`tel:${visit.lead_phone}`}
-                              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title="Call">
-                              <Phone size={15} />
-                            </a>
+                            <PhoneActions phone={visit.lead_phone}>
+                              <span className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title="Call">
+                                <Phone size={15} />
+                              </span>
+                            </PhoneActions>
                           )}
                           <div className="relative">
                             <button
@@ -1549,13 +1573,18 @@ export default function SiteVisits() {
       )}
 
       {/* Pagination */}
-      {pagination?.total_pages > 1 && (
-        <div className="flex items-center justify-between px-2 text-xs text-gray-500">
-          <span>Page {pagination.page} of {pagination.total_pages} · {pagination.total} total</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
-            <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(p => p + 1)}>Next</Button>
+      {pagination?.total > 0 && (
+        <div className="flex items-center justify-between px-2 text-xs text-gray-500 flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <span>Page {pagination.page} of {pagination.total_pages || 1} · {pagination.total} total</span>
+            <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1) }} />
           </div>
+          {pagination.total_pages > 1 && (
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
+              <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(p => p + 1)}>Next</Button>
+            </div>
+          )}
         </div>
       )}
 

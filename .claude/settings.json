@@ -3,7 +3,25 @@
     "allow": [
       "Bash(grep -n \"{/\\\\* ── Tab: Commission ── \\\\*/}\\\\|^        \\)}$\\\\|{error && \\(\" src/pages/Closures.jsx)",
       "Bash(grep -n \"{ unit_plans: \\\\[\\\\], creatives: \\\\[\\\\], payment_plans: \\\\[\\\\], videos: \\\\[\\\\] }\" src/pages/Projects.jsx)",
-      "Bash(grep -n \"{/\\\\* Amenities \\\\*/}\\\\|{/\\\\* Documents \\\\*/}\" src/pages/ProjectDetail.jsx)"
+      "Bash(grep -n \"{/\\\\* Amenities \\\\*/}\\\\|{/\\\\* Documents \\\\*/}\" src/pages/ProjectDetail.jsx)",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/swiper/package.json'\\).version\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/swiper/package.json'\\); console.log\\(JSON.stringify\\(p.exports, null, 2\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/swiper/package.json'\\); console.log\\(Object.keys\\(p.exports\\).filter\\(k=>k.includes\\('react'\\)\\)\\)\")",
+      "Bash(node -e \"console.log\\(require\\('fs'\\).readFileSync\\('node_modules/swiper/swiper-react.d.ts','utf8'\\)\\)\")",
+      "Bash(npx --no-install playwright --version)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5174/)",
+      "Bash(curl -s http://localhost:5174/)",
+      "Bash(powershell -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '\\\\''*vite*'\\\\'' -and $_.CommandLine -notlike '\\\\''*grep*'\\\\'' } | Select-Object ProcessId, CommandLine')",
+      "Bash(powershell -NoProfile -Command \"Get-NetTCPConnection -LocalPort 5174 -State Listen | Select-Object -ExpandProperty OwningProcess\")",
+      "Bash(powershell -NoProfile -Command \"Stop-Process -Id 13460 -Force; Stop-Process -Id 18796 -Force -ErrorAction SilentlyContinue\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://api.nextonerealty.in/api/v1/projects/9e5c20cc-1359-47fd-bd61-295e2279236a/documents/1909b782-b16b-4f70-9d5e-d5224fe4cf50/download\")",
+      "Bash(curl -s \"https://api.nextonerealty.in/api/v1/projects/9e5c20cc-1359-47fd-bd61-295e2279236a/documents/1909b782-b16b-4f70-9d5e-d5224fe4cf50/download\")",
+      "Bash(curl -s -o /dev/null -w \"invalid token -> HTTP %{http_code}\\\\n\" -H \"Authorization: Bearer invalidtoken123\" \"https://api.nextonerealty.in/api/v1/projects/9e5c20cc-1359-47fd-bd61-295e2279236a/documents/1909b782-b16b-4f70-9d5e-d5224fe4cf50/download\")",
+      "Bash(curl -s -H \"Authorization: Bearer invalidtoken123\" \"https://api.nextonerealty.in/api/v1/projects/9e5c20cc-1359-47fd-bd61-295e2279236a/documents/1909b782-b16b-4f70-9d5e-d5224fe4cf50/download\")",
+      "Bash(curl -s -o /dev/null -w \"GET /projects -> HTTP %{http_code}\\\\n\" \"https://api.nextonerealty.in/api/v1/projects\")",
+      "Bash(curl -s -o /dev/null -w \"GET /projects/9e5c20cc.../documents -> HTTP %{http_code}\\\\n\" \"https://api.nextonerealty.in/api/v1/projects/9e5c20cc-1359-47fd-bd61-295e2279236a/documents\")"
     ]
   }
 }

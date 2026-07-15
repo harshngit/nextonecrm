@@ -23,6 +23,8 @@ import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
 import ConfirmModal from '../components/ui/ConfirmModal'
 import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
+import PhoneActions from '../components/ui/PhoneActions'
+import PageSizeSelect, { resolvePerPage } from '../components/ui/PageSizeSelect'
 
 const priorities = ['low', 'medium', 'high']
 const priorityOptions = priorities.map(p => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))
@@ -958,9 +960,9 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, ca
         {/* Actions */}
         <div className="flex flex-col gap-1.5 flex-shrink-0">
           {task.lead_phone && (
-            <a href={`tel:${task.lead_phone}`}>
+            <PhoneActions phone={task.lead_phone}>
               <Button size="sm" variant="ghost" icon={Phone} className="text-xs">Call</Button>
-            </a>
+            </PhoneActions>
           )}
           {!task.is_completed && (
             <Button size="sm" variant="secondary" onClick={() => onComplete(task)} className="text-xs">
@@ -1034,6 +1036,7 @@ export default function FollowUps() {
   const [filterStatus,   setFilterStatus]   = useState('all') // pending | overdue | all | completed
   const [filterAssigned, setFilterAssigned] = useState('')
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState('10')
 
   const [showAddModal,      setShowAddModal]      = useState(false)
   const [showEditModal,     setShowEditModal]     = useState(false)
@@ -1073,7 +1076,7 @@ export default function FollowUps() {
 
   // ── Load data ───────────────────────────────────────────────────────────────
   const loadTasks = () => {
-    const params = { page, per_page: 10 }
+    const params = { page, per_page: resolvePerPage(perPage) }
     if (filterStatus === 'pending')   { params.is_completed = false }
     if (filterStatus === 'completed') { params.is_completed = true }
     if (filterStatus === 'overdue')   { params.overdue = true; params.is_completed = false }
@@ -1085,7 +1088,7 @@ export default function FollowUps() {
     }
   }
 
-  useEffect(() => { loadTasks() }, [dispatch, filterView, filterStatus, filterAssigned, page])
+  useEffect(() => { loadTasks() }, [dispatch, filterView, filterStatus, filterAssigned, page, perPage])
 
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
@@ -1557,10 +1560,13 @@ export default function FollowUps() {
 
       {/* Summary row + inline selection actions */}
       {!loading && (
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-sm text-gray-500 dark:text-[#888]">
-            Showing <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span>
-            {pagination?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span></>} follow-ups
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-sm text-gray-500 dark:text-[#888] flex items-center gap-3">
+            <span>
+              Showing <span className="font-semibold text-gray-900 dark:text-white">{list.length}</span>
+              {pagination?.total > 0 && <> of <span className="font-semibold text-gray-900 dark:text-white">{pagination.total}</span></>} follow-ups
+            </span>
+            <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1) }} />
           </div>
 
           {/* Inline bulk-action pills — only visible when rows are checked */}
@@ -1680,9 +1686,11 @@ export default function FollowUps() {
                       <td className="py-3 px-3" ref={openMenuTaskId === task.id ? menuRef : null}>
                         <div className="flex items-center justify-end gap-1">
                           {task.lead_phone && (
-                            <a href={`tel:${task.lead_phone}`} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title="Call">
-                              <Phone size={13} />
-                            </a>
+                            <PhoneActions phone={task.lead_phone}>
+                              <span className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors" title="Call">
+                                <Phone size={13} />
+                              </span>
+                            </PhoneActions>
                           )}
                           {!task.is_completed && (
                             <button onClick={() => openComplete(task)}
@@ -1743,15 +1751,20 @@ export default function FollowUps() {
       </div>
 
       {/* Pagination */}
-      {pagination?.total_pages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-gray-500 dark:text-[#888]">
-            Page {pagination.page} of {pagination.total_pages} · {pagination.total} total
+      {pagination?.total > 0 && (
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-gray-500 dark:text-[#888]">
+              Page {pagination.page} of {pagination.total_pages || 1} · {pagination.total} total
+            </div>
+            <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1) }} />
           </div>
+          {pagination.total_pages > 1 && (
           <div className="flex gap-2">
             <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
             <Button size="sm" variant="outline" disabled={page >= pagination.total_pages} onClick={() => setPage(p => p + 1)}>Next</Button>
           </div>
+          )}
         </div>
       )}
 

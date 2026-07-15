@@ -23,6 +23,7 @@ import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import ConvertLeadModal from '../components/modals/ConvertLeadModal'
 import LeadStatusManagementModal from '../components/modals/LeadStatusManagementModal'
+import PhoneActions from '../components/ui/PhoneActions'
 
 const defaultLeadStages = [
   { value: 'new',                  label: 'New' },
@@ -593,9 +594,9 @@ export default function LeadDetail() {
                       <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Phone Number</span>
                     </div>
                     {canSeePhone ? (
-                      <a href={`tel:${lead.phone}`} className="text-sm font-semibold text-brand hover:underline">{lead.phone}</a>
+                      <PhoneActions phone={lead.phone}><span className="text-sm font-semibold text-brand hover:underline">{lead.phone}</span></PhoneActions>
                     ) : showPhone ? (
-                      <a href={`tel:${lead.phone}`} className="text-sm font-semibold text-brand hover:underline">{lead.phone}</a>
+                      <PhoneActions phone={lead.phone}><span className="text-sm font-semibold text-brand hover:underline">{lead.phone}</span></PhoneActions>
                     ) : (
                       <div>
                         <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">*****{lead.phone?.slice(-5)}</p>
@@ -615,9 +616,9 @@ export default function LeadDetail() {
                     </div>
                     {lead.alternate_phone_number ? (
                       canSeePhone ? (
-                        <a href={`tel:${lead.alternate_phone_number}`} className="text-sm font-semibold text-brand hover:underline">{lead.alternate_phone_number}</a>
+                        <PhoneActions phone={lead.alternate_phone_number}><span className="text-sm font-semibold text-brand hover:underline">{lead.alternate_phone_number}</span></PhoneActions>
                       ) : showAltPhone ? (
-                        <a href={`tel:${lead.alternate_phone_number}`} className="text-sm font-semibold text-brand hover:underline">{lead.alternate_phone_number}</a>
+                        <PhoneActions phone={lead.alternate_phone_number}><span className="text-sm font-semibold text-brand hover:underline">{lead.alternate_phone_number}</span></PhoneActions>
                       ) : (
                         <div>
                           <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">*****{lead.alternate_phone_number?.slice(-5)}</p>
