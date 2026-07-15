@@ -1035,10 +1035,7 @@ export default function Projects() {
     const counts = {}
     list.forEach(p => {
       media[p.id] = {
-        photos: [
-          ...(p.photos || []),
-          ...(p.creatives || []),
-        ],
+        photos: [...(p.photos || [])],
         logo: p.developer_logo || null,
       }
       counts[p.id] = {
