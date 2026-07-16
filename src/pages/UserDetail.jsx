@@ -12,6 +12,7 @@ import { fetchUserById, clearCurrentUser } from '../store/userSlice'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
+import DatePicker from '../components/ui/DatePicker'
 import api from '../api/axios'
 
 // ── constants ──────────────────────────────────────────────────────────────────
@@ -433,13 +434,11 @@ export default function UserDetail() {
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-1.5">
                       <label className="text-[11px] text-gray-400">From</label>
-                      <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-                        className="text-xs bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 py-1.5 text-gray-900 dark:text-gray-100 outline-none focus:border-brand" />
+                      <DatePicker size="sm" value={from} onChange={setFrom} />
                     </div>
                     <div className="flex items-center gap-1.5">
                       <label className="text-[11px] text-gray-400">To</label>
-                      <input type="date" value={to} onChange={e => setTo(e.target.value)}
-                        className="text-xs bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 py-1.5 text-gray-900 dark:text-gray-100 outline-none focus:border-brand" />
+                      <DatePicker size="sm" value={to} onChange={setTo} />
                     </div>
                     <button onClick={fetchPerf}
                       className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand bg-white dark:bg-[#1a1a1a] transition-colors">

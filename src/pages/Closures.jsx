@@ -19,6 +19,7 @@ import ListSkeleton from '../components/loaders/ListSkeleton'
 import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 import ExportModal from '../components/ui/ExportModal'
 import ConfirmModal from '../components/ui/ConfirmModal'
+import DatePicker from '../components/ui/DatePicker'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const CLOSURE_STATUSES = [
@@ -92,6 +93,8 @@ export function ClosureDocumentManager({ closureId, documents = [], setDocuments
   const [draftName,    setDraftName]    = useState('')
   const [editingId,    setEditingId]    = useState(null)
   const [editName,     setEditName]     = useState('')
+  const [docToDelete,  setDocToDelete]  = useState(null)
+  const [deletingDoc,  setDeletingDoc]  = useState(false)
 
   const fetchDocs = async () => {
     if (!closureId) return
@@ -152,12 +155,18 @@ export function ClosureDocumentManager({ closureId, documents = [], setDocuments
     } catch {}
   }
 
-  const deleteDoc = async docId => {
-    if (!window.confirm('Delete this document?')) return
+  const deleteDoc = docId => setDocToDelete(docId)
+
+  const confirmDeleteDoc = async () => {
+    if (!docToDelete) return
+    setDeletingDoc(true)
     try {
-      await api.delete(`/closures/${closureId}/documents/${docId}`)
+      await api.delete(`/closures/${closureId}/documents/${docToDelete}`)
       await fetchDocs()
-    } catch {}
+    } catch {} finally {
+      setDeletingDoc(false)
+      setDocToDelete(null)
+    }
   }
 
   const rows = isEdit ? existingDocs : documents
@@ -223,6 +232,16 @@ export function ClosureDocumentManager({ closureId, documents = [], setDocuments
       ) : (
         <p className="text-xs text-gray-400 text-center py-3">No documents yet</p>
       )}
+
+      <ConfirmModal
+        isOpen={!!docToDelete}
+        onClose={() => setDocToDelete(null)}
+        onConfirm={confirmDeleteDoc}
+        title="Delete Document"
+        message="Are you sure you want to delete this document? This action cannot be undone."
+        confirmText="Delete"
+        loading={deletingDoc}
+      />
     </div>
   )
 }
@@ -405,11 +424,7 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
                 fallbackToInput
                 defaultText={form.project_id ? '' : (form.project_name || '')} />
             )}
-            <div>
-              <label className={lc}>Booking Date *</label>
-              <input type="date" value={form.booking_date}
-                onChange={e => setForm(p => ({ ...p, booking_date: e.target.value }))} className={ic} />
-            </div>
+            <DatePicker label="Booking Date" value={form.booking_date} onChange={(v) => setForm(p => ({ ...p, booking_date: v }))} />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -572,11 +587,7 @@ function ClosureFormModal({ closure, leads, projects, managers, onClose, onSucce
             </label>
 
             {form.commission_paid && (
-              <div>
-                <label className={lc}>Commission Paid Date</label>
-                <input type="date" value={form.commission_paid_date}
-                  onChange={e => setForm(p => ({ ...p, commission_paid_date: e.target.value }))} className={ic} />
-              </div>
+              <DatePicker label="Commission Paid Date" value={form.commission_paid_date} onChange={(v) => setForm(p => ({ ...p, commission_paid_date: v }))} />
             )}
 
             {form.commission_amount && (
@@ -1074,15 +1085,14 @@ export default function Closures() {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {displayed.map((c, cIdx) => (
                   <tr key={c.id} className="hover:bg-gray-50/60 dark:hover:bg-[#0f0f0f]/60 transition-colors group cursor-pointer"
-                      onClick={() => { setSelected(c); setShowDrawer(true) }}>
+                      onClick={() => navigate(`/closures/${c.id}`)}>
 
                     {/* Lead */}
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
                         <Avatar name={c.lead_name || c['lead name'] || '?'} size="sm" />
                         <div>
-                          <p className="font-semibold text-gray-900 dark:text-white text-sm cursor-pointer hover:text-brand transition-colors"
-                             onClick={() => navigate(`/leads/${c.lead_id}`)}>
+                          <p className="font-semibold text-gray-900 dark:text-white text-sm hover:text-brand transition-colors">
                             {c.lead_name || c['lead name'] || '—'}
                           </p>
                           <p className="text-[11px] text-gray-400">{c.lead_phone || ''}</p>

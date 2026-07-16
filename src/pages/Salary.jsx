@@ -23,6 +23,7 @@ import {
 } from '../store/salarySlice'
 import api from '../api/axios'
 import Modal from '../components/ui/Modal'
+import DatePicker from '../components/ui/DatePicker'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
 import ExportModal from '../components/ui/ExportModal'
@@ -827,15 +828,11 @@ function AdminSalaryView({ user }) {
           )}
 
           {/* Effective from */}
-          <div>
-            <label className={labelCls}>Effective From</label>
-            <input
-              type="date"
-              value={setSalaryForm.effective_from}
-              onChange={e => setSalaryFormData(f => ({ ...f, effective_from: e.target.value }))}
-              className={inputCls}
-            />
-          </div>
+          <DatePicker
+            label="Effective From"
+            value={setSalaryForm.effective_from}
+            onChange={(v) => setSalaryFormData(f => ({ ...f, effective_from: v }))}
+          />
 
           {/* Notes */}
           <div>
@@ -1046,15 +1043,11 @@ function AdminSalaryView({ user }) {
           </div>
           
           {/* Effective from */}
-          <div>
-            <label className={labelCls}>Effective From</label>
-            <input
-              type="date"
-              value={appraisalForm.effective_from}
-              onChange={(e) => setAppraisalForm({ ...appraisalForm, effective_from: e.target.value })}
-              className={inputCls}
-            />
-          </div>
+          <DatePicker
+            label="Effective From"
+            value={appraisalForm.effective_from}
+            onChange={(v) => setAppraisalForm({ ...appraisalForm, effective_from: v })}
+          />
           
           {/* Notes */}
           <div>

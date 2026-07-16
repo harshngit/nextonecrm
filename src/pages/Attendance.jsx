@@ -42,6 +42,7 @@ import ConfirmModal from '../components/ui/ConfirmModal'
 import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
 import ClockPicker from '../components/ui/ClockPicker'
+import DatePicker from '../components/ui/DatePicker'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Matches the backend's real status set: present · late · absent · leave
@@ -921,13 +922,11 @@ function UserHistoryDrawer({ userId, userName, defaultFrom, defaultTo, onClose }
             <div className="px-5 pb-4 flex gap-3">
               <div className="flex-1">
                 <p className="text-[10px] text-gray-400 mb-1">From</p>
-                <input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1) }}
-                  className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-200" />
+                <DatePicker value={from} onChange={(v) => { setFrom(v); setPage(1) }} />
               </div>
               <div className="flex-1">
                 <p className="text-[10px] text-gray-400 mb-1">To</p>
-                <input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1) }}
-                  className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-200" />
+                <DatePicker value={to} onChange={(v) => { setTo(v); setPage(1) }} />
               </div>
             </div>
           </div>
@@ -1259,7 +1258,7 @@ function AttendanceListView({ dispatch, title = 'Daily Attendance View', isAdmin
           <h3 className="font-display text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
           {summary && <p className="text-xs text-gray-400 mt-0.5">{summary.present} present · {summary.absent} absent · {summary.leave ?? 0} leave</p>}
         </div>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-brand" />
+        <DatePicker size="sm" value={date} onChange={setDate} />
       </div>
 
       {summary && (
@@ -1335,9 +1334,9 @@ function SummaryView({ dispatch, isAdmin }) {
           <p className="text-xs text-gray-400 mt-0.5">{data.length} employee{data.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2">
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-brand" />
+          <DatePicker size="sm" value={from} onChange={setFrom} />
           <span className="text-gray-400 text-xs">to</span>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-brand" />
+          <DatePicker size="sm" value={to} onChange={setTo} />
         </div>
       </div>
 
@@ -1409,9 +1408,9 @@ function LateArrivalsReport({ dispatch, onOpenPhoto }) {
           <p className="text-xs text-gray-400 mt-0.5">{data.length} records found</p>
         </div>
         <div className="flex items-center gap-2">
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-brand" />
+          <DatePicker size="sm" value={from} onChange={setFrom} />
           <span className="text-gray-400 text-xs">to</span>
-          <input type="date" value={to}   onChange={e => setTo(e.target.value)}   className="px-3 py-1.5 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-brand" />
+          <DatePicker size="sm" value={to} onChange={setTo} />
         </div>
       </div>
 
@@ -1523,9 +1522,7 @@ function ApprovalPanel({ dispatch, onOpenPhoto }) {
         {/* Date + summary */}
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Calendar size={14} className="text-gray-400" />
-            <input type="date" value={date} onChange={e => { setDate(e.target.value); setSelectedRec(null) }}
-              className="px-3 py-1.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 outline-none focus:border-brand" />
+            <DatePicker size="sm" value={date} onChange={(v) => { setDate(v); setSelectedRec(null) }} />
           </div>
           {summary && (
             <div className="flex items-center gap-2 text-xs flex-wrap">
@@ -1746,11 +1743,7 @@ function AdminCheckInModal({ onClose, dispatch }) {
 
         {/* Date + Status */}
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Date</label>
-            <input type="date" value={form.date} onChange={e => set('date', e.target.value)} max={today}
-              className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 transition-colors" />
-          </div>
+          <DatePicker label="Date" value={form.date} onChange={(v) => set('date', v)} max={today} />
           <CustomSelect
             label="Status *"
             value={form.status}
@@ -1962,11 +1955,7 @@ function HolidayFormModal({ holiday, onClose, onSaved, dispatch }) {
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Date *</label>
-            <input type="date" value={form.date} onChange={e => set('date', e.target.value)}
-              className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-300 transition-colors" />
-          </div>
+          <DatePicker label="Date" required value={form.date} onChange={(v) => set('date', v)} />
           <div>
             <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 block">Name *</label>
             <input type="text" value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Diwali"

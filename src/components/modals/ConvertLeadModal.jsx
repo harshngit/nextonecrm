@@ -6,6 +6,7 @@ import Modal from '../ui/Modal'
 import CustomSelect from '../ui/CustomSelect'
 import AsyncSearchSelect from '../ui/AsyncSearchSelect'
 import ClockPicker from '../ui/ClockPicker'
+import DatePicker from '../ui/DatePicker'
 
 export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
   const [step, setStep] = useState('choose')  // 'choose' | 'follow_up' | 'site_visit'
@@ -166,11 +167,8 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
               placeholder="e.g. Call back about 2BHK pricing" className={inputCls} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Due Date *</label>
-              <input type="date" value={fuForm.due_date} onChange={e => setFuForm(f => ({...f, due_date: e.target.value}))}
-                min={new Date().toISOString().split('T')[0]} className={inputCls} />
-            </div>
+            <DatePicker label="Due Date" value={fuForm.due_date} onChange={v => setFuForm(f => ({...f, due_date: v}))}
+              min={new Date().toISOString().split('T')[0]} />
             <div>
               <ClockPicker label="Due Time" value={fuForm.due_time} onChange={v => setFuForm(f => ({...f, due_time: v}))} />
             </div>
@@ -208,11 +206,8 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
             defaultText={svForm.project_id ? '' : (svForm.project_name || '')}
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Visit Date *</label>
-              <input type="date" value={svForm.visit_date} onChange={e => setSvForm(f => ({...f, visit_date: e.target.value}))}
-                min={new Date().toISOString().split('T')[0]} className={inputCls} />
-            </div>
+            <DatePicker label="Visit Date" value={svForm.visit_date} onChange={v => setSvForm(f => ({...f, visit_date: v}))}
+              min={new Date().toISOString().split('T')[0]} />
             <div>
               <ClockPicker label="Visit Time *" value={svForm.visit_time} onChange={v => setSvForm(f => ({...f, visit_time: v}))} required />
             </div>

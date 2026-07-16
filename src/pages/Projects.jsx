@@ -15,6 +15,7 @@ import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
 import ConfirmModal from '../components/ui/ConfirmModal'
 import CustomSelect from '../components/ui/CustomSelect'
+import DatePicker from '../components/ui/DatePicker'
 import PageSizeSelect, { resolvePerPage } from '../components/ui/PageSizeSelect'
 
 // Uploaded file paths come back relative (e.g. "/uploads/projects/x.png"),
@@ -748,12 +749,11 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
             placeholder="Plot 14, Veera Desai Road"
             className={ic} />
         </div>
-        <div>
-          <label className={lc}>Possession Date</label>
-          <input type="date" value={formData.possession_date}
-            onChange={e => setFormData(p => ({ ...p, possession_date: e.target.value }))}
-            className={ic} />
-        </div>
+        <DatePicker
+          label="Possession Date"
+          value={formData.possession_date}
+          onChange={(v) => setFormData(p => ({ ...p, possession_date: v }))}
+        />
       </div>
 
       {/* Status */}

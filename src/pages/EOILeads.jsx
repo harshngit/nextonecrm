@@ -16,6 +16,8 @@ import ExportModal from '../components/ui/ExportModal'
 import ConfirmModal from '../components/ui/ConfirmModal'
 import CustomSelect from '../components/ui/CustomSelect'
 import ClockPicker from '../components/ui/ClockPicker'
+import DatePicker from '../components/ui/DatePicker'
+import DateTimePicker from '../components/ui/DateTimePicker'
 import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 import PhoneActions from '../components/ui/PhoneActions'
 import PageSizeSelect, { resolvePerPage } from '../components/ui/PageSizeSelect'
@@ -68,7 +70,7 @@ const defaultForm = {
   name: '', phone: '', alternate_phone_number: '', email: '',
   source: '', source_id: '', project_id: '', project_name: '',
   assigned_to: '', budget: '', location_preference: '', configuration: [],
-  notes: '', status: 'New',
+  notes: '', status: 'new',
   callback_time: '', next_followup_time: '',
   photos: [], payment_proof_url: '', payment_proof_amount: '',
   // Shown only when status is set to site_visit_scheduled
@@ -524,16 +526,16 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
 
       {/* Callback + Follow-up */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className={labelClass}><span className="flex items-center gap-1"><Clock size={11} /> Callback Time</span></label>
-          <input type="datetime-local" value={formData.callback_time ? formData.callback_time.slice(0, 16) : ''}
-            onChange={e => setFormData(prev => ({ ...prev, callback_time: e.target.value ? new Date(e.target.value).toISOString() : '' }))} className={inputClass} />
-        </div>
-        <div>
-          <label className={labelClass}><span className="flex items-center gap-1"><CalendarClock size={11} /> Next Follow-up</span></label>
-          <input type="datetime-local" value={formData.next_followup_time ? formData.next_followup_time.slice(0, 16) : ''}
-            onChange={e => setFormData(prev => ({ ...prev, next_followup_time: e.target.value ? new Date(e.target.value).toISOString() : '' }))} className={inputClass} />
-        </div>
+        <DateTimePicker
+          label="Callback Time"
+          value={formData.callback_time}
+          onChange={val => setFormData(prev => ({ ...prev, callback_time: val }))}
+        />
+        <DateTimePicker
+          label="Next Follow-up"
+          value={formData.next_followup_time}
+          onChange={val => setFormData(prev => ({ ...prev, next_followup_time: val }))}
+        />
       </div>
 
       {/* Source + Status */}
@@ -580,17 +582,18 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
         <div className="p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-xl space-y-3">
           <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">📅 Site Visit Details</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Visit Date *</label>
-              <input required type="date" value={formData.visit_date}
-                onChange={e => setFormData(prev => ({ ...prev, visit_date: e.target.value }))}
-                min={new Date().toISOString().split('T')[0]} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Visit Time</label>
-              <input type="time" value={formData.visit_time}
-                onChange={e => setFormData(prev => ({ ...prev, visit_time: e.target.value }))} className={inputClass} />
-            </div>
+            <DatePicker
+              label="Visit Date"
+              required
+              value={formData.visit_date}
+              onChange={val => setFormData(prev => ({ ...prev, visit_date: val }))}
+              min={new Date().toISOString().split('T')[0]}
+            />
+            <ClockPicker
+              label="Visit Time"
+              value={formData.visit_time}
+              onChange={val => setFormData(prev => ({ ...prev, visit_time: val }))}
+            />
           </div>
           <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
             <input type="checkbox" checked={formData.transport_arranged}
@@ -613,17 +616,18 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
               placeholder={`Follow up with ${formData.name || 'lead'}`} className={inputClass} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Due Date *</label>
-              <input required type="date" value={formData.due_date}
-                onChange={e => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                min={new Date().toISOString().split('T')[0]} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Due Time</label>
-              <input type="time" value={formData.due_time}
-                onChange={e => setFormData(prev => ({ ...prev, due_time: e.target.value }))} className={inputClass} />
-            </div>
+            <DatePicker
+              label="Due Date"
+              required
+              value={formData.due_date}
+              onChange={val => setFormData(prev => ({ ...prev, due_date: val }))}
+              min={new Date().toISOString().split('T')[0]}
+            />
+            <ClockPicker
+              label="Due Time"
+              value={formData.due_time}
+              onChange={val => setFormData(prev => ({ ...prev, due_time: val }))}
+            />
           </div>
           <CustomSelect label="Priority" value={formData.priority}
             onChange={val => setFormData(prev => ({ ...prev, priority: val }))}
@@ -1305,11 +1309,8 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess, teamMembers 
               placeholder="Follow-up" className={inputCls} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Due Date *</label>
-              <input type="date" value={fuForm.due_date} onChange={e => setFuForm(f => ({...f, due_date: e.target.value}))}
-                min={new Date().toISOString().split('T')[0]} className={inputCls} />
-            </div>
+            <DatePicker label="Due Date" value={fuForm.due_date} onChange={v => setFuForm(f => ({...f, due_date: v}))}
+              min={new Date().toISOString().split('T')[0]} />
             <div>
               <ClockPicker label="Due Time" value={fuForm.due_time} onChange={v => setFuForm(f => ({...f, due_time: v}))} />
             </div>
@@ -1336,11 +1337,8 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess, teamMembers 
         <div className="space-y-4">
           <CustomSelect label="Project *" value={svForm.project_id} onChange={v => setSvForm(f => ({...f, project_id: v}))} options={projectOpts} placeholder="Select project" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Visit Date *</label>
-              <input type="date" value={svForm.visit_date} onChange={e => setSvForm(f => ({...f, visit_date: e.target.value}))}
-                min={new Date().toISOString().split('T')[0]} className={inputCls} />
-            </div>
+            <DatePicker label="Visit Date" value={svForm.visit_date} onChange={v => setSvForm(f => ({...f, visit_date: v}))}
+              min={new Date().toISOString().split('T')[0]} />
             <div>
               <ClockPicker label="Visit Time *" value={svForm.visit_time} onChange={v => setSvForm(f => ({...f, visit_time: v}))} required />
             </div>
@@ -1990,7 +1988,7 @@ export default function EOILeads() {
         budget: leadData.budget || '',
         location_preference: leadData.location_preference || '',
         notes: leadData.notes || '',
-        status: leadData.status || 'New',
+        status: leadData.status || 'new',
         callback_time: leadData.callback_time || '',
         next_followup_time: leadData.next_followup_time || '',
         photos: leadData.photos || [],
@@ -1999,7 +1997,7 @@ export default function EOILeads() {
         visit_date: '', visit_time: '10:00', transport_arranged: false,
         followup_title: '', due_date: '', due_time: '10:00', priority: 'medium',
       })
-      setEditOriginalStatus(leadData.status || 'New')
+      setEditOriginalStatus(leadData.status || 'new')
     } catch (err) {
       // Fall back to the original lead data if API fails
       let sourceId = lead.source_id || ''
@@ -2028,7 +2026,7 @@ export default function EOILeads() {
         budget: lead.budget || '',
         location_preference: lead.location_preference || '',
         notes: lead.notes || '',
-        status: lead.status || 'New',
+        status: lead.status || 'new',
         photos: lead.photos || [],
         payment_proof_url: lead.payment_proof_url || '',
         payment_proof_amount: lead.payment_proof_amount || '',
@@ -2037,7 +2035,7 @@ export default function EOILeads() {
         visit_date: '', visit_time: '10:00', transport_arranged: false,
         followup_title: '', due_date: '', due_time: '10:00', priority: 'medium',
       })
-      setEditOriginalStatus(lead.status || 'New')
+      setEditOriginalStatus(lead.status || 'new')
     }
     // Fetch existing call recordings for this lead
     try {

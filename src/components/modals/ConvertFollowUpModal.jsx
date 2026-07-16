@@ -6,6 +6,7 @@ import Modal from '../ui/Modal'
 import CustomSelect from '../ui/CustomSelect'
 import AsyncSearchSelect from '../ui/AsyncSearchSelect'
 import ClockPicker from '../ui/ClockPicker'
+import DatePicker from '../ui/DatePicker'
 
 export default function ConvertFollowUpModal({ task, onClose, onSuccess }) {
   const [converting, setConverting] = useState(false)
@@ -113,11 +114,8 @@ export default function ConvertFollowUpModal({ task, onClose, onSuccess }) {
             defaultText={form.project_id ? '' : (form.project_name || '')}
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Visit Date *</label>
-              <input type="date" value={form.visit_date} onChange={e => setForm(f => ({...f, visit_date: e.target.value}))}
-                min={new Date().toISOString().split('T')[0]} className={inputCls} />
-            </div>
+            <DatePicker label="Visit Date" value={form.visit_date} onChange={v => setForm(f => ({...f, visit_date: v}))}
+              min={new Date().toISOString().split('T')[0]} />
             <div>
               <ClockPicker label="Visit Time *" value={form.visit_time} onChange={v => setForm(f => ({...f, visit_time: v}))} required />
             </div>

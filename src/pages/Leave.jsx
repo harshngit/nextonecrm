@@ -6,6 +6,7 @@ import { fetchUsers } from '../store/userSlice'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import CustomSelect from '../components/ui/CustomSelect'
+import DatePicker from '../components/ui/DatePicker'
 
 const ADMIN_ROLES = ['super_admin', 'admin']
 const LEAVE_TYPE_OPTIONS = [
@@ -49,15 +50,7 @@ function ApplyLeaveModal({ isOpen, onClose, onSuccess, isLoading }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Apply for Leave">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">Date</label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-200"
-          />
-        </div>
+        <DatePicker label="Date" value={date} onChange={setDate} />
 
         <div className="space-y-1">
           <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">Leave Type</label>
@@ -125,15 +118,7 @@ function MarkLeaveModal({ isOpen, onClose, onSuccess, isLoading, users }) {
           />
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">Date</label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-200"
-          />
-        </div>
+        <DatePicker label="Date" value={date} onChange={setDate} />
 
         <div className="space-y-1">
           <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">Leave Type</label>
@@ -411,24 +396,8 @@ export default function Leaves() {
           {activeTab === 'all' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">From</label>
-                  <input
-                    type="date"
-                    value={filters.from}
-                    onChange={(e) => setFilters(f => ({ ...f, from: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-200"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">To</label>
-                  <input
-                    type="date"
-                    value={filters.to}
-                    onChange={(e) => setFilters(f => ({ ...f, to: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand text-gray-700 dark:text-gray-200"
-                  />
-                </div>
+                <DatePicker label="From" value={filters.from} onChange={(v) => setFilters(f => ({ ...f, from: v }))} />
+                <DatePicker label="To" value={filters.to} onChange={(v) => setFilters(f => ({ ...f, to: v }))} />
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">User</label>
                   <CustomSelect

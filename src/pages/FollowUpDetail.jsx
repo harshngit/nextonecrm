@@ -5,7 +5,7 @@ import {
   ArrowLeft, Calendar, Clock, User, Phone, 
   MessageSquare, AlertCircle, CheckCircle, Loader2, 
   UserCheck, MapPin, ExternalLink, ShieldCheck, Info,
-  Send, ChevronDown, CalendarPlus, Edit2, Eye
+  Send, CalendarPlus, Edit2, Eye
 } from 'lucide-react'
 import { fetchFollowUpById, clearCurrentTask, completeFollowUp, updateFollowUp } from '../store/followUpSlice'
 import { fetchLeads } from '../store/leadSlice'
@@ -17,6 +17,8 @@ import Modal from '../components/ui/Modal'
 import CustomSelect from '../components/ui/CustomSelect'
 import ConvertFollowUpModal from '../components/modals/ConvertFollowUpModal'
 import PhoneActions from '../components/ui/PhoneActions'
+import ClockPicker from '../components/ui/ClockPicker'
+import DatePicker from '../components/ui/DatePicker'
 
 const priorities = ['low', 'medium', 'high']
 const priorityOptions = priorities.map(p => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))
@@ -29,149 +31,6 @@ const priorityStyle = {
 const defaultForm = {
   title: '', lead_id: '', due_date: '', due_time: '10:00',
   assigned_to: '', priority: 'medium', notes: '',
-}
-
-function ClockPicker({ value, onChange, label, icon: Icon, iconColor = 'text-gray-400', required = false }) {
-  const [open,    setOpen]    = useState(false)
-  const [mode,    setMode]    = useState('hour')   // 'hour' | 'minute'
-  const svgRef  = useRef(null)
-  const ref     = useRef(null)
-
-  const [hh, mm] = value ? value.split(':') : ['10', '00']
-  const hour   = parseInt(hh || 10)
-  const minute = parseInt(mm || 0)
-
-  useEffect(() => {
-    const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', fn)
-    return () => document.removeEventListener('mousedown', fn)
-  }, [])
-
-  const getValueFromAngle = (clientX, clientY) => {
-    const rect   = svgRef.current.getBoundingClientRect()
-    const cx     = rect.left + rect.width  / 2
-    const cy     = rect.top  + rect.height / 2
-    const dx     = clientX - cx
-    const dy     = clientY - cy
-    let   angle  = Math.atan2(dy, dx) * (180 / Math.PI) + 90
-    if (angle < 0) angle += 360
-    if (mode === 'hour') {
-      const h = Math.round(angle / 30) % 12
-      return h === 0 ? 12 : h
-    } else {
-      return Math.round(angle / 6) % 60
-    }
-  }
-
-  const handleClockClick = (e) => {
-    const val = getValueFromAngle(e.clientX, e.clientY)
-    if (mode === 'hour') {
-      const newHH = String(val === 12 ? 0 : val).padStart(2,'0')
-      onChange(`${newHH}:${mm || '00'}`)
-      setMode('minute')
-    } else {
-      const newMM = String(val).padStart(2,'0')
-      onChange(`${hh || '00'}:${newMM}`)
-    }
-  }
-
-  const handleAMPM = (isAM) => {
-    const h = parseInt(hh || 0)
-    let newH = h
-    if (isAM && h >= 12) newH = h - 12
-    if (!isAM && h < 12) newH = h + 12
-    onChange(`${String(newH).padStart(2,'0')}:${mm || '00'}`)
-  }
-
-  const SIZE    = 220
-  const CX      = SIZE / 2
-  const CY      = SIZE / 2
-  const R_OUTER = 88
-  const R_INNER = 62
-
-  const clockNumbers = mode === 'hour'
-    ? [
-      ...Array.from({length:12},(_,i)=>({ val: i===0?12:i,  r: R_OUTER, is12h: true  })),
-      ...Array.from({length:12},(_,i)=>({ val: i===0?0:i+12, r: R_INNER, is12h: false })),
-    ]
-    : Array.from({length:12},(_,i)=>({ val: i*5, r: R_OUTER, is12h: true }))
-
-  const activeVal = mode === 'hour' ? (hour === 0 ? 0 : hour % 24) : minute
-  const handAngle = mode === 'hour'
-    ? ((activeVal % 12 === 0 ? 12 : activeVal % 12) / 12) * 360 - 90
-    : (activeVal / 60) * 360 - 90
-  const handR     = mode === 'hour' ? (hour >= 13 || hour === 0 ? R_INNER : R_OUTER) : R_OUTER
-  const isAM = hour < 12
-  const display12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-
-  return (
-    <div className="relative" ref={ref}>
-      {label && <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{label} {required && '*'}</label>}
-      <div onClick={() => setOpen(!open)} className="w-full px-3 py-2 text-sm bg-background border border-gray-200 dark:border-gray-700 rounded-xl outline-none cursor-pointer flex items-center justify-between transition-all">
-        <div className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
-          {Icon && <Icon size={14} className={iconColor} />}
-          {value || '10:00'}
-        </div>
-        <ChevronDown size={14} className="text-gray-400" />
-      </div>
-
-      {open && (
-        <div className="absolute z-50 w-[260px] left-1/2 -translate-x-1/2 mt-2 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in duration-150">
-          <div className="flex items-center justify-between px-4 pt-4">
-            <div className="flex items-center gap-2">
-              <button onClick={() => setMode('hour')}
-                className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${mode === 'hour' ? 'bg-[#0082f3] text-white' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-                Hours
-              </button>
-              <button onClick={() => setMode('minute')}
-                className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${mode === 'minute' ? 'bg-[#0082f3] text-white' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-                Minutes
-              </button>
-            </div>
-            <div className="flex flex-col gap-2">
-              <button onClick={() => handleAMPM(true)} className={`w-12 h-9 text-xs font-bold rounded-xl transition-all ${isAM ? 'bg-white text-[#0082f3] shadow-md' : 'text-white/60 hover:text-white/90'}`}>AM</button>
-              <button onClick={() => handleAMPM(false)} className={`w-12 h-9 text-xs font-bold rounded-xl transition-all ${!isAM ? 'bg-white text-[#0082f3] shadow-md' : 'text-white/60 hover:text-white/90'}`}>PM</button>
-            </div>
-          </div>
-
-          <div className="flex w-full border-b border-gray-100 dark:border-gray-800">
-            <button onClick={() => setMode('hour')} className={`flex-1 py-3 text-xs font-bold tracking-wide transition-colors ${mode==='hour' ? 'text-[#0082f3] border-b-2 border-[#0082f3]' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>HOUR</button>
-            <button onClick={() => setMode('minute')} className={`flex-1 py-3 text-xs font-bold tracking-wide transition-colors ${mode==='minute' ? 'text-[#0082f3] border-b-2 border-[#0082f3]' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}>MINUTE</button>
-          </div>
-
-          <div className="flex justify-center py-6 px-6 bg-gray-50/30 dark:bg-black/10 w-full">
-            <svg ref={svgRef} width={260} height={260} onClick={handleClockClick} style={{ cursor: 'pointer' }}>
-              <circle cx={130} cy={130} r={126} fill="var(--clock-bg, #ffffff)" className="dark:fill-gray-900" />
-              <circle cx={130} cy={130} r={126} fill="none" stroke="#E2E8F0" strokeWidth={0.5} className="dark:stroke-gray-800" />
-              {mode === 'hour' && <circle cx={130} cy={130} r={R_INNER + 20} fill="none" stroke="#E2E8F0" strokeWidth={0.5} strokeDasharray="4,4" className="dark:stroke-gray-700" />}
-              <line x1={130} y1={130} x2={130 + handR * 1.18 * Math.cos(handAngle * Math.PI / 180)} y2={130 + handR * 1.18 * Math.sin(handAngle * Math.PI / 180)} stroke="#0082f3" strokeWidth={2.5} strokeLinecap="round" />
-              <circle cx={130} cy={130} r={5} fill="#0082f3" />
-              <circle cx={130 + handR * 1.18 * Math.cos(handAngle * Math.PI / 180)} cy={130 + handR * 1.18 * Math.sin(handAngle * Math.PI / 180)} r={20} fill="#0082f3" opacity="0.15" />
-              <circle cx={130 + handR * 1.18 * Math.cos(handAngle * Math.PI / 180)} cy={130 + handR * 1.18 * Math.sin(handAngle * Math.PI / 180)} r={10}  fill="#0082f3" />
-              {clockNumbers.map(({ val, r, is12h }) => {
-                const displayVal = mode === 'hour' ? (val === 0 ? '00' : String(val).padStart(2,'0')) : String(val).padStart(2,'0')
-                const indexAngle = mode === 'hour' ? ((val % 12 === 0 ? 0 : val % 12) / 12) * 360 - 90 : (val / 60) * 360 - 90
-                const x = 130 + r * 1.18 * Math.cos(indexAngle * Math.PI / 180)
-                const y = 130 + r * 1.18 * Math.sin(indexAngle * Math.PI / 180)
-                const isActive = activeVal === val
-                return (
-                  <g key={`${mode}-${val}`}>
-                    {isActive && <circle cx={x} cy={y} r={18} fill="#0082f3" />}
-                    <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={is12h ? 13 : 11} fontWeight={isActive ? 700 : 500} fill={isActive ? '#ffffff' : is12h ? '#374151' : '#9CA3AF'} className={isActive ? '' : 'dark:fill-gray-400'} style={{ userSelect: 'none', fontFamily: 'monospace' }}>{displayVal}</text>
-                  </g>
-                )
-              })}
-            </svg>
-          </div>
-
-          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center w-full bg-white dark:bg-[#1a1a1a]">
-            <button onClick={() => { onChange(''); setOpen(false) }} className="text-sm font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">CLEAR</button>
-            <button onClick={() => setOpen(false)} className="px-8 py-2.5 bg-[#0082f3] hover:bg-[#0070d4] text-white text-sm font-bold rounded-2xl transition-all shadow-xl shadow-blue-500/20 active:scale-95">DONE</button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
 }
 
 function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit, selectedTask }) {
@@ -225,16 +84,12 @@ function FollowUpForm({ formData, setFormData, leads, salesExecs, isEdit, select
 
       {/* Due Date + Time */}
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={lc}>Due Date *</label>
-          <input
-            required
-            type="date"
-            value={formData.due_date}
-            onChange={e => setFormData(p => ({ ...p, due_date: e.target.value }))}
-            className={ic}
-          />
-        </div>
+        <DatePicker
+          label="Due Date"
+          required
+          value={formData.due_date}
+          onChange={val => setFormData(p => ({ ...p, due_date: val }))}
+        />
         <ClockPicker
           label="Due Time"
           value={formData.due_time}

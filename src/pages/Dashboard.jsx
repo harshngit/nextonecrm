@@ -28,6 +28,8 @@ import ExportModal from '../components/ui/ExportModal'
 import Button from '../components/ui/Button'
 import CustomSelect from '../components/ui/CustomSelect'
 import Avatar from '../components/ui/Avatar'
+import DatePicker from '../components/ui/DatePicker'
+import ClockPicker from '../components/ui/ClockPicker'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const fmtTime = (ts) => ts
@@ -137,13 +139,13 @@ function ManualModal({ dispatch, onClose }) {
           <span className="ml-auto text-[10px] text-gray-400 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full capitalize">{(user?.role||'').replace(/_/g,' ')}</span>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div><label className="text-xs font-medium text-gray-500 mb-1.5 block">Date</label><input type="date" value={form.date} max={today} onChange={e=>set('date',e.target.value)} className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300"/></div>
+          <DatePicker label="Date" value={form.date} max={today} onChange={v=>set('date',v)} />
           <CustomSelect label="Status *" value={form.status} onChange={v=>set('status',v)} options={ATT_STATUS_OPTS.map(o=>({value:o.value,label:o.label}))}/>
         </div>
         {['present','late','half_day'].includes(form.status)&&(
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-medium text-gray-500 mb-1.5 block">Check In *</label><div className="relative"><input type="time" value={form.check_in_time} onChange={e=>set('check_in_time',e.target.value)} className="w-full px-3 py-2.5 pl-9 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300"/><LogIn size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none"/></div></div>
-            <div><label className="text-xs font-medium text-gray-500 mb-1.5 block">Check Out</label><div className="relative"><input type="time" value={form.check_out_time} onChange={e=>set('check_out_time',e.target.value)} className="w-full px-3 py-2.5 pl-9 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300"/><LogOut size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-500 pointer-events-none"/></div></div>
+            <ClockPicker label="Check In *" value={form.check_in_time} onChange={v=>set('check_in_time',v)} icon={LogIn} iconColor="text-emerald-500" />
+            <ClockPicker label="Check Out" value={form.check_out_time} onChange={v=>set('check_out_time',v)} icon={LogOut} iconColor="text-rose-500" />
           </div>
         )}
         <div><label className="text-xs font-medium text-gray-500 mb-1.5 block">Reason <span className="font-normal text-gray-400">(optional)</span></label><input type="text" value={form.reason} onChange={e=>set('reason',e.target.value)} placeholder="e.g. WFH…" className="w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300 placeholder-gray-400"/></div>
