@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, CalendarCheck, PhoneCall,
   Building2, UserCog, Bell, LogOut, ChevronLeft, ChevronRight,
   X, Settings, Clock, IndianRupee, RotateCcw, BadgeCheck, ShieldCheck, Target,
-  MapPin, FileText, CalendarX,
+  MapPin, FileText, CalendarX, Globe,
 } from 'lucide-react'
 import { logout } from '../../store/authSlice'
 import { selectPermissions } from '../../store/permissionsSlice'
@@ -119,7 +119,10 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
 
   const filteredNavItems = [
     ...navItems.filter(item => permissions[item.module]?.view === true),
-    ...(isAdminRole ? [{ path: '/access-control', label: 'Access Control', icon: ShieldCheck }] : []),
+    ...(isAdminRole ? [
+      { path: '/website-inquiries', label: 'Website Inquiries', icon: Globe },
+      { path: '/access-control',    label: 'Access Control',    icon: ShieldCheck },
+    ] : []),
   ]
 
   return (

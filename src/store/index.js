@@ -14,23 +14,25 @@ import permissionsReducer  from './permissionsSlice'
 import targetReducer       from './targetSlice'
 import holidayReducer      from './holidaySlice'
 import leaveReducer        from './leaveSlice'
+import websiteInquiryReducer from './websiteInquirySlice'
 
 export const store = configureStore({
   reducer: {
-    auth:          authReducer,
-    leads:         leadReducer,
-    projects:      projectReducer,
-    siteVisits:    siteVisitReducer,
-    followUps:     followUpReducer,
-    notifications: notificationReducer,
-    users:         userReducer,
-    dashboard:     dashboardReducer,
-    attendance:    attendanceReducer,
-    myData:        myDataReducer,
-    salary:        salaryReducer,
-    permissions:   permissionsReducer,
-    targets:       targetReducer,
-    holidays:      holidayReducer,
-    leaves:        leaveReducer,
+    auth:            authReducer,
+    leads:           leadReducer,
+    projects:        projectReducer,
+    siteVisits:      siteVisitReducer,
+    followUps:       followUpReducer,
+    notifications:   notificationReducer,
+    users:           userReducer,
+    dashboard:       dashboardReducer,
+    attendance:      attendanceReducer,
+    myData:          myDataReducer,
+    salary:          salaryReducer,
+    permissions:     permissionsReducer,
+    targets:         targetReducer,
+    holidays:        holidayReducer,
+    leaves:          leaveReducer,
+    websiteInquiries: websiteInquiryReducer,
   },
 })
