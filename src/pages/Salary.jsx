@@ -426,7 +426,7 @@ function AdminSalaryView({ user }) {
       if (filters.paid !== '') params.paid = filters.paid === 'true'
       if (filters.from) params.from = filters.from
       if (filters.to) params.to = filters.to
-      const res = await api.get('/salary/commissions-get', { params })
+      const res = await api.get('/salary/commissions', { params })
       const payload = res.data?.data ?? res.data
       const list = payload?.data || (Array.isArray(payload) ? payload : [])
       setCommissions({
@@ -507,7 +507,6 @@ function AdminSalaryView({ user }) {
   }
 
   const deleteCommission = async (id) => {
-    if (!confirm('Are you sure you want to delete this commission?')) return
     try {
       await api.delete(`/salary/commission/${id}`)
       fetchCommissions(commissionsPage, commissionFilters)
