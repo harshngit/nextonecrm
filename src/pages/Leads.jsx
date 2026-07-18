@@ -387,28 +387,23 @@ function PaymentProofManager({ url, amount, onUrlChange, onAmountChange }) {
         </label>
       </div>
 
-      {/* Document URL Field */}
-      <div className="space-y-1">
-        <label className="block text-[10px] font-medium text-gray-400">Document</label>
-        <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-[#141414] rounded-xl border border-gray-100 dark:border-gray-800">
-          {url && (
+      {/* Uploaded Document Preview */}
+      {url && (
+        <div className="space-y-1">
+          <label className="block text-[10px] font-medium text-gray-400">Document</label>
+          <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-[#141414] rounded-xl border border-gray-100 dark:border-gray-800">
             <a href={url} target="_blank" rel="noreferrer" className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
               <img src={url} alt="" className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none' }} />
             </a>
-          )}
-          <input 
-            value={url || ''} 
-            onChange={e => onUrlChange(e.target.value)} 
-            placeholder="Payment Proof URL" 
-            className={ic + ' flex-1'} 
-          />
-          {url && (
+            <a href={url} target="_blank" rel="noreferrer" className="flex-1 text-xs text-brand hover:underline truncate">
+              View payment proof
+            </a>
             <button type="button" onClick={() => onUrlChange('')} className="p-1 rounded-lg text-gray-400 hover:text-red-500 transition-colors">
               <Trash size={12} />
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Amount Field */}
       <div className="space-y-1">
