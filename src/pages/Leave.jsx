@@ -6,6 +6,7 @@ import { fetchUsers } from '../store/userSlice'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import CustomSelect from '../components/ui/CustomSelect'
+import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 import DatePicker from '../components/ui/DatePicker'
 
 const ADMIN_ROLES = ['super_admin', 'admin']
@@ -103,20 +104,24 @@ function MarkLeaveModal({ isOpen, onClose, onSuccess, isLoading, users }) {
     }
   }
 
-  const userOptions = (users || []).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name || ''}` }))
+  const userOptions = (users || []).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name || ''}`.trim() }))
+
+  const searchUsers = async (q) => {
+    const query = (q || '').toLowerCase()
+    return userOptions.filter(o => o.label.toLowerCase().includes(query))
+  }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Mark Leave for User">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400">User</label>
-          <CustomSelect
-            options={userOptions}
-            value={userId}
-            onChange={setUserId}
-            placeholder="Select user"
-          />
-        </div>
+        <AsyncSearchSelect
+          label="User"
+          value={userId}
+          onChange={setUserId}
+          onSearch={searchUsers}
+          initialOptions={userOptions.slice(0, 20)}
+          placeholder="Type to search user..."
+        />
 
         <DatePicker label="Date" value={date} onChange={setDate} />
 
