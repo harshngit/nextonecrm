@@ -8,8 +8,8 @@ import AsyncSearchSelect from '../ui/AsyncSearchSelect'
 import ClockPicker from '../ui/ClockPicker'
 import DatePicker from '../ui/DatePicker'
 
-export default function ConvertLeadModal({ lead, onClose, onSuccess }) {
-  const [step, setStep] = useState('choose')  // 'choose' | 'follow_up' | 'site_visit'
+export default function ConvertLeadModal({ lead, onClose, onSuccess, initialStep = 'choose' }) {
+  const [step, setStep] = useState(initialStep)  // 'choose' | 'follow_up' | 'site_visit'
   const [converting, setConverting] = useState(false)
   const [error, setError] = useState('')
   const [options, setOptions] = useState(null)

@@ -23,6 +23,7 @@ import PhoneActions from '../components/ui/PhoneActions'
 import PageSizeSelect, { resolvePerPage } from '../components/ui/PageSizeSelect'
 import ConvertLeadModal from '../components/modals/ConvertLeadModal'
 import LeadStatusManagementModal from '../components/modals/LeadStatusManagementModal'
+import { EoiDocumentsSection } from './LeadDetail'
 
 const leadStages = [
   { value: 'new',                  label: 'New' },
@@ -1096,6 +1097,49 @@ function ReassignModal({ lead, teamMembers = [], currentUser, onClose, onSuccess
   )
 }
 
+// ─── Change Status Modal (uses PATCH /leads/:id/status) ───────────────────────
+function ChangeStatusModal({ lead, stageOptions, statusMap, onClose, onSuccess }) {
+  const [status,  setStatus]  = useState(lead?.status || '')
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
+  const [success, setSuccess] = useState('')
+  const currentLabel = statusMap[lead?.status?.toLowerCase()]?.label || lead?.status || 'New'
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!status || status === lead.status) return
+    setError(''); setLoading(true)
+    try {
+      await api.patch(`/leads/${lead.id}/status`, { status })
+      setSuccess('Status updated!')
+      setTimeout(() => { onSuccess(status); onClose() }, 700)
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update status')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title="Change Lead Status">
+      <form onSubmit={submit} className="space-y-4">
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-[#111] border border-gray-100 dark:border-gray-800">
+          <Avatar name={lead?.name} size="sm"/>
+          <div><p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{lead?.name}</p><p className="text-xs text-gray-400">{lead?.phone}</p></div>
+          <div className="ml-auto text-right"><p className="text-[10px] text-gray-400">Current status</p><p className="text-xs font-medium text-gray-600 dark:text-gray-300">{currentLabel}</p></div>
+        </div>
+        <CustomSelect label="New Status *" value={status} onChange={setStatus} options={stageOptions} placeholder="Select status" />
+        {error && <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"><AlertCircle size={13} className="text-red-500"/><p className="text-xs text-red-600">{error}</p></div>}
+        {success && <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5"><CheckCircle2 size={13} className="text-green-500"/><p className="text-xs text-green-600">{success}</p></div>}
+        <div className="flex gap-3 pt-1">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button type="submit" className="flex-1" loading={loading} disabled={!status || status === lead.status}>Update Status</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 // ─── Bulk Reassign Modal (uses /leads/bulk-reassign) ──────────────────────────
 function BulkReassignModal({ leadIds, leads, teamMembers = [], currentUser, onClose, onSuccess }) {
   const [assignTo,setAssignTo]=useState('')
@@ -1668,6 +1712,10 @@ export default function Leads() {
   const [showSourceModal, setShowSourceModal] = useState(false)
   const [showStatusManageModal, setShowStatusManageModal] = useState(false)
   const [showReassignModal,     setShowReassignModal]     = useState(false)
+  const [showStatusChangeModal, setShowStatusChangeModal] = useState(false)
+  const [convertInitialStep,    setConvertInitialStep]    = useState('choose')
+  const [showEoiDocModal,       setShowEoiDocModal]       = useState(false)
+  const [eoiDocLead,            setEoiDocLead]            = useState(null)
   const [showBulkReassignModal, setShowBulkReassignModal] = useState(false)
   const [showBulkUploadModal,   setShowBulkUploadModal]   = useState(false)
   const [showBulkPhoneReqModal, setShowBulkPhoneReqModal] = useState(false)
@@ -2101,6 +2149,43 @@ export default function Leads() {
     setTimeout(() => setConvertSuccess(''), 3000)
   }
 
+  // Fires after ChangeStatusModal's PATCH succeeds. The status itself is
+  // already saved at this point — for site_visit_scheduled / follow_up /
+  // eoi we chain straight into the follow-on flow (schedule the visit,
+  // create the follow-up task, or upload EOI docs) instead of leaving the
+  // admin to hunt for a separate button to finish the job.
+  const handleStatusChangeSuccess = (lead, status) => {
+    setShowStatusChangeModal(false)
+    reloadLeads()
+    if (status === 'site_visit_scheduled') {
+      setConvertLead(lead)
+      setConvertInitialStep('site_visit')
+      setShowConvertModal(true)
+    } else if (status === 'follow_up') {
+      setConvertLead(lead)
+      setConvertInitialStep('follow_up')
+      setShowConvertModal(true)
+    } else if (status === 'eoi') {
+      // The list row is a trimmed lead shape (no `photos` / payment proof
+      // fields) — show it immediately, then swap in the full record once
+      // fetched so EoiDocumentsSection reflects any existing uploads.
+      setEoiDocLead(lead)
+      setShowEoiDocModal(true)
+      api.get(`/leads/${lead.id}`).then(res => setEoiDocLead(res.data.data)).catch(() => {})
+    } else {
+      setSelectedLead(null)
+    }
+  }
+
+  const refreshEoiDocLead = async () => {
+    reloadLeads()
+    if (!eoiDocLead) return
+    try {
+      const res = await api.get(`/leads/${eoiDocLead.id}`)
+      setEoiDocLead(res.data.data)
+    } catch { /* keep showing the last known lead state */ }
+  }
+
   return (
     <div className="space-y-4">
       {/* Controls */}
@@ -2360,7 +2445,7 @@ export default function Leads() {
                                 View Details
                               </button>
                               <button 
-                                onClick={() => { setConvertLead(lead); setShowConvertModal(true); setOpenMenuLeadId(null); }}
+                                onClick={() => { setConvertLead(lead); setConvertInitialStep('choose'); setShowConvertModal(true); setOpenMenuLeadId(null); }}
                                 className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                               >
                                 <ArrowRightCircle size={14} />
@@ -2373,6 +2458,15 @@ export default function Leads() {
                                 >
                                   <Edit2 size={14} />
                                   Edit
+                                </button>
+                              )}
+                              {perms.edit && (
+                                <button
+                                  onClick={() => { setSelectedLead(lead); setShowStatusChangeModal(true); setOpenMenuLeadId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                  <RefreshCw size={14} />
+                                  Change Status
                                 </button>
                               )}
                               {canReassign && (
@@ -2484,6 +2578,19 @@ export default function Leads() {
         />
       )}
 
+      {/* Change Status Modal — uses PATCH /leads/:id/status. On success, chains
+          into the Convert modal (site visit / follow-up) or the EOI documents
+          modal when the new status calls for it — see handleStatusChangeSuccess. */}
+      {showStatusChangeModal && selectedLead && (
+        <ChangeStatusModal
+          lead={selectedLead}
+          stageOptions={stageOptions}
+          statusMap={statusMap}
+          onClose={() => { setShowStatusChangeModal(false); setSelectedLead(null) }}
+          onSuccess={(status) => handleStatusChangeSuccess(selectedLead, status)}
+        />
+      )}
+
       {/* Bulk Reassign Modal — uses /leads/bulk-reassign API */}
       {showBulkReassignModal && (
         <BulkReassignModal
@@ -2538,9 +2645,19 @@ export default function Leads() {
       {showConvertModal && convertLead && (
         <ConvertLeadModal
           lead={convertLead}
-          onClose={() => { setShowConvertModal(false); setConvertLead(null) }}
+          initialStep={convertInitialStep}
+          onClose={() => { setShowConvertModal(false); setConvertLead(null); setConvertInitialStep('choose') }}
           onSuccess={handleConvertSuccess}
         />
+      )}
+
+      {/* EOI Documents Modal — opened automatically after a lead's status is
+          changed to "eoi" via Change Status, reusing the same upload UI as
+          the Lead Detail page's EOI section. */}
+      {showEoiDocModal && eoiDocLead && (
+        <Modal isOpen={true} onClose={() => { setShowEoiDocModal(false); setEoiDocLead(null) }} title="EOI Documents" size="lg">
+          <EoiDocumentsSection lead={eoiDocLead} onUploaded={refreshEoiDocLead} />
+        </Modal>
       )}
 
       {/* Export Modal */}

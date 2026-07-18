@@ -5,6 +5,7 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [dropdownPosition, setDropdownPosition] = useState('bottom') // 'bottom' or 'top' or 'bottom-right'
+  const [dropdownRect, setDropdownRect] = useState(null)
   const containerRef = useRef(null)
   const dropdownRef = useRef(null)
   const searchRef = useRef(null)
@@ -79,18 +80,19 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
       const spaceBelow = window.innerHeight - containerRect.bottom
       const spaceAbove = containerRect.top
       const spaceRight = window.innerWidth - containerRect.right
-      
+
       let newPosition = 'bottom'
       if (spaceBelow < 280 && spaceAbove > spaceBelow) {
         newPosition = 'top'
       }
-      
+
       // Check if we need to align to right edge
       if (spaceRight < 200) {
         newPosition = newPosition.replace('bottom', 'bottom-right').replace('top', 'top-right')
       }
-      
+
       setDropdownPosition(newPosition)
+      setDropdownRect(containerRect)
     }
   }, [isOpen])
 
@@ -133,13 +135,21 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
         />
       </div>
 
-      {isOpen && (
-        <div ref={dropdownRef} className={`absolute z-[100] w-full mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200 ${
-          dropdownPosition === 'top' ? 'bottom-full mb-1' : 
-          dropdownPosition === 'bottom-right' ? 'right-0' : 
-          dropdownPosition === 'top-right' ? 'right-0 bottom-full mb-1' : 
-          'top-full'
-        }`}>
+      {isOpen && dropdownRect && (
+        <div
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            ...(dropdownPosition.includes('right')
+              ? { right: window.innerWidth - dropdownRect.right }
+              : { left: dropdownRect.left }),
+            width: dropdownRect.width,
+            ...(dropdownPosition.startsWith('top')
+              ? { bottom: window.innerHeight - dropdownRect.top + 4 }
+              : { top: dropdownRect.bottom + 4 }),
+          }}
+          className="z-[999] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200"
+        >
           {searchable && (
             <div className="px-2 pt-2 pb-1 border-b border-gray-100 dark:border-gray-800">
               <div className="relative">

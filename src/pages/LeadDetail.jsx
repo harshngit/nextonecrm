@@ -130,7 +130,7 @@ function UploadDocModal({ title, accept, fieldLabel, fieldPlaceholder, onClose, 
   )
 }
 
-function EoiDocumentsSection({ lead, onUploaded }) {
+export function EoiDocumentsSection({ lead, onUploaded }) {
   const [showProofModal, setShowProofModal] = useState(false)
   const [showPhotoModal, setShowPhotoModal] = useState(false)
   const [deletingId,     setDeletingId]     = useState(null)
@@ -330,6 +330,7 @@ export default function LeadDetail() {
   const [newStatus, setNewStatus] = useState('')
   const [noteError, setNoteError] = useState('')
   const [showConvertModal, setShowConvertModal] = useState(false)
+  const [convertInitialStep, setConvertInitialStep] = useState('choose')
   const [showStatusModal, setShowStatusModal] = useState(false)
 
   const isAdmin = ['admin', 'super_admin'].includes(currentUser?.role)
@@ -560,9 +561,22 @@ export default function LeadDetail() {
 
   const handleStatusChange = async () => {
     if (newStatus === lead.status) return
-    await dispatch(updateLeadStatus({ id, status: newStatus }))
+    const targetStatus = newStatus
+    await dispatch(updateLeadStatus({ id, status: targetStatus }))
     dispatch(fetchLeadById(id))
     dispatch(fetchLeadActivities(id))
+    // Status is already saved at this point — chain straight into the
+    // Convert modal (pre-set to the matching step) so the admin doesn't
+    // have to separately hunt down the "Convert" button to finish the job.
+    // EOI needs no extra step: EoiDocumentsSection below already renders
+    // once lead.status becomes "eoi".
+    if (targetStatus === 'site_visit_scheduled') {
+      setConvertInitialStep('site_visit')
+      setShowConvertModal(true)
+    } else if (targetStatus === 'follow_up') {
+      setConvertInitialStep('follow_up')
+      setShowConvertModal(true)
+    }
   }
 
   return (
@@ -585,7 +599,7 @@ export default function LeadDetail() {
               variant="outline"
               size="sm"
               className="rounded-xl border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-purple-600 dark:border-purple-900/30 dark:hover:bg-purple-900/20 flex-shrink-0"
-              onClick={() => setShowConvertModal(true)}
+              onClick={() => { setConvertInitialStep('choose'); setShowConvertModal(true) }}
             >
               <CalendarPlus size={14} className="mr-2" /> Convert Lead
             </Button>
@@ -723,8 +737,10 @@ export default function LeadDetail() {
               </div>
             </div>
 
-            {/* EOI Documents — payment proof + booking form photo, once the lead reaches EOI stage */}
-            {lead.status === 'eoi' && (
+            {/* EOI Documents — payment proof + booking form photo. Shown once the
+                lead reaches EOI stage, or at any status once a document already
+                exists (so it stays visible after the lead moves on from EOI). */}
+            {(lead.status === 'eoi' || lead.payment_proof_url || lead.photos?.length > 0) && (
               <EoiDocumentsSection lead={lead} onUploaded={() => dispatch(fetchLeadById(id))} />
             )}
 
@@ -1216,9 +1232,11 @@ export default function LeadDetail() {
       {showConvertModal && lead && (
         <ConvertLeadModal
           lead={lead}
-          onClose={() => setShowConvertModal(false)}
+          initialStep={convertInitialStep}
+          onClose={() => { setShowConvertModal(false); setConvertInitialStep('choose') }}
           onSuccess={(type) => {
             setShowConvertModal(false)
+            setConvertInitialStep('choose')
             dispatch(fetchLeadById(id))
             dispatch(fetchLeadActivities(id))
           }}

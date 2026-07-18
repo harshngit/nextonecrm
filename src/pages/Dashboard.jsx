@@ -5,9 +5,9 @@ import { useNavigate } from 'react-router-dom'
 import {
   Download, Loader2, RefreshCw, ChevronRight, ArrowUpRight,
   Users, CalendarDays, Phone, Building2, Clock, MapPin, TrendingUp,
-  Bell, UserCheck, ClipboardList, BarChart3, LogIn, LogOut,
+  Bell, UserCheck, ClipboardList, LogIn, LogOut,
   CheckCircle2, X, AlertCircle, Pencil, Zap, Target, Activity,
-  ChevronDown, PhoneCall, Star, BookOpen,
+  ChevronDown, PhoneCall, Star, BookOpen, CalendarX, IndianRupee, Globe,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -22,6 +22,7 @@ import {
   fetchAttendanceToday, manualAttendanceEntry,
 } from '../store/attendanceSlice'
 import { fetchMyTarget } from '../store/targetSlice'
+import { selectPermissions } from '../store/permissionsSlice'
 import api from '../api/axios'
 import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
@@ -280,17 +281,35 @@ function AdminStatCards({ stats, loading, onAttendance }) {
   )
 }
 
+// Master quick-access list — each item is tagged with the permissions module
+// that gates it (matches Sidebar.jsx's navItems), so both the admin and
+// employee dashboards show only what the signed-in user's role/permissions
+// actually grant, instead of a hardcoded set. `adminOnly` items (no backend
+// permissions module, e.g. Website Inquiries) are gated purely by role,
+// mirroring the same check used in App.jsx's route guard for that page.
+const QUICK_ACCESS_ITEMS = [
+  { label: 'Leads',             icon: Users,         grad: 'from-blue-400 to-blue-600',      path: '/leads',             module: 'leads'         },
+  { label: 'Site Visits',       icon: CalendarDays,  grad: 'from-purple-400 to-violet-600',  path: '/site-visits',       module: 'site_visits'   },
+  { label: 'Follow-Ups',        icon: PhoneCall,     grad: 'from-green-400 to-teal-500',     path: '/follow-ups',       module: 'follow_ups'    },
+  { label: 'Projects',          icon: Building2,     grad: 'from-amber-400 to-orange-500',   path: '/projects',         module: 'projects'      },
+  { label: 'Targets',           icon: Target,        grad: 'from-fuchsia-400 to-purple-600', path: '/targets',          module: 'targets'       },
+  { label: 'Team',              icon: UserCheck,     grad: 'from-pink-400 to-rose-500',      path: '/team',             module: 'team'          },
+  { label: 'Attendance',        icon: ClipboardList, grad: 'from-rose-400 to-red-500',       path: '/attendance',       module: 'attendance'    },
+  { label: 'Leaves',            icon: CalendarX,     grad: 'from-orange-400 to-amber-500',   path: '/leaves',           module: 'attendance'    },
+  { label: 'Salary',            icon: IndianRupee,   grad: 'from-emerald-400 to-green-600',  path: '/salary',           module: 'salary'        },
+  { label: 'Notifications',     icon: Bell,          grad: 'from-teal-400 to-cyan-500',      path: '/notifications',    module: 'notifications' },
+  { label: 'Website Inquiries', icon: Globe,         grad: 'from-sky-400 to-blue-500',       path: '/website-inquiries', adminOnly: true         },
+]
+
+function useQuickAccessItems() {
+  const permissions = useSelector(selectPermissions)
+  const { user } = useSelector(s => s.auth)
+  const isAdminRole = user?.role === 'super_admin' || user?.role === 'admin'
+  return QUICK_ACCESS_ITEMS.filter(item => item.adminOnly ? isAdminRole : permissions[item.module]?.view === true)
+}
+
 function AdminQuickActions({ navigate }) {
-  const actions = [
-    { label:'Leads',         icon:Users,         grad:'from-blue-400 to-blue-600',     path:'/leads'         },
-    { label:'Site Visits',   icon:CalendarDays,  grad:'from-purple-400 to-violet-600', path:'/site-visits'   },
-    { label:'Follow-Ups',    icon:Phone,         grad:'from-green-400 to-teal-500',    path:'/follow-ups'    },
-    { label:'Projects',      icon:Building2,     grad:'from-amber-400 to-orange-500',  path:'/projects'      },
-    { label:'Team',          icon:UserCheck,     grad:'from-pink-400 to-rose-500',     path:'/team'          },
-    { label:'Attendance',    icon:ClipboardList, grad:'from-rose-400 to-red-500',      path:'/attendance'    },
-    { label:'Notifications', icon:Bell,          grad:'from-teal-400 to-cyan-500',     path:'/notifications' },
-    { label:'Reports',       icon:BarChart3,     grad:'from-indigo-400 to-blue-600',   path:'/attendance'    },
-  ]
+  const actions = useQuickAccessItems()
   return (
     <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 p-4 h-full flex flex-col">
       <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Quick Access</p>
@@ -585,8 +604,6 @@ function PersonalDashboard({ user, onAttendance }) {
   const [mySiteVisits, setMySiteVisits] = useState([])
   const [loading, setLoading]  = useState(true)
 
-  const isSalesManager = user?.role === 'sales_manager'
-
   useEffect(() => {
     const load = async () => {
       try {
@@ -657,17 +674,8 @@ function PersonalDashboard({ user, onAttendance }) {
     },
   ]
 
-  // ── Quick actions (role-scoped) ─────────────────────────────────────────────
-  const quickActions = [
-    { label: 'Leads',         icon: Users,         grad: 'from-blue-400 to-blue-600',     path: '/leads'         },
-    { label: 'Follow-Ups',    icon: PhoneCall,      grad: 'from-green-400 to-teal-500',    path: '/follow-ups'    },
-    { label: 'Site Visits',   icon: CalendarDays,   grad: 'from-purple-400 to-violet-600', path: '/site-visits'   },
-    { label: 'Attendance',    icon: ClipboardList,  grad: 'from-rose-400 to-red-500',      path: '/attendance'    },
-    { label: 'Notifications', icon: Bell,           grad: 'from-teal-400 to-cyan-500',     path: '/notifications' },
-    ...(isSalesManager ? [
-      { label: 'Team',        icon: UserCheck,      grad: 'from-pink-400 to-rose-500',     path: '/team'          },
-    ] : []),
-  ]
+  // ── Quick actions — filtered to whatever modules this user's role/permissions grant ──
+  const quickActions = useQuickAccessItems()
 
   // ── Pipeline bars from personal summary ─────────────────────────────────────
   const pipelineStages = [
