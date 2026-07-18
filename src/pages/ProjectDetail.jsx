@@ -512,7 +512,6 @@ function DocRow({ doc, projectId, canDelete, onDeleted, onDownload }) {
   const dispatch = useDispatch()
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete "${doc.file_name}"?`)) return
     setDeleting(true)
     const r = await dispatch(deleteProjectDocument({ projectId, docId: doc.id }))
     if (deleteProjectDocument.fulfilled.match(r)) onDeleted()
