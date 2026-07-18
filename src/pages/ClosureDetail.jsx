@@ -315,7 +315,7 @@ export default function ClosureDetail() {
                     )}
                   </div>
                   <div className="text-[11px] text-gray-500 mt-2 truncate">
-                    {lead.phone ? <PhoneActions phone={lead.phone}><span className="hover:underline hover:text-brand">{lead.phone}</span></PhoneActions> : 'No phone available'}
+                    {lead.phone ? <PhoneActions phone={lead.phone} email={lead.email}><span className="hover:underline hover:text-brand">{lead.phone}</span></PhoneActions> : 'No phone available'}
                   </div>
                   <div className="text-[11px] text-gray-400 truncate">{lead.email || 'No email available'}</div>
                   <div className="text-[11px] text-gray-400 mt-1.5 flex items-center gap-1 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">

@@ -686,7 +686,7 @@ function PhoneCell({ lead, canSeePhone, visiblePhoneLeadId, setVisiblePhoneLeadI
   if (canSeePhone) {
     return (
       <div className="flex flex-col gap-0.5">
-        <PhoneActions phone={lead.phone}>
+        <PhoneActions phone={lead.phone} email={lead.email}>
           <span className="text-brand hover:underline font-medium text-sm">{lead.phone}</span>
         </PhoneActions>
         {lead.alternate_phone_number && (
@@ -699,7 +699,7 @@ function PhoneCell({ lead, canSeePhone, visiblePhoneLeadId, setVisiblePhoneLeadI
   if (visiblePhoneLeadId === lead.id) {
     return (
       <div className="flex flex-col gap-1">
-        <PhoneActions phone={lead.phone}>
+        <PhoneActions phone={lead.phone} email={lead.email}>
           <span className="text-brand hover:underline font-medium text-sm">{lead.phone}</span>
         </PhoneActions>
         {lead.alternate_phone_number && (

@@ -309,7 +309,7 @@ function WebsiteInquiriesContent() {
                       <div className="font-medium text-gray-900 dark:text-gray-100">{inq.name || '—'}</div>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
                         {inq.phone && (
-                          <PhoneActions phone={inq.phone}>
+                          <PhoneActions phone={inq.phone} email={inq.email}>
                             <span className="hover:text-brand transition-colors">{inq.phone}</span>
                           </PhoneActions>
                         )}
