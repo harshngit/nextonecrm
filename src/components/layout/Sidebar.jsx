@@ -23,7 +23,7 @@ const navItems = [
   { path: '/closures',      label: 'Closures',      icon: BadgeCheck,      module: 'closures'      },
   { path: '/targets',       label: 'Targets',       icon: Target,          module: 'targets'       },
   { path: '/attendance',    label: 'Attendance',    icon: Clock,           module: 'attendance'    },
-  { path: '/leaves',        label: 'Leaves',        icon: CalendarX,       module: 'attendance'    },
+  { path: '/leaves',        label: 'Leaves',        icon: CalendarX                                 }, // no module — open to every role
   { path: '/salary',        label: 'Salary',        icon: IndianRupee,     module: 'salary'        },
   { path: '/team',          label: 'Team',          icon: UserCog,         module: 'team'          },
   { path: '/users',         label: 'Users',         icon: Settings,        module: 'users'         },
@@ -118,7 +118,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
   const isAdminRole = user?.role === 'super_admin' || user?.role === 'admin'
 
   const filteredNavItems = [
-    ...navItems.filter(item => permissions[item.module]?.view === true),
+    ...navItems.filter(item => !item.module || permissions[item.module]?.view === true),
     ...(isAdminRole ? [
       { path: '/website-inquiries', label: 'Website Inquiries', icon: Globe },
       { path: '/access-control',    label: 'Access Control',    icon: ShieldCheck },

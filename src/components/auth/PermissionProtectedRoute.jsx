@@ -11,7 +11,10 @@ export default function PermissionProtectedRoute({ children, module, action = 'v
 
   if (authLoading || !permissionsLoaded) return <PageLoader />
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (permissions[module]?.[action] !== true) return <NoPermission module={module} />
+  // No module passed → this route is open to every authenticated role
+  // regardless of their permissions grants (e.g. Leaves, which every
+  // employee needs access to, not just those with the "attendance" module).
+  if (module && permissions[module]?.[action] !== true) return <NoPermission module={module} />
 
   return children
 }

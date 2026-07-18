@@ -295,7 +295,7 @@ const QUICK_ACCESS_ITEMS = [
   { label: 'Targets',           icon: Target,        grad: 'from-fuchsia-400 to-purple-600', path: '/targets',          module: 'targets'       },
   { label: 'Team',              icon: UserCheck,     grad: 'from-pink-400 to-rose-500',      path: '/team',             module: 'team'          },
   { label: 'Attendance',        icon: ClipboardList, grad: 'from-rose-400 to-red-500',       path: '/attendance',       module: 'attendance'    },
-  { label: 'Leaves',            icon: CalendarX,     grad: 'from-orange-400 to-amber-500',   path: '/leaves',           module: 'attendance'    },
+  { label: 'Leaves',            icon: CalendarX,     grad: 'from-orange-400 to-amber-500',   path: '/leaves'                                     }, // no module — open to every role
   { label: 'Salary',            icon: IndianRupee,   grad: 'from-emerald-400 to-green-600',  path: '/salary',           module: 'salary'        },
   { label: 'Notifications',     icon: Bell,          grad: 'from-teal-400 to-cyan-500',      path: '/notifications',    module: 'notifications' },
   { label: 'Website Inquiries', icon: Globe,         grad: 'from-sky-400 to-blue-500',       path: '/website-inquiries', adminOnly: true         },
@@ -305,7 +305,7 @@ function useQuickAccessItems() {
   const permissions = useSelector(selectPermissions)
   const { user } = useSelector(s => s.auth)
   const isAdminRole = user?.role === 'super_admin' || user?.role === 'admin'
-  return QUICK_ACCESS_ITEMS.filter(item => item.adminOnly ? isAdminRole : permissions[item.module]?.view === true)
+  return QUICK_ACCESS_ITEMS.filter(item => item.adminOnly ? isAdminRole : (!item.module || permissions[item.module]?.view === true))
 }
 
 function AdminQuickActions({ navigate }) {
