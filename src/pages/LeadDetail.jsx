@@ -147,9 +147,9 @@ function EoiDocumentsSection({ lead, onUploaded }) {
       fd.append('payment_proof', file)
       const uploadRes = await api.post('/upload/payment-proof', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       const { url } = uploadRes.data.data || {}
-      
-      // Update lead with payment proof url and amount
-      await api.patch(`/leads/${lead.id}`, {
+
+      // Update lead with payment proof url and amount via the dedicated shortcut endpoint
+      await api.patch(`/leads/${lead.id}/payment-proof`, {
         payment_proof_url: url,
         payment_proof_amount: amount || null
       })
@@ -174,7 +174,7 @@ function EoiDocumentsSection({ lead, onUploaded }) {
   const deletePaymentProof = async () => {
     setError(''); setUploading(true)
     try {
-      await api.patch(`/leads/${lead.id}`, {
+      await api.patch(`/leads/${lead.id}/payment-proof`, {
         payment_proof_url: null,
         payment_proof_amount: null
       })

@@ -28,7 +28,10 @@
       "Bash(awk '/^function ClockPicker/{start=NR} start && /^}$/{print NR; exit}' src/pages/Revisits.jsx)",
       "Bash(awk '/^function ClockPicker/{start=NR} start && /^}$/{print NR; exit}' src/pages/SiteVisits.jsx)",
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:4174/)",
-      "Bash(pkill -f \"vite preview\")"
+      "Bash(pkill -f \"vite preview\")",
+      "Bash(node -e \"const icons = require\\('lucide-react'\\); console.log\\('Handshake' in icons, 'Percent' in icons, 'Trash2' in icons\\)\")",
+      "Bash(node -e \"const icons = require\\('lucide-react'\\); ['CreditCard','Receipt','Link2','ExternalLink','Wallet2'].forEach\\(n => console.log\\(n, n in icons\\)\\)\")",
+      "Bash(node -e ' *)"
     ]
   }
 }

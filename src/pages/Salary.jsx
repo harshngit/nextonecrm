@@ -6,15 +6,14 @@ import {
   IndianRupee, TrendingUp, Calendar, Users, ChevronDown,
   Plus, RefreshCw, FileText, CheckCircle, AlertCircle,
   Clock, Banknote, Wallet, BarChart3, Edit2, History,
-  X, Eye, Loader2, DollarSign, LogIn, LogOut, Timer, ArrowRight,
-  MoreVertical, Download,
+  X, Eye, Loader2, DollarSign, Timer, ArrowRight,
+  MoreVertical, Download, Percent, Trash2, Handshake, CreditCard, Link2, Upload,
 } from 'lucide-react'
 import {
   fetchAllEmployeeSalaries,
   fetchSalarySlips,
   fetchMySalary,
   fetchSalaryHistory,
-  fetchMyAttendanceForSalary,
   setEmployeeSalary,
   generateSalarySlip,
   generateAllSalarySlips,
@@ -27,6 +26,7 @@ import DatePicker from '../components/ui/DatePicker'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
 import ExportModal from '../components/ui/ExportModal'
+import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -72,6 +72,25 @@ const fmtTime = (ts) => {
 const fmtDate = (d) => {
   if (!d) return '-'
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// Uploaded file URLs come back relative (e.g. "/uploads/payment-proofs/x.png"),
+// served from the API's origin rather than the frontend's.
+const fileOrigin = api.defaults.baseURL.replace(/\/api\/v1\/?$/, '')
+const resolveFileUrl = (url) => {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  return `${fileOrigin}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
+const searchLeads = async (q) => {
+  const r = await api.get('/leads', { params: { search: q, per_page: 20 } })
+  return (r.data.data || []).map(l => ({ value: l.id, label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}` }))
+}
+
+const searchProjects = async (q) => {
+  const r = await api.get('/projects', { params: { search: q, per_page: 20 } })
+  return (r.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` — ${p.city}` : ''}` }))
 }
 
 // ── sub-components ────────────────────────────────────────────────────────────
@@ -225,6 +244,34 @@ function AdminSalaryView({ user }) {
     reason: '',
   })
 
+  // Shared employee search list (used by Commission + Advance "Employee" pickers)
+  const [salaryEmployees, setSalaryEmployees] = useState([])
+
+  // Commissions
+  const [commissions, setCommissions] = useState({ data: [], pagination: {} })
+  const [commissionsLoading, setCommissionsLoading] = useState(false)
+  const [commissionsPage, setCommissionsPage] = useState(1)
+  const [commissionFilters, setCommissionFilters] = useState({ user_id: '', paid: '', from: '', to: '' })
+  const [addCommissionModal, setAddCommissionModal] = useState(false)
+  const [commissionSaving, setCommissionSaving] = useState(false)
+  const [commissionForm, setCommissionForm] = useState({
+    user_id: '', lead_id: '', project_id: '', project_name: '',
+    commission_amount: '', commission_percentage: '', notes: '',
+  })
+
+  // Advances
+  const [advances, setAdvances] = useState({ data: [], pagination: {} })
+  const [advancesLoading, setAdvancesLoading] = useState(false)
+  const [advancesPage, setAdvancesPage] = useState(1)
+  const [advanceFilters, setAdvanceFilters] = useState({ user_id: '', from: '', to: '' })
+  const [addAdvanceModal, setAddAdvanceModal] = useState(false)
+  const [advanceSaving, setAdvanceSaving] = useState(false)
+  const [advanceProofUploading, setAdvanceProofUploading] = useState(false)
+  const [advanceProofError, setAdvanceProofError] = useState('')
+  const [advanceForm, setAdvanceForm] = useState({
+    user_id: '', advance_date: '', amount: '', transaction_reference: '', payment_proof_url: '', notes: '',
+  })
+
   useEffect(() => {
     dispatch(fetchAllEmployeeSalaries({ page: employeesPage, per_page: perPage }))
     dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, page: slipsPage, per_page: perPage }))
@@ -236,6 +283,19 @@ function AdminSalaryView({ user }) {
       dispatch(fetchSalarySlips({ month: filterMonth, year: filterYear, page: 1, per_page: perPage }))
     }
   }, [tab, filterMonth, filterYear, dispatch])
+
+  useEffect(() => {
+    if (tab === 'commissions') {
+      loadSalaryEmployees()
+      fetchCommissions(1, commissionFilters)
+      setCommissionsPage(1)
+    }
+    if (tab === 'advances') {
+      loadSalaryEmployees()
+      fetchAdvances(1, advanceFilters)
+      setAdvancesPage(1)
+    }
+  }, [tab])
 
   useEffect(() => {
     if (actionSuccess) {
@@ -338,10 +398,211 @@ function AdminSalaryView({ user }) {
     }
   }
 
+  const openCommissionForEmployee = (emp) => {
+    setCommissionForm({ user_id: emp.id, lead_id: '', project_id: '', project_name: '', commission_amount: '', commission_percentage: '', notes: '' })
+    loadSalaryEmployees()
+    setAddCommissionModal(true)
+  }
+
+  const openAdvanceForEmployee = (emp) => {
+    setAdvanceForm({ user_id: emp.id, advance_date: new Date().toISOString().split('T')[0], amount: '', transaction_reference: '', payment_proof_url: '', notes: '' })
+    setAdvanceProofError('')
+    loadSalaryEmployees()
+    setAddAdvanceModal(true)
+  }
+
   const openGenerate = (emp) => {
     setGenTarget(emp)
     setGenForm({ month: thisMonth, year: thisYear, deductions: '', working_days_override: '', notes: '' })
     setGenModal(true)
+  }
+
+  // ── Commissions ──────────────────────────────────────────────────────────
+  const fetchCommissions = async (page = 1, filters = commissionFilters) => {
+    setCommissionsLoading(true)
+    try {
+      const params = { page, per_page: perPage }
+      if (filters.user_id) params.user_id = filters.user_id
+      if (filters.paid !== '') params.paid = filters.paid === 'true'
+      if (filters.from) params.from = filters.from
+      if (filters.to) params.to = filters.to
+      const res = await api.get('/salary/commissions-get', { params })
+      const payload = res.data?.data ?? res.data
+      const list = payload?.data || (Array.isArray(payload) ? payload : [])
+      setCommissions({
+        data: list,
+        pagination: payload?.pagination || res.data?.pagination || { page, per_page: perPage, total: list.length, total_pages: 1 },
+      })
+    } catch (err) {
+      console.error('Failed to fetch commissions:', err)
+      setCommissions({ data: [], pagination: {} })
+    } finally {
+      setCommissionsLoading(false)
+    }
+  }
+
+  const goToCommissionsPage = (page) => {
+    setCommissionsPage(page)
+    fetchCommissions(page, commissionFilters)
+  }
+
+  const applyCommissionFilters = (next) => {
+    setCommissionFilters(next)
+    setCommissionsPage(1)
+    fetchCommissions(1, next)
+  }
+
+  const loadSalaryEmployees = async () => {
+    if (salaryEmployees.length > 0) return
+    try {
+      const res = await api.get('/salary/employees', { params: { per_page: 500 } })
+      const list = res.data?.data?.data || res.data?.data || []
+      setSalaryEmployees(list)
+    } catch (err) {
+      console.error('Failed to fetch employees:', err)
+    }
+  }
+
+  const searchSalaryEmployees = async (q) => {
+    return salaryEmployees
+      .filter(e => e.full_name?.toLowerCase().includes(q.toLowerCase()))
+      .map(e => ({ value: e.id, label: `${e.full_name}${e.role ? ` — ${e.role.replace(/_/g, ' ')}` : ''}` }))
+  }
+
+  const openAddCommission = () => {
+    setCommissionForm({ user_id: '', lead_id: '', project_id: '', project_name: '', commission_amount: '', commission_percentage: '', notes: '' })
+    loadSalaryEmployees()
+    setAddCommissionModal(true)
+  }
+
+  const handleAddCommission = async () => {
+    if (!commissionForm.user_id || !commissionForm.commission_amount) return
+    setCommissionSaving(true)
+    try {
+      await api.post('/salary/commission', {
+        user_id: commissionForm.user_id,
+        lead_id: commissionForm.lead_id || undefined,
+        project_id: commissionForm.project_id || undefined,
+        project_name: commissionForm.project_id ? undefined : (commissionForm.project_name || undefined),
+        commission_amount: parseFloat(commissionForm.commission_amount),
+        commission_percentage: commissionForm.commission_percentage ? parseFloat(commissionForm.commission_percentage) : undefined,
+        notes: commissionForm.notes || undefined,
+      })
+      setAddCommissionModal(false)
+      goToCommissionsPage(1)
+    } catch (err) {
+      console.error('Failed to add commission:', err)
+    } finally {
+      setCommissionSaving(false)
+    }
+  }
+
+  const toggleCommissionPaid = async (c) => {
+    try {
+      await api.patch(`/salary/commission/${c.id}/paid`, { paid: !c.paid })
+      fetchCommissions(commissionsPage, commissionFilters)
+    } catch (err) {
+      console.error('Failed to update commission status:', err)
+    }
+  }
+
+  const deleteCommission = async (id) => {
+    if (!confirm('Are you sure you want to delete this commission?')) return
+    try {
+      await api.delete(`/salary/commission/${id}`)
+      fetchCommissions(commissionsPage, commissionFilters)
+    } catch (err) {
+      console.error('Failed to delete commission:', err)
+    }
+  }
+
+  // ── Advances ─────────────────────────────────────────────────────────────
+  const fetchAdvances = async (page = 1, filters = advanceFilters) => {
+    setAdvancesLoading(true)
+    try {
+      const params = { page, per_page: perPage }
+      if (filters.user_id) params.user_id = filters.user_id
+      if (filters.from) params.from = filters.from
+      if (filters.to) params.to = filters.to
+      const res = await api.get('/salary/advances', { params })
+      const payload = res.data?.data ?? res.data
+      const list = payload?.data || (Array.isArray(payload) ? payload : [])
+      setAdvances({
+        data: list,
+        pagination: payload?.pagination || res.data?.pagination || { page, per_page: perPage, total: list.length, total_pages: 1 },
+      })
+    } catch (err) {
+      console.error('Failed to fetch advances:', err)
+      setAdvances({ data: [], pagination: {} })
+    } finally {
+      setAdvancesLoading(false)
+    }
+  }
+
+  const goToAdvancesPage = (page) => {
+    setAdvancesPage(page)
+    fetchAdvances(page, advanceFilters)
+  }
+
+  const applyAdvanceFilters = (next) => {
+    setAdvanceFilters(next)
+    setAdvancesPage(1)
+    fetchAdvances(1, next)
+  }
+
+  const openAddAdvance = () => {
+    setAdvanceForm({ user_id: '', advance_date: new Date().toISOString().split('T')[0], amount: '', transaction_reference: '', payment_proof_url: '', notes: '' })
+    setAdvanceProofError('')
+    loadSalaryEmployees()
+    setAddAdvanceModal(true)
+  }
+
+  const handleUploadAdvanceProof = async (file) => {
+    if (!file) return
+    setAdvanceProofError('')
+    setAdvanceProofUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('payment_proof', file)
+      const res = await api.post('/upload/payment-proof', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const url = res.data.data?.url
+      setAdvanceForm(f => ({ ...f, payment_proof_url: url || '' }))
+    } catch (err) {
+      setAdvanceProofError(err.response?.data?.message || 'Upload failed')
+    } finally {
+      setAdvanceProofUploading(false)
+    }
+  }
+
+  const handleAddAdvance = async () => {
+    if (!advanceForm.user_id || !advanceForm.advance_date || !advanceForm.amount || !advanceForm.payment_proof_url) return
+    setAdvanceSaving(true)
+    try {
+      await api.post('/salary/advance', {
+        user_id: advanceForm.user_id,
+        advance_date: advanceForm.advance_date,
+        amount: parseFloat(advanceForm.amount),
+        transaction_reference: advanceForm.transaction_reference || undefined,
+        payment_proof_url: advanceForm.payment_proof_url,
+        notes: advanceForm.notes || undefined,
+      })
+      setAddAdvanceModal(false)
+      goToAdvancesPage(1)
+    } catch (err) {
+      console.error('Failed to add advance:', err)
+    } finally {
+      setAdvanceSaving(false)
+    }
+  }
+
+  const deleteAdvance = async (id) => {
+    if (!confirm('Are you sure you want to delete this advance?')) return
+    try {
+      await api.delete(`/salary/advance/${id}`)
+      fetchAdvances(advancesPage, advanceFilters)
+    } catch (err) {
+      console.error('Failed to delete advance:', err)
+    }
   }
 
   const handleSetSalary = () => {
@@ -454,7 +715,7 @@ function AdminSalaryView({ user }) {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-[#141414] p-1 rounded-xl w-fit">
-        {[{ v: 'employees', l: 'Employees & Salaries' }, { v: 'slips', l: 'Salary Slips' }].map(t => (
+        {[{ v: 'employees', l: 'Employees & Salaries' }, { v: 'slips', l: 'Salary Slips' }, { v: 'commissions', l: 'Commissions' }, { v: 'advances', l: 'Advances' }].map(t => (
           <button
             key={t.v}
             onClick={() => setTab(t.v)}
@@ -573,6 +834,24 @@ function AdminSalaryView({ user }) {
                                   >
                                     <Banknote size={14} />
                                     Add Incentive
+                                  </button>
+                                )}
+                                {perms.create && (
+                                  <button
+                                    onClick={() => { openCommissionForEmployee(emp); setOpenMenuEmpId(null) }}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                  >
+                                    <Handshake size={14} />
+                                    Add Commission
+                                  </button>
+                                )}
+                                {perms.create && (
+                                  <button
+                                    onClick={() => { openAdvanceForEmployee(emp); setOpenMenuEmpId(null) }}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                  >
+                                    <CreditCard size={14} />
+                                    Add Advance
                                   </button>
                                 )}
                               </div>
@@ -705,6 +984,274 @@ function AdminSalaryView({ user }) {
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" disabled={slipsPage === 1} onClick={() => setSlipsPage(p => p - 1)}>Prev</Button>
                       <Button size="sm" variant="outline" disabled={slipsPage >= (slips.pagination?.total_pages || 1)} onClick={() => setSlipsPage(p => p + 1)}>Next</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: Commissions ─────────────────────────────────────────────────── */}
+      {tab === 'commissions' && (
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="w-56">
+              <AsyncSearchSelect
+                placeholder="Filter by employee..."
+                value={commissionFilters.user_id}
+                onChange={(val) => applyCommissionFilters({ ...commissionFilters, user_id: val })}
+                onSearch={searchSalaryEmployees}
+                initialOptions={salaryEmployees.slice(0, 20).map(e => ({ value: e.id, label: e.full_name }))}
+              />
+            </div>
+            <CustomDropdown
+              value={commissionFilters.paid}
+              onChange={(val) => applyCommissionFilters({ ...commissionFilters, paid: val })}
+              options={[{ value: '', label: 'All Status' }, { value: 'true', label: 'Paid' }, { value: 'false', label: 'Unpaid' }]}
+              placeholder="Status"
+              className="w-32"
+            />
+            <div className="w-40">
+              <DatePicker placeholder="From date" value={commissionFilters.from} onChange={(v) => applyCommissionFilters({ ...commissionFilters, from: v })} />
+            </div>
+            <div className="w-40">
+              <DatePicker placeholder="To date" value={commissionFilters.to} onChange={(v) => applyCommissionFilters({ ...commissionFilters, to: v })} />
+            </div>
+            {(commissionFilters.user_id || commissionFilters.paid || commissionFilters.from || commissionFilters.to) && (
+              <button
+                onClick={() => applyCommissionFilters({ user_id: '', paid: '', from: '', to: '' })}
+                className="text-xs text-gray-500 hover:text-red-500 transition-colors"
+              >
+                Clear filters
+              </button>
+            )}
+            {perms.create && (
+              <button
+                onClick={openAddCommission}
+                className="ml-auto flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all shadow-sm"
+              >
+                <Plus size={13} />
+                Add Commission
+              </button>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+            {commissionsLoading ? (
+              <div className="flex items-center justify-center h-40 text-gray-400">
+                <Loader2 size={24} className="animate-spin" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#141414]">
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Employee</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Lead / Project</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Amount</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">%</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {commissions.data?.map((c, i) => {
+                      const empName = c.user_name || c.employee_name || c.user?.full_name || '—'
+                      const leadName = c.lead_name || c.lead?.name
+                      const projectName = c.project_name || c.project?.name
+                      return (
+                        <tr key={c.id} className={`border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-[#141414] transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/30 dark:bg-white/[0.01]'}`}>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <Avatar name={empName} size="sm" />
+                              <span className="font-medium text-gray-900 dark:text-white text-sm">{empName}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-gray-700 dark:text-gray-300">{projectName || '—'}</p>
+                            {leadName && <p className="text-xs text-gray-400">{leadName}</p>}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">{fmtCurrency(c.commission_amount)}</td>
+                          <td className="px-4 py-3 text-right text-gray-500">{c.commission_percentage != null ? `${c.commission_percentage}%` : '—'}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${c.paid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}`}>
+                              {c.paid ? 'Paid' : 'Unpaid'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-500">{fmtDate(c.created_at)}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              {perms.edit && (
+                                <button
+                                  onClick={() => toggleCommissionPaid(c)}
+                                  title={c.paid ? 'Mark as unpaid' : 'Mark as paid'}
+                                  className={`p-1.5 rounded-lg transition-colors ${c.paid ? 'hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600' : 'hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-emerald-600'}`}
+                                >
+                                  <CheckCircle size={14} />
+                                </button>
+                              )}
+                              {perms.delete && (
+                                <button
+                                  onClick={() => deleteCommission(c.id)}
+                                  title="Delete commission"
+                                  className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                {!commissions.data?.length && (
+                  <div className="text-center py-12 text-gray-400">
+                    <Handshake size={32} className="mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">No commissions found</p>
+                  </div>
+                )}
+                {(commissions.data?.length > 0 || commissions.pagination?.total > 0) && (
+                  <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-[#141414]">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      Showing <span className="font-semibold text-gray-900 dark:text-white">{commissions.data?.length || 0}</span>
+                      {commissions.pagination?.total > 0 && (
+                        <> of <span className="font-semibold text-gray-900 dark:text-white">{commissions.pagination.total}</span></>
+                      )}{' '}
+                      commissions
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" disabled={commissionsPage === 1} onClick={() => goToCommissionsPage(commissionsPage - 1)}>Prev</Button>
+                      <Button size="sm" variant="outline" disabled={commissionsPage >= (commissions.pagination?.total_pages || 1)} onClick={() => goToCommissionsPage(commissionsPage + 1)}>Next</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: Advances ─────────────────────────────────────────────────────── */}
+      {tab === 'advances' && (
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="w-56">
+              <AsyncSearchSelect
+                placeholder="Filter by employee..."
+                value={advanceFilters.user_id}
+                onChange={(val) => applyAdvanceFilters({ ...advanceFilters, user_id: val })}
+                onSearch={searchSalaryEmployees}
+                initialOptions={salaryEmployees.slice(0, 20).map(e => ({ value: e.id, label: e.full_name }))}
+              />
+            </div>
+            <div className="w-40">
+              <DatePicker placeholder="From date" value={advanceFilters.from} onChange={(v) => applyAdvanceFilters({ ...advanceFilters, from: v })} />
+            </div>
+            <div className="w-40">
+              <DatePicker placeholder="To date" value={advanceFilters.to} onChange={(v) => applyAdvanceFilters({ ...advanceFilters, to: v })} />
+            </div>
+            {(advanceFilters.user_id || advanceFilters.from || advanceFilters.to) && (
+              <button
+                onClick={() => applyAdvanceFilters({ user_id: '', from: '', to: '' })}
+                className="text-xs text-gray-500 hover:text-red-500 transition-colors"
+              >
+                Clear filters
+              </button>
+            )}
+            {perms.create && (
+              <button
+                onClick={openAddAdvance}
+                className="ml-auto flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all shadow-sm"
+              >
+                <Plus size={13} />
+                Add Advance
+              </button>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+            {advancesLoading ? (
+              <div className="flex items-center justify-center h-40 text-gray-400">
+                <Loader2 size={24} className="animate-spin" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#141414]">
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Employee</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Amount</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Reference</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {advances.data?.map((a, i) => {
+                      const empName = a.user_name || a.employee_name || a.user?.full_name || '—'
+                      return (
+                        <tr key={a.id} className={`border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-[#141414] transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/30 dark:bg-white/[0.01]'}`}>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <Avatar name={empName} size="sm" />
+                              <span className="font-medium text-gray-900 dark:text-white text-sm">{empName}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-500">{fmtDate(a.advance_date)}</td>
+                          <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">{fmtCurrency(a.amount)}</td>
+                          <td className="px-4 py-3 text-gray-700 dark:text-gray-300 text-xs">
+                            {a.transaction_reference || '—'}
+                            {a.payment_proof_url && (
+                              <a href={resolveFileUrl(a.payment_proof_url)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center ml-1.5 text-[#0082f3] hover:underline">
+                                <Link2 size={11} />
+                              </a>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate">{a.notes || '—'}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              {perms.delete && (
+                                <button
+                                  onClick={() => deleteAdvance(a.id)}
+                                  title="Delete advance"
+                                  className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                {!advances.data?.length && (
+                  <div className="text-center py-12 text-gray-400">
+                    <CreditCard size={32} className="mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">No advances found</p>
+                  </div>
+                )}
+                {(advances.data?.length > 0 || advances.pagination?.total > 0) && (
+                  <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-[#141414]">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      Showing <span className="font-semibold text-gray-900 dark:text-white">{advances.data?.length || 0}</span>
+                      {advances.pagination?.total > 0 && (
+                        <> of <span className="font-semibold text-gray-900 dark:text-white">{advances.pagination.total}</span></>
+                      )}{' '}
+                      advances
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" disabled={advancesPage === 1} onClick={() => goToAdvancesPage(advancesPage - 1)}>Prev</Button>
+                      <Button size="sm" variant="outline" disabled={advancesPage >= (advances.pagination?.total_pages || 1)} onClick={() => goToAdvancesPage(advancesPage + 1)}>Next</Button>
                     </div>
                   </div>
                 )}
@@ -1194,6 +1741,198 @@ function AdminSalaryView({ user }) {
         </div>
       </Modal>
 
+      {/* ── MODAL: Add Commission ─────────────────────────────────────────── */}
+      <Modal isOpen={addCommissionModal} onClose={() => setAddCommissionModal(false)} title="Add Commission" size="sm">
+        <div className="space-y-4">
+          <AsyncSearchSelect
+            label="Employee *" required
+            value={commissionForm.user_id}
+            onChange={(val) => setCommissionForm(f => ({ ...f, user_id: val }))}
+            onSearch={searchSalaryEmployees}
+            initialOptions={salaryEmployees.slice(0, 20).map(e => ({ value: e.id, label: e.full_name }))}
+            placeholder="Type to search employees..."
+          />
+
+          <AsyncSearchSelect
+            label="Lead"
+            value={commissionForm.lead_id}
+            onChange={(val) => setCommissionForm(f => ({ ...f, lead_id: val }))}
+            onSearch={searchLeads}
+            placeholder="Type to search leads (optional)..."
+          />
+
+          <AsyncSearchSelect
+            label="Project"
+            value={commissionForm.project_id}
+            onChange={(val) => setCommissionForm(f => ({ ...f, project_id: val, project_name: '' }))}
+            onTextChange={(text) => setCommissionForm(f => ({ ...f, project_name: text, project_id: '' }))}
+            onSearch={searchProjects}
+            placeholder="Type to search projects (optional)..."
+            fallbackToInput
+            defaultText={commissionForm.project_id ? '' : commissionForm.project_name}
+          />
+
+          <div>
+            <label className={labelCls}>Commission Amount (₹) *</label>
+            <div className="relative">
+              <IndianRupee size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="number" min="0" step="100"
+                value={commissionForm.commission_amount}
+                onChange={(e) => setCommissionForm(f => ({ ...f, commission_amount: e.target.value }))}
+                placeholder="25000"
+                className={inputCls + ' pl-9'}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Commission Percentage <span className="text-gray-400 font-normal">(optional)</span></label>
+            <div className="relative">
+              <Percent size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="number" min="0" max="100" step="0.1"
+                value={commissionForm.commission_percentage}
+                onChange={(e) => setCommissionForm(f => ({ ...f, commission_percentage: e.target.value }))}
+                placeholder="2.5"
+                className={inputCls + ' pl-9'}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Notes <span className="text-gray-400 font-normal">(optional)</span></label>
+            <textarea
+              value={commissionForm.notes}
+              onChange={(e) => setCommissionForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="e.g. Referral commission for closed deal"
+              rows={3}
+              className={inputCls + ' resize-none'}
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={() => setAddCommissionModal(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Cancel</button>
+          <button
+            onClick={handleAddCommission}
+            disabled={commissionSaving || !commissionForm.user_id || !commissionForm.commission_amount}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all disabled:opacity-50"
+          >
+            {commissionSaving ? <Loader2 size={14} className="animate-spin" /> : <Handshake size={14} />}
+            Add Commission
+          </button>
+        </div>
+      </Modal>
+
+      {/* ── MODAL: Add Advance ────────────────────────────────────────────── */}
+      <Modal isOpen={addAdvanceModal} onClose={() => setAddAdvanceModal(false)} title="Add Advance" size="sm">
+        <div className="space-y-4">
+          <AsyncSearchSelect
+            label="Employee *" required
+            value={advanceForm.user_id}
+            onChange={(val) => setAdvanceForm(f => ({ ...f, user_id: val }))}
+            onSearch={searchSalaryEmployees}
+            initialOptions={salaryEmployees.slice(0, 20).map(e => ({ value: e.id, label: e.full_name }))}
+            placeholder="Type to search employees..."
+          />
+
+          <DatePicker
+            label="Advance Date" required
+            value={advanceForm.advance_date}
+            onChange={(v) => setAdvanceForm(f => ({ ...f, advance_date: v }))}
+          />
+
+          <div>
+            <label className={labelCls}>Amount (₹) *</label>
+            <div className="relative">
+              <IndianRupee size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="number" min="0" step="100"
+                value={advanceForm.amount}
+                onChange={(e) => setAdvanceForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="10000"
+                className={inputCls + ' pl-9'}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Transaction Reference <span className="text-gray-400 font-normal">(optional)</span></label>
+            <div className="relative">
+              <CreditCard size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={advanceForm.transaction_reference}
+                onChange={(e) => setAdvanceForm(f => ({ ...f, transaction_reference: e.target.value }))}
+                placeholder="TXN123456789"
+                className={inputCls + ' pl-9'}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Payment Proof *</label>
+            {advanceForm.payment_proof_url ? (
+              <div className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-[#141414] rounded-xl border border-gray-200 dark:border-gray-700">
+                <a
+                  href={resolveFileUrl(advanceForm.payment_proof_url)}
+                  target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 flex-1 min-w-0 text-xs text-gray-700 dark:text-gray-300"
+                >
+                  <Link2 size={14} className="text-[#0082f3] flex-shrink-0" />
+                  <span className="truncate">Payment proof uploaded</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setAdvanceForm(f => ({ ...f, payment_proof_url: '' }))}
+                  className="p-1 rounded-lg text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                  title="Remove"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <Upload size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="file"
+                  accept="application/pdf,image/*"
+                  disabled={advanceProofUploading}
+                  onChange={(e) => handleUploadAdvanceProof(e.target.files?.[0])}
+                  className={inputCls + ' pl-9 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:bg-blue-50 file:text-[#0082f3] file:text-xs disabled:opacity-50'}
+                />
+                {advanceProofUploading && <Loader2 size={14} className="animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />}
+              </div>
+            )}
+            {advanceProofError && <p className="text-xs text-red-500 mt-1">{advanceProofError}</p>}
+          </div>
+
+          <div>
+            <label className={labelCls}>Notes <span className="text-gray-400 font-normal">(optional)</span></label>
+            <textarea
+              value={advanceForm.notes}
+              onChange={(e) => setAdvanceForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="e.g. Emergency advance"
+              rows={3}
+              className={inputCls + ' resize-none'}
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={() => setAddAdvanceModal(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Cancel</button>
+          <button
+            onClick={handleAddAdvance}
+            disabled={advanceSaving || advanceProofUploading || !advanceForm.user_id || !advanceForm.advance_date || !advanceForm.amount || !advanceForm.payment_proof_url}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all disabled:opacity-50"
+          >
+            {advanceSaving ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
+            Add Advance
+          </button>
+        </div>
+      </Modal>
+
       {/* Export Modal */}
       <ExportModal
         isOpen={showExportModal}
@@ -1212,16 +1951,14 @@ function AdminSalaryView({ user }) {
 
 function EmployeeSalaryView({ user }) {
   const dispatch = useDispatch()
-  const { mySalary, myAttendance, loading, error } = useSelector(s => s.salary)
-  const { user: currentUser } = useSelector(s => s.auth)
-  const isSuperAdmin = currentUser?.role === 'super_admin'
+  const { mySalary, loading, error } = useSelector(s => s.salary)
 
-  const [tab,         setTab]         = useState('slips')   // 'slips' | 'daywise' | 'history' | 'incentives'
+  const [tab,         setTab]         = useState('slips')   // 'slips' | 'history' | 'incentives' | 'commissions'
   const [filterMonth, setFilterMonth] = useState('')
   const [filterYear,  setFilterYear]  = useState(thisYear)
   const [expanded,    setExpanded]    = useState(null)
 
-  // Selected month/year for day-wise tab
+  // Selected month/year for history/incentives tabs
   const [dwMonth, setDwMonth] = useState(thisMonth)
   const [dwYear,  setDwYear]  = useState(thisYear)
 
@@ -1231,36 +1968,25 @@ function EmployeeSalaryView({ user }) {
   const [incentives, setIncentives] = useState([])
   const [incentivesLoading, setIncentivesLoading] = useState(false)
 
+  // My commissions
+  const [myCommissions, setMyCommissions] = useState([])
+  const [myCommissionsLoading, setMyCommissionsLoading] = useState(false)
+  const [myCommissionFilters, setMyCommissionFilters] = useState({ paid: '', from: '', to: '' })
+  const [myCommissionsPagination, setMyCommissionsPagination] = useState({ page: 1, per_page: 10, total: 0, total_pages: 1 })
+
+  // My advances
+  const [myAdvances, setMyAdvances] = useState([])
+  const [myAdvancesLoading, setMyAdvancesLoading] = useState(false)
+  const [myAdvanceFilters, setMyAdvanceFilters] = useState({ from: '', to: '' })
+  const [myAdvancesPagination, setMyAdvancesPagination] = useState({ page: 1, per_page: 10, total: 0, total_pages: 1 })
+
   useEffect(() => {
     dispatch(fetchMySalary({ year: filterYear }))
   }, [dispatch, filterYear])
 
-  // Fetch attendance when day-wise tab is active
-  useEffect(() => {
-    if (tab === 'daywise') {
-      const from = `${dwYear}-${String(dwMonth).padStart(2, '0')}-01`
-      const to   = new Date(dwYear, dwMonth, 0).toISOString().split('T')[0]
-      dispatch(fetchMyAttendanceForSalary({ from, to, per_page: 31 }))
-    }
-  }, [dispatch, tab, dwMonth, dwYear])
-
   const slips       = mySalary?.salary_slips || []
   const totalEarned = slips.reduce((s, slip) => s + (slip.final_salary || 0), 0)
   const filtered    = filterMonth ? slips.filter(s => s.month === parseInt(filterMonth)) : slips
-
-  // Day-wise data
-  const attData   = myAttendance?.data     || []
-  const attSalary = myAttendance?.salary   // { per_day_salary, monthly_salary, earned_salary, present_days }
-  const attSum    = myAttendance?.summary
-
-  const perDay = attSalary?.per_day_salary || null
-
-  const dayEarned = (status) => {
-    if (!perDay) return null
-    if (['present', 'late'].includes(status)) return perDay
-    if (status === 'half_day') return perDay * 0.5
-    return 0
-  }
 
   const fetchMySalaryHistory = async () => {
     setHistoryLoading(true)
@@ -1298,10 +2024,75 @@ function EmployeeSalaryView({ user }) {
     }
   }
 
+  // ── Fetch my commissions ─────────────────────────────────────────────────
+  const fetchMyCommissions = async (page = 1, filters = myCommissionFilters) => {
+    setMyCommissionsLoading(true)
+    try {
+      const params = { page, per_page: myCommissionsPagination.per_page }
+      if (filters.paid !== '') params.paid = filters.paid === 'true'
+      if (filters.from) params.from = filters.from
+      if (filters.to) params.to = filters.to
+      const res = await api.get('/salary/my-commissions', { params })
+      const payload = res.data?.data ?? res.data
+      const list = payload?.data || (Array.isArray(payload) ? payload : [])
+      setMyCommissions(list)
+      const pag = payload?.pagination || res.data?.pagination || {}
+      setMyCommissionsPagination(p => ({
+        page: pag.page || page,
+        per_page: pag.per_page || p.per_page,
+        total: pag.total ?? list.length,
+        total_pages: pag.total_pages || 1,
+      }))
+    } catch (err) {
+      console.error('Failed to fetch my commissions:', err)
+      setMyCommissions([])
+    } finally {
+      setMyCommissionsLoading(false)
+    }
+  }
+
+  const applyMyCommissionFilters = (next) => {
+    setMyCommissionFilters(next)
+    fetchMyCommissions(1, next)
+  }
+
+  // ── Fetch my advances ────────────────────────────────────────────────────
+  const fetchMyAdvances = async (page = 1, filters = myAdvanceFilters) => {
+    setMyAdvancesLoading(true)
+    try {
+      const params = { page, per_page: myAdvancesPagination.per_page }
+      if (filters.from) params.from = filters.from
+      if (filters.to) params.to = filters.to
+      const res = await api.get('/salary/my-advances', { params })
+      const payload = res.data?.data ?? res.data
+      const list = payload?.data || (Array.isArray(payload) ? payload : [])
+      setMyAdvances(list)
+      const pag = payload?.pagination || res.data?.pagination || {}
+      setMyAdvancesPagination(p => ({
+        page: pag.page || page,
+        per_page: pag.per_page || p.per_page,
+        total: pag.total ?? list.length,
+        total_pages: pag.total_pages || 1,
+      }))
+    } catch (err) {
+      console.error('Failed to fetch my advances:', err)
+      setMyAdvances([])
+    } finally {
+      setMyAdvancesLoading(false)
+    }
+  }
+
+  const applyMyAdvanceFilters = (next) => {
+    setMyAdvanceFilters(next)
+    fetchMyAdvances(1, next)
+  }
+
   // Fetch history or incentives when tab changes
   useEffect(() => {
     if (tab === 'history') fetchMySalaryHistory()
     if (tab === 'incentives') fetchMyIncentives()
+    if (tab === 'commissions') fetchMyCommissions(1, myCommissionFilters)
+    if (tab === 'advances') fetchMyAdvances(1, myAdvanceFilters)
   }, [tab])
 
   return (
@@ -1327,11 +2118,6 @@ function EmployeeSalaryView({ user }) {
               <p className="text-3xl font-bold mt-1">
                 {loading.mySalary ? '—' : mySalary?.current_monthly_salary ? fmtCurrency(mySalary.current_monthly_salary.amount) : 'Not Set'}
               </p>
-              {mySalary?.current_monthly_salary?.per_day_salary && (
-                <p className="text-blue-200 text-xs mt-1">
-                  Per day: ₹{parseFloat(mySalary.current_monthly_salary.per_day_salary).toFixed(2)}
-                </p>
-              )}
               {mySalary?.current_monthly_salary?.effective_from && (
                 <p className="text-blue-200 text-xs mt-0.5">
                   Effective from {new Date(mySalary.current_monthly_salary.effective_from).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}
@@ -1357,10 +2143,11 @@ function EmployeeSalaryView({ user }) {
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-[#141414] p-1 rounded-xl w-fit">
         {[
-          { v: 'slips',      l: 'Salary Slips' },
-          { v: 'daywise',    l: 'Day-wise Earnings' },
-          { v: 'history',    l: 'Salary History' },
-          { v: 'incentives', l: 'Incentives' },
+          { v: 'slips',       l: 'Salary Slips' },
+          { v: 'history',     l: 'Salary History' },
+          { v: 'incentives',  l: 'Incentives' },
+          { v: 'commissions', l: 'My Commissions' },
+          { v: 'advances',    l: 'My Advances' },
         ].map(t => (
           <button key={t.v} onClick={() => setTab(t.v)}
             className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${tab === t.v ? 'bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}>
@@ -1435,10 +2222,9 @@ function EmployeeSalaryView({ user }) {
 
                     {expanded === slip.id && (
                       <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-800">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
                           {[
                             { label: 'Monthly Salary', value: fmtCurrency(slip.monthly_salary), sub: 'Base' },
-                            { label: 'Per Day',         value: fmtCurrency(slip.per_day_salary),  sub: `÷ ${slip.working_days} days` },
                             { label: 'Days Present',    value: `${slip.present_days}`,            sub: `Absent: ${slip.absent_days}` },
                             { label: 'Earned Salary',   value: fmtCurrency(slip.earned_salary),  sub: 'Before deductions' },
                           ].map(item => (
@@ -1474,154 +2260,6 @@ function EmployeeSalaryView({ user }) {
             )}
           </div>
         </>
-      )}
-
-      {/* ── TAB: Day-wise Earnings ────────────────────────────────────────────── */}
-      {tab === 'daywise' && (
-        <div className="space-y-4">
-          {/* Month/year filter */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <CustomDropdown
-              value={dwMonth}
-              onChange={(val) => setDwMonth(parseInt(val))}
-              options={MONTHS.map(m => ({ value: m.v, label: m.l }))}
-              placeholder="Select Month"
-              className="w-36"
-            />
-            <CustomDropdown
-              value={dwYear}
-              onChange={(val) => setDwYear(parseInt(val))}
-              options={YEARS.map(y => ({ value: y, label: y }))}
-              placeholder="Select Year"
-              className="w-28"
-            />
-            <button
-              onClick={() => {
-                const from = `${dwYear}-${String(dwMonth).padStart(2, '0')}-01`
-                const to   = new Date(dwYear, dwMonth, 0).toISOString().split('T')[0]
-                dispatch(fetchMyAttendanceForSalary({ from, to, per_page: 31 }))
-              }}
-              className="p-2 rounded-xl border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-all"
-            >
-              <RefreshCw size={14} className={loading.myAttendance ? 'animate-spin' : ''} />
-            </button>
-          </div>
-
-          <div className="max-h-96 overflow-y-auto">
-            {/* Summary strip */}
-            {attSalary?.monthly_salary && (
-              <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden mb-4">
-                <div className="bg-gradient-to-r from-[#0082f3] to-blue-600 px-5 py-4">
-                  <p className="text-blue-100 text-xs font-medium uppercase tracking-wider mb-1">
-                    {MONTHS.find(m => m.v === dwMonth)?.l} {dwYear} — Salary Summary
-                  </p>
-                  <p className="text-white text-2xl font-bold">{fmtCurrency(attSalary.earned_salary)}</p>
-                  <p className="text-blue-200 text-xs mt-0.5">Earned so far · {attSalary.present_days} days present</p>
-                </div>
-                <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-800">
-                  {[
-                    { l: 'Monthly Base',  v: fmtCurrency(attSalary.monthly_salary),  c: 'text-gray-800 dark:text-gray-200' },
-                    { l: 'Per Day',       v: fmtCurrency(attSalary.per_day_salary),   c: 'text-emerald-600 dark:text-emerald-400' },
-                    { l: 'Days Present',  v: `${attSalary.present_days}`,             c: 'text-[#0082f3]' },
-                  ].map(x => (
-                    <div key={x.l} className="px-4 py-3 text-center">
-                      <p className={`text-base font-bold ${x.c}`}>{x.v}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">{x.l}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Day-wise list */}
-            {loading.myAttendance ? (
-              <div className="flex items-center justify-center h-40 text-gray-400">
-                <Loader2 size={24} className="animate-spin" />
-              </div>
-            ) : attData.length === 0 ? (
-              <div className="text-center py-12 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
-                <Calendar size={32} className="mx-auto mb-2 opacity-40 text-gray-400" />
-                <p className="text-sm text-gray-500">No attendance records for this month</p>
-              </div>
-            ) : (
-              <div className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-                {/* Table header */}
-                <div className={`grid gap-3 px-5 py-3 bg-gray-50 dark:bg-[#141414] border-b border-gray-100 dark:border-gray-800 text-[10px] font-bold text-gray-400 uppercase tracking-wider ${isSuperAdmin ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'}`}>
-                  <span>Date</span>
-                  <span className="text-center">Status</span>
-                  {isSuperAdmin && <span className="text-center">Hours</span>}
-                  <span className="text-right">Earned</span>
-                </div>
-
-                <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
-                  {attData.map(rec => {
-                    const d      = rec.date?.split('T')[0] || rec.date
-                    const earned = dayEarned(rec.status)
-                    const cfg    = STATUS_CONFIG[rec.status] || STATUS_CONFIG.absent
-                    return (
-                      <div key={rec.id} className={`grid gap-3 items-center px-5 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors ${isSuperAdmin ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'}`}>
-                        {/* Date + times */}
-                        <div>
-                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{fmtDate(d)}</p>
-                          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400">
-                            {rec.check_in_time  && <span className="flex items-center gap-0.5"><LogIn  size={9} className="text-emerald-500" />{fmtTime(rec.check_in_time)}</span>}
-                            {rec.check_out_time && <span className="flex items-center gap-0.5"><LogOut size={9} className="text-rose-500"    />{fmtTime(rec.check_out_time)}</span>}
-                          </div>
-                        </div>
-
-                        {/* Status badge */}
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${cfg.badge}`}>
-                          <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${cfg.dot}`} />
-                          {cfg.label}
-                        </span>
-
-                        {/* Working hours */}
-                        {isSuperAdmin && (
-                          <span className="text-xs text-gray-400 text-center">
-                            {rec.working_hours ? `${rec.working_hours}h` : '—'}
-                          </span>
-                        )}
-
-                        {/* Earned */}
-                        <div className="text-right min-w-[80px]">
-                          {earned !== null ? (
-                            <>
-                              <p className={`text-sm font-bold ${earned > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-400'}`}>
-                                {earned > 0 ? `+${fmtCurrency(earned)}` : '₹0'}
-                              </p>
-                              <p className="text-[10px] text-gray-400">
-                                {rec.status === 'half_day' ? '50%' : earned > 0 ? 'full' : 'no pay'}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="text-xs text-gray-300 dark:text-gray-700">—</p>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Running total footer */}
-                {perDay && attData.length > 0 && (
-                  <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#141414] flex items-center justify-between">
-                    <span className="text-xs text-gray-500">
-                      {attData.filter(r => ['present','late'].includes(r.status)).length} full + {attData.filter(r => r.status === 'half_day').length} half days
-                    </span>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-400">Total Earned This Period</p>
-                      <p className="text-base font-bold text-[#0082f3]">
-                        {fmtCurrency(
-                          attData.reduce((sum, r) => sum + (dayEarned(r.status) || 0), 0)
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
       )}
 
       {/* ── TAB: Salary History ──────────────────────────────────────────────────── */}
@@ -1671,14 +2309,9 @@ function EmployeeSalaryView({ user }) {
                           <p className="text-xl font-bold text-gray-900 dark:text-white">
                             {fmtCurrency(rec.monthly_salary)}
                           </p>
-                          {rec.per_day_salary && (
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              Per day: {fmtCurrency(rec.per_day_salary)}
-                            </p>
-                          )}
                         </div>
                       </div>
-                      
+
                       <div className="flex flex-col items-end gap-1">
                         {rec.effective_from && (
                           <p className="text-xs text-gray-600 dark:text-gray-400">
@@ -1752,6 +2385,121 @@ function EmployeeSalaryView({ user }) {
                           {new Date(inc.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                       )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: My Commissions ────────────────────────────────────────────────── */}
+      {tab === 'commissions' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">My Commissions</h2>
+            <CustomDropdown
+              value={myCommissionFilters.paid}
+              onChange={(val) => applyMyCommissionFilters({ ...myCommissionFilters, paid: val })}
+              options={[{ value: '', label: 'All Status' }, { value: 'true', label: 'Paid' }, { value: 'false', label: 'Unpaid' }]}
+              placeholder="Status"
+              className="w-32"
+            />
+            <div className="w-36">
+              <DatePicker placeholder="From date" value={myCommissionFilters.from} onChange={(v) => applyMyCommissionFilters({ ...myCommissionFilters, from: v })} />
+            </div>
+            <div className="w-36">
+              <DatePicker placeholder="To date" value={myCommissionFilters.to} onChange={(v) => applyMyCommissionFilters({ ...myCommissionFilters, to: v })} />
+            </div>
+            <button onClick={() => fetchMyCommissions(myCommissionsPagination.page, myCommissionFilters)} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
+              <RefreshCw size={12} className={myCommissionsLoading ? 'animate-spin' : ''} /> Refresh
+            </button>
+          </div>
+
+          <div className="max-h-96 overflow-y-auto">
+            {myCommissionsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 size={24} className="animate-spin text-[#0082f3]" />
+              </div>
+            ) : myCommissions.length === 0 ? (
+              <div className="text-center py-12 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
+                <Handshake size={32} className="mx-auto mb-3 opacity-40 text-gray-400" />
+                <p className="text-sm text-gray-500">No commissions found</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {myCommissions.map((c, i) => (
+                  <div key={c.id || i} className="p-4 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-bold text-gray-900 dark:text-white">{fmtCurrency(c.commission_amount)}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {(c.project_name || c.project?.name) || '—'}
+                          {c.commission_percentage != null && ` · ${c.commission_percentage}%`}
+                        </p>
+                        {(c.lead_name || c.lead?.name) && <p className="text-xs text-gray-400">{c.lead_name || c.lead?.name}</p>}
+                        {c.notes && <p className="text-xs text-gray-400 mt-1 italic">{c.notes}</p>}
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${c.paid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}`}>
+                          {c.paid ? 'Paid' : 'Unpaid'}
+                        </span>
+                        {c.created_at && <span className="text-xs text-gray-400">{fmtDate(c.created_at)}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: My Advances ───────────────────────────────────────────────────── */}
+      {tab === 'advances' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">My Advances</h2>
+            <div className="w-36">
+              <DatePicker placeholder="From date" value={myAdvanceFilters.from} onChange={(v) => applyMyAdvanceFilters({ ...myAdvanceFilters, from: v })} />
+            </div>
+            <div className="w-36">
+              <DatePicker placeholder="To date" value={myAdvanceFilters.to} onChange={(v) => applyMyAdvanceFilters({ ...myAdvanceFilters, to: v })} />
+            </div>
+            <button onClick={() => fetchMyAdvances(myAdvancesPagination.page, myAdvanceFilters)} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
+              <RefreshCw size={12} className={myAdvancesLoading ? 'animate-spin' : ''} /> Refresh
+            </button>
+          </div>
+
+          <div className="max-h-96 overflow-y-auto">
+            {myAdvancesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 size={24} className="animate-spin text-[#0082f3]" />
+              </div>
+            ) : myAdvances.length === 0 ? (
+              <div className="text-center py-12 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800">
+                <CreditCard size={32} className="mx-auto mb-3 opacity-40 text-gray-400" />
+                <p className="text-sm text-gray-500">No advances found</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {myAdvances.map((a, i) => (
+                  <div key={a.id || i} className="p-4 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-bold text-gray-900 dark:text-white">{fmtCurrency(a.amount)}</p>
+                        {a.transaction_reference && <p className="text-xs text-gray-500 mt-0.5">Ref: {a.transaction_reference}</p>}
+                        {a.notes && <p className="text-xs text-gray-400 mt-1 italic">{a.notes}</p>}
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        {a.advance_date && <span className="text-xs text-gray-400">{fmtDate(a.advance_date)}</span>}
+                        {a.payment_proof_url && (
+                          <a href={resolveFileUrl(a.payment_proof_url)} target="_blank" rel="noopener noreferrer" className="text-xs text-[#0082f3] hover:underline flex items-center gap-1">
+                            <Link2 size={10} /> Proof
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

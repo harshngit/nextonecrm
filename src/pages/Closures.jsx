@@ -65,9 +65,10 @@ const fmtCompact = n => {
 
 // ── Status Badge ──────────────────────────────────────────────────────────────
 function ClosureStatusBadge({ status }) {
+  const label = CLOSURE_STATUSES.find(s => s.value === status)?.label || status
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${STATUS_COLOR[status] || 'bg-gray-100 text-gray-500'}`}>
-      {status}
+      {label}
     </span>
   )
 }
