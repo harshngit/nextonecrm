@@ -1744,7 +1744,7 @@ function AdminSalaryView({ user }) {
       <Modal isOpen={addCommissionModal} onClose={() => setAddCommissionModal(false)} title="Add Commission" size="sm">
         <div className="space-y-4">
           <AsyncSearchSelect
-            label="Employee *" required
+            label="Team Member" required
             value={commissionForm.user_id}
             onChange={(val) => setCommissionForm(f => ({ ...f, user_id: val }))}
             onSearch={searchSalaryEmployees}
@@ -1828,7 +1828,7 @@ function AdminSalaryView({ user }) {
       <Modal isOpen={addAdvanceModal} onClose={() => setAddAdvanceModal(false)} title="Add Advance" size="sm">
         <div className="space-y-4">
           <AsyncSearchSelect
-            label="Employee *" required
+            label="Team Member" required
             value={advanceForm.user_id}
             onChange={(val) => setAdvanceForm(f => ({ ...f, user_id: val }))}
             onSearch={searchSalaryEmployees}

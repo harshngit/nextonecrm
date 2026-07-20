@@ -7,7 +7,7 @@ export default function AsyncSearchSelect({
   value,
   onChange,
   onSearch,            // async fn(query) → [{ value, label }]
-  onTextChange,        // called with raw typed text; empty string when option selected/cleared
+  onTextChange,        // called with raw typed text as the user types, and with '' when cleared
   fallbackToInput = false, // when true: switch to plain-text input if search returns no results
   defaultText = '',    // pre-fill free text on mount (edit mode with no project_id)
   initialOptions = [],
@@ -106,7 +106,11 @@ export default function AsyncSearchSelect({
     setQuery('')
     setOpen(false)
     setInputMode(false)
-    onTextChange?.('')
+    // No onTextChange('') here — callers that also track free text
+    // (id/text dual-binding forms) already clear their text field inside
+    // onChange. Calling both re-fires the text handler after the id handler,
+    // and in every such caller that handler unconditionally resets the id
+    // back to '' — wiping out the selection this function just made.
   }
 
   const clear = e => {

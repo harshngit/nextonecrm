@@ -218,6 +218,17 @@ const projectStatuses = [
   { value: 'ready_to_move',      label: 'Ready To Move' },
 ]
 
+// The upload-* endpoints (developer logo, photos, unit plans, etc.) return
+// the full file record ({ file_name, file_path, file_size, mime_type, url,
+// document_type }) so the form can preview it (name, thumbnail) before the
+// project is saved — but the create/update project endpoints only want the
+// plain `url` string back.
+const fileUrl = (file) => {
+  if (!file) return undefined
+  if (typeof file === 'string') return file
+  return file.url || file.file_path || undefined
+}
+
 const defaultForm = {
   name: '',
   developer: '',
@@ -574,7 +585,29 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
     setUploadErrors(prev => ({ ...prev, [type]: '' }))
     setUploading(prev => ({ ...prev, [type]: true }))
     try {
-      if (projectId) {
+      if (type === 'photos') {
+        // Photos always go through the standalone /projects/upload-photo
+        // endpoint (the generic /projects/{id}/documents endpoint doesn't
+        // handle the photos field correctly).
+        const { url, field } = standaloneUploadEndpoints.photos
+        const docs = []
+        for (const file of files) {
+          const fd = new FormData()
+          fd.append(field, file)
+          const res = await api.post(url, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+          if (res.data.success) docs.push(res.data.data)
+        }
+        if (projectId) {
+          // Attach immediately, same as the other document types — merge
+          // with whatever photos already exist so the save doesn't drop them.
+          // Each entry must keep its full { file_name, file_path, ... }
+          // shape — the backend rejects plain URL strings here.
+          await api.put(`/projects/${projectId}`, { photos: [...(existingFiles.photos || []), ...docs] })
+          await onFilesUploaded?.()
+        } else {
+          setFormData(p => ({ ...p, photos: [...(p.photos || []), ...docs] }))
+        }
+      } else if (projectId) {
         // Project already exists — this call attaches the files directly.
         const fd = new FormData()
         files.forEach(file => fd.append(type, file))
@@ -695,9 +728,9 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
           const logo = projectId ? existingFiles.developer_logo : formData.developer_logo
           return logo ? (
             <div className="flex items-center gap-3 mb-1.5 p-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 rounded-xl">
-              <AuthImage path={logo.file_path || logo.url} alt="Developer logo"
+              <AuthImage path={resolveFileUrl(logo)} alt="Developer logo"
                 className="w-10 h-10 rounded-lg object-contain bg-white border border-gray-200 dark:border-gray-700 flex-shrink-0" />
-              <span className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1">{logo.file_name}</span>
+              <span className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1">{logo.file_name || 'Uploaded logo'}</span>
               {!projectId && (
                 <button type="button" onClick={removePendingLogo} className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
                   <X size={12} />
@@ -865,7 +898,7 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
             <div className="grid grid-cols-4 gap-2 mb-1.5">
               {photoItems.map((photo, idx) => (
                 <div key={photo.id ?? idx} className="relative group/photo aspect-square rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
-                  <AuthImage path={photo.file_path || photo.url} alt={photo.file_name || 'Project photo'}
+                  <AuthImage path={resolveFileUrl(photo)} alt={photo.file_name || 'Project photo'}
                     className="w-full h-full object-cover" />
                   <button type="button"
                     onClick={() => projectId ? onDeleteExisting?.('photos', photo.id) : removePendingFile('photos', idx)}
@@ -1063,7 +1096,11 @@ export default function Projects() {
       // as soon as they were picked — just create the project now.
       const projectData = {
         ...addForm,
-        total_units: addForm.total_units ? parseInt(addForm.total_units) : 0
+        total_units: addForm.total_units ? parseInt(addForm.total_units) : 0,
+        developer_logo: fileUrl(addForm.developer_logo),
+        // Each photo entry must keep its full { file_name, file_path, ... }
+        // shape — the backend rejects plain URL strings here.
+        photos: addForm.photos || [],
       }
       const result = await dispatch(createProject(projectData))
       if (createProject.fulfilled.match(result)) {
@@ -1088,8 +1125,10 @@ export default function Projects() {
     dispatch(clearProjectError())
     setCreatingProject(true)
     try {
-      // New documents are already attached via POST /projects/{id}/documents
-      // as soon as they were picked — the PUT only carries plain fields.
+      // New documents (including photos and the developer logo) are already
+      // attached as soon as they were picked — the PUT only carries plain
+      // fields. editForm never holds `photos`/`developer_logo` (those live
+      // in existingFiles instead), so they're deliberately left out here.
       const updateData = {
         ...editForm,
         total_units: editForm.total_units ? parseInt(editForm.total_units) : 0,
