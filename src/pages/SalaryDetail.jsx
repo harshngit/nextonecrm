@@ -5,7 +5,7 @@ import {
   ArrowLeft, IndianRupee, Calendar, RefreshCw, Loader2,
   AlertCircle, CheckCircle, LogIn, LogOut, Timer, ChevronLeft,
   ChevronRight, Banknote, TrendingUp, FileText, Users, Plus, X, Edit2,
-  Percent, Trash2, Handshake, CreditCard, Link2, Upload
+  Percent, Trash2, Handshake, CreditCard, Link2, Upload, Download
 } from 'lucide-react'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
@@ -238,11 +238,23 @@ export default function SalaryDetail() {
   }
 
   // ── Fetch salary slips for this user ──────────────────────────────────────
+  const downloadSlipPdf = async (slipToDownload) => {
+    try {
+      const res = await api.get(`/salary/slips/${slipToDownload.id}/pdf`, { responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url; a.download = `Salary_Slip_${(employee?.full_name || 'slip').replace(/\s+/g, '_')}_${slipToDownload.month}_${slipToDownload.year}.pdf`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Failed to download slip PDF:', err)
+    }
+  }
+
   const fetchSlips = async () => {
     setSlipsLoading(true)
     try {
-      const res = await api.get('/salary/slips', {
-        params: { user_id, month, year, per_page: 1 },
+      const res = await api.get(`/salary/slips/user/${user_id}`, {
+        params: { month, year, per_page: 1 },
       })
       setSlips(res.data.data || [])
     } catch {
@@ -615,6 +627,12 @@ export default function SalaryDetail() {
                 <p className="text-[10px] text-gray-500 uppercase tracking-wide">Final</p>
                 <p className="text-lg font-bold text-green-600 dark:text-green-400">{fmtCurrency(slip.final_salary)}</p>
               </div>
+              <button
+                onClick={() => downloadSlipPdf(slip)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 dark:text-green-400 border border-green-300 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-xl transition-colors"
+              >
+                <Download size={13} /> PDF
+              </button>
             </div>
           </div>
         </div>

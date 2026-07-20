@@ -65,6 +65,7 @@ export default function DatePicker({
 }) {
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState('bottom')
+  const [rect, setRect] = useState(null)
   const [view, setView] = useState('day') // 'day' | 'year'
   const [month, setMonth] = useState(() => parseYMD(value) || new Date())
   const [yearBlockStart, setYearBlockStart] = useState(() => {
@@ -95,15 +96,16 @@ export default function DatePicker({
 
   useEffect(() => {
     if (open && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect()
-      const spaceBelow = window.innerHeight - rect.bottom
-      const spaceAbove = rect.top
-      const spaceRight = window.innerWidth - rect.right
+      const containerRect = containerRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - containerRect.bottom
+      const spaceAbove = containerRect.top
+      const spaceRight = window.innerWidth - containerRect.right
 
       let next = 'bottom'
       if (spaceBelow < 360 && spaceAbove > spaceBelow) next = 'top'
       if (spaceRight < 220) next = next.replace('bottom', 'bottom-right').replace('top', 'top-right')
       setPosition(next)
+      setRect(containerRect)
     }
   }, [open, view])
 
@@ -156,13 +158,19 @@ export default function DatePicker({
         />
       )}
 
-      {open && (
-        <div className={`absolute z-[100] mt-1 w-[300px] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200 ${
-          position === 'top' ? 'bottom-full mb-1' :
-          position === 'bottom-right' ? 'right-0' :
-          position === 'top-right' ? 'right-0 bottom-full mb-1' :
-          'top-full'
-        }`}>
+      {open && rect && (
+        <div
+          style={{
+            position: 'fixed',
+            ...(position.includes('right')
+              ? { right: window.innerWidth - rect.right }
+              : { left: rect.left }),
+            ...(position.startsWith('top')
+              ? { bottom: window.innerHeight - rect.top + 4 }
+              : { top: rect.bottom + 4 }),
+          }}
+          className="z-[999] w-[300px] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200"
+        >
           {view === 'day' ? (
             <>
               <div className="flex items-center justify-between px-3 pt-3 pb-1">
