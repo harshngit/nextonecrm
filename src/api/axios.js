@@ -4,6 +4,9 @@ const API_BASE_URL = 'https://api.nextonerealty.in/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 20000, // a hung request must eventually reject — otherwise auth
+                   // checks that depend on it (e.g. authMe on app load) can
+                   // leave the whole app stuck on the loading screen forever
   headers: {
     'Content-Type': 'application/json',
   },
@@ -23,15 +26,21 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle token expiration (optional for now, but good practice)
+// Response interceptor — on a 401 from any authenticated request (session
+// expired / token invalidated), clear the stored session and hard-redirect
+// to login. Skipped for /auth/login itself so a wrong-password attempt just
+// shows the form's own error instead of bouncing the page.
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized error (e.g., redirect to login or refresh token)
-      // localStorage.removeItem('n1r_access_token');
-      // localStorage.removeItem('n1r_refresh_token');
-      // window.location.href = '/login';
+  (error) => {
+    const isLoginRequest = error.config?.url?.includes('/auth/login');
+    if (error.response?.status === 401 && !isLoginRequest) {
+      localStorage.removeItem('n1r_access_token');
+      localStorage.removeItem('n1r_refresh_token');
+      localStorage.removeItem('n1r_user');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { Eye, EyeOff, Lock, Mail, Phone } from 'lucide-react'
 import { login, clearError } from '../store/authSlice'
@@ -14,15 +14,17 @@ export default function Login() {
   const { loading, error, isAuthenticated } = useSelector((state) => state.auth)
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard')
+      const from = location.state?.from
+      navigate(from ? `${from.pathname}${from.search || ''}` : '/dashboard', { replace: true })
     }
     return () => {
       dispatch(clearError())
     }
-  }, [isAuthenticated, navigate, dispatch])
+  }, [isAuthenticated, navigate, dispatch, location.state])
 
   const handleSubmit = async (e) => {
     e.preventDefault()

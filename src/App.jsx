@@ -74,7 +74,11 @@ function AppRoutes() {
     <div className="relative min-h-screen">
       {pageLoading && <PageLoader />}
       <Routes>
-        <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
+        <Route path="/login" element={
+          isAuthenticated
+            ? <Navigate to={location.state?.from ? `${location.state.from.pathname}${location.state.from.search || ''}` : '/dashboard'} replace />
+            : <Login />
+        } />
         <Route path="/forgot-password" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} />
         <Route path="/"      element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
 

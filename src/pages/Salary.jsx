@@ -216,15 +216,11 @@ function AdminSalaryView({ user }) {
   // Generate slip modal (single)
   const [genModal, setGenModal]   = useState(false)
   const [genTarget, setGenTarget] = useState(null)
-  const [genForm, setGenForm]     = useState({ month: thisMonth, year: thisYear, basic_salary: '', pay_date: '', auth_signature: '', notes: '' })
-  const [genSigUploading, setGenSigUploading] = useState(false)
-  const [genSigError,     setGenSigError]     = useState('')
+  const [genForm, setGenForm]     = useState({ month: thisMonth, year: thisYear, basic_salary: '', pay_date: '', notes: '' })
 
   // Generate all modal
   const [genAllModal, setGenAllModal] = useState(false)
-  const [genAllForm, setGenAllForm]   = useState({ month: thisMonth, year: thisYear, pay_date: '', auth_signature: '', notes: '' })
-  const [genAllSigUploading, setGenAllSigUploading] = useState(false)
-  const [genAllSigError,     setGenAllSigError]     = useState('')
+  const [genAllForm, setGenAllForm]   = useState({ month: thisMonth, year: thisYear, pay_date: '', notes: '' })
   const [bulkPdfDownloading, setBulkPdfDownloading] = useState(false)
 
   // Edit slip modal
@@ -428,45 +424,9 @@ function AdminSalaryView({ user }) {
     setGenForm({
       month: thisMonth, year: thisYear,
       basic_salary: emp.monthly_salary ? String(emp.monthly_salary) : '',
-      pay_date: '', auth_signature: '', notes: '',
+      pay_date: '', notes: '',
     })
-    setGenSigError('')
     setGenModal(true)
-  }
-
-  const uploadSignatureFile = async (file) => {
-    const fd = new FormData()
-    fd.append('file', file)
-    const res = await api.post('/salary/upload-signature', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-    return res.data?.url || res.data?.data?.url || ''
-  }
-
-  const handleGenSignature = async (file) => {
-    if (!file) return
-    setGenSigError('')
-    setGenSigUploading(true)
-    try {
-      const url = await uploadSignatureFile(file)
-      setGenForm(f => ({ ...f, auth_signature: url }))
-    } catch (err) {
-      setGenSigError(err.response?.data?.message || 'Upload failed')
-    } finally {
-      setGenSigUploading(false)
-    }
-  }
-
-  const handleGenAllSignature = async (file) => {
-    if (!file) return
-    setGenAllSigError('')
-    setGenAllSigUploading(true)
-    try {
-      const url = await uploadSignatureFile(file)
-      setGenAllForm(f => ({ ...f, auth_signature: url }))
-    } catch (err) {
-      setGenAllSigError(err.response?.data?.message || 'Upload failed')
-    } finally {
-      setGenAllSigUploading(false)
-    }
   }
 
   // ── Commissions ──────────────────────────────────────────────────────────
@@ -673,10 +633,9 @@ function AdminSalaryView({ user }) {
       user_id: genTarget.id,
       month:   genForm.month,
       year:    genForm.year,
-      basic_salary:   genForm.basic_salary   ? parseFloat(genForm.basic_salary) : undefined,
-      pay_date:       genForm.pay_date       || undefined,
-      auth_signature: genForm.auth_signature || undefined,
-      notes:          genForm.notes          || undefined,
+      basic_salary: genForm.basic_salary ? parseFloat(genForm.basic_salary) : undefined,
+      pay_date:     genForm.pay_date     || undefined,
+      notes:        genForm.notes        || undefined,
     }))
   }
 
@@ -684,9 +643,8 @@ function AdminSalaryView({ user }) {
     dispatch(generateAllSalarySlips({
       month: genAllForm.month,
       year:  genAllForm.year,
-      pay_date:       genAllForm.pay_date       || undefined,
-      auth_signature: genAllForm.auth_signature || undefined,
-      notes:          genAllForm.notes          || undefined,
+      pay_date: genAllForm.pay_date || undefined,
+      notes:    genAllForm.notes    || undefined,
     }))
     setGenAllModal(false)
   }
@@ -784,7 +742,7 @@ function AdminSalaryView({ user }) {
           </button>
           {perms.create && (
             <button
-              onClick={() => { setGenAllForm({ month: thisMonth, year: thisYear, pay_date: '', auth_signature: '', notes: '' }); setGenAllSigError(''); setGenAllModal(true) }}
+              onClick={() => { setGenAllForm({ month: thisMonth, year: thisYear, pay_date: '', notes: '' }); setGenAllModal(true) }}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all shadow-sm"
             >
               <FileText size={13} />
@@ -1627,30 +1585,6 @@ function AdminSalaryView({ user }) {
           <DatePicker label="Pay Date" value={genForm.pay_date} onChange={(v) => setGenForm(f => ({ ...f, pay_date: v }))} />
 
           <div>
-            <label className={labelCls}>Authorized Signature <span className="text-gray-400 font-normal">(optional)</span></label>
-            {genForm.auth_signature ? (
-              <div className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-[#141414] rounded-xl border border-gray-200 dark:border-gray-700">
-                <a href={genForm.auth_signature} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 flex-1 min-w-0 text-xs text-gray-700 dark:text-gray-300">
-                  <Link2 size={14} className="text-[#0082f3] flex-shrink-0" />
-                  <span className="truncate">Signature uploaded</span>
-                </a>
-                <button type="button" onClick={() => setGenForm(f => ({ ...f, auth_signature: '' }))} className="p-1 rounded-lg text-gray-400 hover:text-red-500 transition-colors flex-shrink-0" title="Remove">
-                  <X size={13} />
-                </button>
-              </div>
-            ) : (
-              <div className="relative">
-                <Upload size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                <input type="file" accept="image/*" disabled={genSigUploading}
-                  onChange={(e) => handleGenSignature(e.target.files?.[0])}
-                  className={inputCls + ' pl-9 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:bg-blue-50 file:text-[#0082f3] file:text-xs disabled:opacity-50'} />
-                {genSigUploading && <Loader2 size={14} className="animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />}
-              </div>
-            )}
-            {genSigError && <p className="text-xs text-red-500 mt-1">{genSigError}</p>}
-          </div>
-
-          <div>
             <label className={labelCls}>Notes</label>
             <input type="text" value={genForm.notes} onChange={e => setGenForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional" className={inputCls} />
           </div>
@@ -1659,7 +1593,7 @@ function AdminSalaryView({ user }) {
           <button onClick={() => setGenModal(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Cancel</button>
           <button
             onClick={handleGenerate}
-            disabled={loading.action || genSigUploading}
+            disabled={loading.action}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-xl transition-all disabled:opacity-50"
           >
             {loading.action ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
@@ -1698,30 +1632,6 @@ function AdminSalaryView({ user }) {
           <DatePicker label="Pay Date" value={genAllForm.pay_date} onChange={(v) => setGenAllForm(f => ({ ...f, pay_date: v }))} />
 
           <div>
-            <label className={labelCls}>Authorized Signature <span className="text-gray-400 font-normal">(optional)</span></label>
-            {genAllForm.auth_signature ? (
-              <div className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-[#141414] rounded-xl border border-gray-200 dark:border-gray-700">
-                <a href={genAllForm.auth_signature} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 flex-1 min-w-0 text-xs text-gray-700 dark:text-gray-300">
-                  <Link2 size={14} className="text-[#0082f3] flex-shrink-0" />
-                  <span className="truncate">Signature uploaded</span>
-                </a>
-                <button type="button" onClick={() => setGenAllForm(f => ({ ...f, auth_signature: '' }))} className="p-1 rounded-lg text-gray-400 hover:text-red-500 transition-colors flex-shrink-0" title="Remove">
-                  <X size={13} />
-                </button>
-              </div>
-            ) : (
-              <div className="relative">
-                <Upload size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                <input type="file" accept="image/*" disabled={genAllSigUploading}
-                  onChange={(e) => handleGenAllSignature(e.target.files?.[0])}
-                  className={inputCls + ' pl-9 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:bg-blue-50 file:text-[#0082f3] file:text-xs disabled:opacity-50'} />
-                {genAllSigUploading && <Loader2 size={14} className="animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />}
-              </div>
-            )}
-            {genAllSigError && <p className="text-xs text-red-500 mt-1">{genAllSigError}</p>}
-          </div>
-
-          <div>
             <label className={labelCls}>Notes</label>
             <input type="text" value={genAllForm.notes} onChange={e => setGenAllForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional" className={inputCls} />
           </div>
@@ -1730,7 +1640,7 @@ function AdminSalaryView({ user }) {
           <button onClick={() => setGenAllModal(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 transition-colors">Cancel</button>
           <button
             onClick={handleGenerateAll}
-            disabled={loading.action || genAllSigUploading}
+            disabled={loading.action}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all disabled:opacity-50"
           >
             {loading.action ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
