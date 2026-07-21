@@ -1,17 +1,123 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   ArrowLeft, Calendar, Clock, User, Building2, MapPin,
   CheckCircle, RefreshCw, Loader2, UserCheck,
   MessageSquare, ShieldCheck, ExternalLink,
-  ChevronDown, Info, Star, TrendingUp, Target, Eye
+  Info, Star, TrendingUp, Target, Eye
 } from 'lucide-react'
 import { fetchSiteVisitById, clearCurrentVisit, updateSiteVisitStatus, submitSiteVisitFeedback } from '../store/siteVisitSlice'
+import { fetchTeamTree } from '../store/userSlice'
+import api from '../api/axios'
 import Badge from '../components/ui/Badge'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
+import Modal from '../components/ui/Modal'
+import CustomSelect from '../components/ui/CustomSelect'
+import DatePicker from '../components/ui/DatePicker'
+import ClockPicker from '../components/ui/ClockPicker'
 import PhoneActions from '../components/ui/PhoneActions'
+
+const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
+
+// ── Schedule Re-visit — opened automatically after a visit's status is
+// changed to "rescheduled", same flow as the Site Visits list page ──────────
+function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
+  const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
+  const lc = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+
+  const [form, setForm] = useState({
+    original_visit_id: visit.id,
+    visit_date: '',
+    visit_time: '',
+    assigned_to: typeof visit.assigned_to === 'object' ? visit.assigned_to.id : visit.assigned_to,
+    reason: '',
+    notes: '',
+    transport_arranged: false,
+  })
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
+
+  const execOptions = [
+    ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
+    ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
+  ]
+
+  const handleSubmit = async e => {
+    e.preventDefault()
+    if (!form.visit_date || !form.visit_time) {
+      setError('Date and time are required'); return
+    }
+    setLoading(true); setError('')
+    try {
+      await api.post('/site-revisits', form)
+      onSuccess()
+      onClose()
+    } catch (e) { setError(e.response?.data?.message || 'Failed to schedule re-visit') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title="Schedule Re-visit" size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl">
+          <Avatar name={visit.lead_name || '?'} size="sm" />
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">{visit.lead_name}</p>
+            <p className="text-xs text-gray-400">{visit.project_name} · Original Visit: {visit.visit_date?.split('T')[0]}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <DatePicker
+            label="Visit Date"
+            required
+            value={form.visit_date}
+            onChange={val => setForm(p => ({ ...p, visit_date: val }))}
+            min={new Date().toISOString().split('T')[0]}
+          />
+          <ClockPicker
+            label="Visit Time"
+            required
+            value={form.visit_time}
+            onChange={val => setForm(p => ({ ...p, visit_time: val }))}
+            icon={Clock}
+          />
+        </div>
+
+        <CustomSelect label="Assign To" value={form.assigned_to}
+          onChange={v => setForm(p => ({ ...p, assigned_to: v }))}
+          options={execOptions} placeholder="Select team member" searchable />
+
+        <div>
+          <label className={lc}>Reason for Re-visit</label>
+          <input value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))}
+            placeholder="Client wanted to see 3BHK units again..." className={ic} />
+        </div>
+
+        <div>
+          <label className={lc}>Notes</label>
+          <textarea rows={2} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+            placeholder="Bring updated price list..." className={ic} />
+        </div>
+
+        <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer">
+          <input type="checkbox" checked={form.transport_arranged}
+            onChange={e => setForm(p => ({ ...p, transport_arranged: e.target.checked }))}
+            className="w-4 h-4 accent-brand" />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Transport arranged for client</span>
+        </label>
+
+        {error && <p className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-xl">{error}</p>}
+        <div className="flex gap-3 pt-1">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button type="submit" className="flex-1" loading={loading}>Schedule Re-visit</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
 
 export default function SiteVisitDetail() {
   const { id } = useParams()
@@ -21,12 +127,14 @@ export default function SiteVisitDetail() {
   const { currentVisit: visit, detailLoading, actionLoading } = useSelector(s => s.siteVisits)
   const { user: currentUser } = useSelector(s => s.auth)
 
+  const { teamTree: teamMembers = [] } = useSelector(s => s.users)
+
   const isAdmin = ['admin', 'super_admin'].includes(currentUser?.role)
   const [showPhone, setShowPhone] = useState(false)
   const [newStatus, setNewStatus] = useState('')
   const [feedback, setFeedback] = useState('')
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const dropdownRef = useRef(null)
+  const [showChangeStatusModal, setShowChangeStatusModal] = useState(false)
+  const [showRevisitModal, setShowRevisitModal] = useState(false)
 
   const [feedbackForm, setFeedbackForm] = useState({
     rating: 0,
@@ -42,19 +150,13 @@ export default function SiteVisitDetail() {
   }, [dispatch, id])
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  useEffect(() => {
     if (visit?.status) setNewStatus(visit.status)
     if (visit?.feedback) setFeedback(visit.feedback)
   }, [visit])
+
+  useEffect(() => {
+    if (currentUser?.id) dispatch(fetchTeamTree(currentUser.id))
+  }, [dispatch, currentUser?.id])
 
   const statusLabel = { scheduled: 'Scheduled', done: 'Completed', cancelled: 'Cancelled', rescheduled: 'Rescheduled', no_show: 'No Show' }
   const statusColor = {
@@ -73,9 +175,14 @@ export default function SiteVisitDetail() {
 
   const handleStatusUpdate = async () => {
     if (newStatus === visit.status && feedback === visit.feedback) return
-    const result = await dispatch(updateSiteVisitStatus({ id, status: newStatus, feedback }))
+    const targetStatus = newStatus
+    const result = await dispatch(updateSiteVisitStatus({ id, status: targetStatus, feedback }))
     if (updateSiteVisitStatus.fulfilled.match(result)) {
       dispatch(fetchSiteVisitById(id))
+      setShowChangeStatusModal(false)
+      // Status is already saved at this point — chain straight into scheduling
+      // the re-visit instead of leaving the admin to hunt for another button.
+      if (targetStatus === 'rescheduled') setShowRevisitModal(true)
     }
   }
 
@@ -372,66 +479,23 @@ export default function SiteVisitDetail() {
 
           {/* Right Column - 4 cols */}
           <div className="lg:col-span-4 space-y-4">
-            {/* Update Status Card */}
+            {/* Status Card */}
             <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
               <h3 className="font-display text-base font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <CheckCircle size={16} className="text-green-500" /> Update Status
+                <CheckCircle size={16} className="text-green-500" /> Status
               </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Visit Status</label>
-                  <div className="relative" ref={dropdownRef}>
-                    <div
-                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                      className="w-full pl-3.5 pr-9 py-2.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-gray-900 dark:text-gray-100 font-bold cursor-pointer hover:border-gray-300 dark:hover:border-gray-700"
-                    >
-                      {statusLabel[newStatus]}
-                    </div>
-                    <ChevronDown
-                      size={14}
-                      className={`absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
-                    />
-                    {isDropdownOpen && (
-                      <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl z-50 overflow-hidden">
-                        {visitStatuses.map(s => (
-                          <div
-                            key={s}
-                            onClick={() => {
-                              setNewStatus(s)
-                              setIsDropdownOpen(false)
-                            }}
-                            className={`px-3.5 py-2.5 text-sm font-bold cursor-pointer transition-all ${
-                              newStatus === s
-                                ? 'bg-brand/10 text-brand'
-                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                            }`}
-                          >
-                            {statusLabel[s]}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Note (Optional)</label>
-                  <textarea
-                    value={feedback}
-                    onChange={e => setFeedback(e.target.value)}
-                    placeholder="Reason for status change..."
-                    rows={2}
-                    className="w-full px-3.5 py-2.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-brand transition-all resize-none text-gray-900 dark:text-gray-100"
-                  />
-                </div>
+              <div className="flex items-center justify-between gap-3">
+                <Badge label={statusLabel[visit.status] || visit.status} className={`px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded-lg ${statusColor[visit.status] || ''}`} />
                 <Button
-                  className="w-full rounded-xl py-3 font-bold shadow-xl shadow-blue-500/25 active:scale-[0.98] transition-all"
-                  onClick={handleStatusUpdate}
-                  loading={actionLoading}
-                  disabled={newStatus === visit.status && feedback === visit.feedback}
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl flex-shrink-0"
+                  onClick={() => { setNewStatus(visit.status); setFeedback(visit.feedback || ''); setShowChangeStatusModal(true) }}
                 >
-                  Update Status
+                  <RefreshCw size={13} className="mr-1.5" /> Change Status
                 </Button>
               </div>
+              {visit.feedback && <p className="text-xs text-gray-400 mt-3 italic">{visit.feedback}</p>}
             </div>
 
             {/* Lead Information */}
@@ -497,6 +561,63 @@ export default function SiteVisitDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Modal: Change Status ─────────────────────────────────────────────── */}
+      {visit && (
+        <Modal isOpen={showChangeStatusModal} onClose={() => setShowChangeStatusModal(false)} title="Change Visit Status" size="sm">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl">
+              <Avatar name={visit.lead_name || '?'} size="sm" />
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">{visit.lead_name}</p>
+                <p className="text-xs text-gray-400">Current status: {statusLabel[visit.status] || visit.status}</p>
+              </div>
+            </div>
+
+            <CustomSelect
+              label="New Status *"
+              value={newStatus}
+              onChange={setNewStatus}
+              options={visitStatuses.map(s => ({ value: s, label: statusLabel[s] }))}
+              placeholder="Select status"
+            />
+
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1.5 px-0.5">Note (Optional)</label>
+              <textarea
+                value={feedback}
+                onChange={e => setFeedback(e.target.value)}
+                placeholder="Reason for status change..."
+                rows={2}
+                className="w-full px-3.5 py-2.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-xl outline-none focus:border-brand transition-all resize-none text-gray-900 dark:text-gray-100"
+              />
+            </div>
+          </div>
+          <div className="flex gap-3 pt-4">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowChangeStatusModal(false)}>Cancel</Button>
+            <Button
+              className="flex-1 rounded-xl font-bold"
+              onClick={handleStatusUpdate}
+              loading={actionLoading}
+              disabled={newStatus === visit.status && feedback === visit.feedback}
+            >
+              Update Status
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Modal: Schedule Re-visit — opened automatically after status is
+          changed to "rescheduled" ─────────────────────────────────────────── */}
+      {showRevisitModal && visit && (
+        <RevisitModal
+          visit={visit}
+          salesExecs={teamMembers}
+          currentUser={currentUser}
+          onClose={() => setShowRevisitModal(false)}
+          onSuccess={() => dispatch(fetchSiteVisitById(id))}
+        />
       )}
     </div>
   )
