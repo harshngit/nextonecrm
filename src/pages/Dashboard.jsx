@@ -251,15 +251,40 @@ function ExportMenu({ isAdmin, setShowExportModal, setExportModule, exportingKey
 // ══════════════════════════════════════════════════════════════════════════════
 // ADMIN DASHBOARD COMPONENTS (existing, unchanged)
 // ══════════════════════════════════════════════════════════════════════════════
+// Dashboard stats don't carry revisit counts, so this hook calls the actual
+// /site-revisits list endpoint directly — three lightweight per_page:1 calls
+// just to read each status's `pagination.total` (total, scheduled, done).
+function useRevisitStats(endpoint = '/site-revisits') {
+  const [counts, setCounts] = useState({ total: 0, scheduled: 0, done: 0 })
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      api.get(endpoint, { params: { per_page: 1 } }),
+      api.get(endpoint, { params: { per_page: 1, status: 'scheduled' } }),
+      api.get(endpoint, { params: { per_page: 1, status: 'done' } }),
+    ]).then(([totalRes, scheduledRes, doneRes]) => {
+      if (cancelled) return
+      setCounts({
+        total:     totalRes.data?.pagination?.total     ?? 0,
+        scheduled: scheduledRes.data?.pagination?.total ?? 0,
+        done:      doneRes.data?.pagination?.total      ?? 0,
+      })
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [endpoint])
+  return counts
+}
+
 function AdminStatCards({ stats, loading, onAttendance }) {
   const navigate = useNavigate()
   const s = stats?.stats
+  const revisitStats = useRevisitStats('/site-revisits')
   const cards = [
     { label:'Total Leads', value:s?.total_leads?.value??0, sub:`${s?.total_leads?.booked??0} booked`, badge:s?.total_leads?.conversion_rate?`${s.total_leads.conversion_rate}% conv.`:null, badgeColor:'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20', icon:Users, grad:'from-blue-500 to-[#0082f3]', ring:'hover:ring-blue-100 dark:hover:ring-blue-900', path:'/leads' },
     { label:'Site Visits', value:s?.total_site_visits?.value??0, sub:`${s?.total_site_visits?.upcoming??0} upcoming`, badge:`${s?.total_site_visits?.done??0} done`, badgeColor:'text-purple-600 bg-purple-50 dark:bg-purple-900/20', icon:CalendarDays, grad:'from-purple-500 to-violet-500', ring:'hover:ring-purple-100 dark:hover:ring-purple-900', path:'/site-visits' },
     { label:'Site Visits Done', value:s?.total_site_visits?.done??0, sub:`of ${s?.total_site_visits?.value??0} total`, icon:CheckCircle2, grad:'from-emerald-400 to-green-600', ring:'hover:ring-emerald-100 dark:hover:ring-emerald-900', path:'/site-visits' },
     { label:'Follow-Ups', value:s?.total_follow_ups?.value??0, sub:`${s?.total_follow_ups?.pending??0} pending`, badge:s?.total_follow_ups?.overdue>0?`${s.total_follow_ups.overdue} overdue`:null, badgeColor:'text-red-600 bg-red-50 dark:bg-red-900/20', icon:Phone, grad:'from-green-500 to-teal-500', ring:'hover:ring-green-100 dark:hover:ring-green-900', path:'/follow-ups' },
-    { label:'Total Revisits', value:s?.total_revisits?.value??0, sub:`${s?.total_revisits?.pending??0} pending`, icon:RotateCcw, grad:'from-cyan-400 to-sky-500', ring:'hover:ring-cyan-100 dark:hover:ring-cyan-900', path:'/revisits' },
+    { label:'Total Revisits', value:revisitStats.total, sub:`${revisitStats.scheduled} scheduled`, badge:`${revisitStats.done} done`, badgeColor:'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20', icon:RotateCcw, grad:'from-cyan-400 to-sky-500', ring:'hover:ring-cyan-100 dark:hover:ring-cyan-900', path:'/revisits' },
     { label:'Projects', value:s?.total_projects?.value??0, sub:`${s?.total_projects?.active??0} active`, badge:`${s?.total_projects?.upcoming??0} upcoming`, badgeColor:'text-amber-600 bg-amber-50 dark:bg-amber-900/20', icon:Building2, grad:'from-amber-400 to-orange-500', ring:'hover:ring-amber-100 dark:hover:ring-amber-900', path:'/projects' },
     { label:'Attendance', value:null, isAttendance:true, sub:"Today's status", icon:Clock, grad:'from-rose-400 to-pink-500', ring:'hover:ring-rose-100 dark:hover:ring-rose-900', onClick:onAttendance },
   ]
@@ -634,8 +659,8 @@ function PersonalDashboard({ user, onAttendance }) {
   const L  = summary?.leads        || {}
   const V  = summary?.site_visits  || {}
   const T  = summary?.tasks        || {}
-  const R  = summary?.revisits     || {}
   const AT = summary?.attendance_this_month || {}
+  const revisitStats = useRevisitStats('/me/revisits')
 
   // ── Stat cards ──────────────────────────────────────────────────────────────
   const statCards = [
@@ -670,8 +695,10 @@ function PersonalDashboard({ user, onAttendance }) {
       ring: 'hover:ring-green-100 dark:hover:ring-green-900', path: '/follow-ups',
     },
     {
-      label: 'Total Revisits', value: R.total ?? 0,
-      sub: `${R.pending ?? 0} pending`,
+      label: 'Total Revisits', value: revisitStats.total,
+      sub: `${revisitStats.scheduled} scheduled`,
+      badge: `${revisitStats.done} done`,
+      badgeColor: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20',
       icon: RotateCcw, grad: 'from-cyan-400 to-sky-500',
       ring: 'hover:ring-cyan-100 dark:hover:ring-cyan-900', path: '/revisits',
     },
