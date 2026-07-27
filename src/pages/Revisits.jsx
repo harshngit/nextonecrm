@@ -7,6 +7,7 @@ import {
   Plus, RefreshCw, Eye, Edit2, X, CheckCircle2, Clock, CalendarDays,
   Loader2, AlertCircle, ChevronDown, RotateCcw, Star, MessageSquare,
   Users, Building2, Car, Trash2, Search, Filter, Phone, MoreVertical, Download,
+  UserCheck,
 } from 'lucide-react'
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
@@ -239,8 +240,9 @@ function EditModal({ revisit, salesExecs, currentUser, onClose, onSuccess }) {
 
 // ── Status Modal ──────────────────────────────────────────────────────────────
 function StatusModal({ revisit, onClose, onSuccess }) {
-  const [status,  setStatus]  = useState(revisit.status || 'done')
-  const [note,    setNote]    = useState('')
+  const [status,        setStatus]        = useState(revisit.status || 'done')
+  const [note,          setNote]          = useState('')
+  const [closingPerson, setClosingPerson] = useState(revisit.closing_person || '')
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
   const needsNote = ['cancelled', 'no_show'].includes(status)
@@ -250,7 +252,9 @@ function StatusModal({ revisit, onClose, onSuccess }) {
     if (needsNote && !note.trim()) { setError('Note is required for this status'); return }
     setLoading(true); setError('')
     try {
-      await api.patch(`/site-revisits/${revisit.id}/status`, { status, note: note || undefined })
+      const body = { status, note: note || undefined }
+      if (status === 'done' && closingPerson.trim()) body.closing_person = closingPerson.trim()
+      await api.patch(`/site-revisits/${revisit.id}/status`, body)
       onSuccess(); onClose()
     } catch (e) { setError(e.response?.data?.message || 'Status update failed') }
     finally { setLoading(false) }
@@ -269,6 +273,21 @@ function StatusModal({ revisit, onClose, onSuccess }) {
 
         <CustomSelect label="New Status *" value={status} onChange={setStatus}
           options={STATUS_OPTIONS} />
+
+        {status === 'done' && (
+          <div>
+            <label className={lc}>Closing Manager <span className="text-gray-400">(optional)</span></label>
+            <input
+              value={closingPerson}
+              onChange={e => setClosingPerson(e.target.value)}
+              placeholder="e.g. Rajesh Kumar"
+              className={ic + ' font-semibold'}
+            />
+            <p className="mt-1 text-[10px] text-gray-400 leading-relaxed">
+              Person handling final negotiation &amp; closing. Saved only when status is set to Completed.
+            </p>
+          </div>
+        )}
 
         <div>
           <label className={lc}>Note {needsNote ? '*' : '(optional)'}</label>
@@ -391,6 +410,74 @@ function FeedbackModal({ revisit, onClose, onSuccess, salesExecs = [], currentUs
   )
 }
 
+// ─── Closing Manager Modal ────────────────────────────────────────────────────
+function ClosingManagerModal({ lead, onClose, onSuccess }) {
+  const [closingPerson, setClosingPerson] = useState(lead.closing_person || '')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSave = async () => {
+    if (!closingPerson.trim()) { setError('Please enter the closing manager name'); return }
+    setLoading(true); setError('')
+    try {
+      await api.patch(`/leads/${lead.id}/closing-manager`, { closing_person: closingPerson.trim() })
+      onSuccess()
+      onClose()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to set closing manager')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title={lead.closing_person ? 'Edit Closing Manager' : 'Add Closing Manager'} size="sm">
+      <div className="space-y-4">
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30">
+          <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+            <UserCheck size={18} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+              Closing Manager for <span className="text-brand">{lead.name}</span>
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+              This person will handle the final negotiation and closing for this lead.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">
+            Closing Manager Name *
+          </label>
+          <input
+            autoFocus
+            value={closingPerson}
+            onChange={e => setClosingPerson(e.target.value)}
+            placeholder="e.g. Priya Mehta"
+            className="w-full px-4 py-3.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-gray-900 dark:text-gray-100 font-semibold"
+          />
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+            <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+            <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-2">
+          <Button type="button" variant="outline" className="flex-1 rounded-2xl py-3" onClick={onClose}>Cancel</Button>
+          <Button type="button" className="flex-1 rounded-2xl py-3 font-bold" loading={loading} onClick={handleSave}>
+            {lead.closing_person ? 'Update' : 'Add'} Closing Manager
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function Revisits() {
   const navigate    = useNavigate()
@@ -422,6 +509,8 @@ export default function Revisits() {
   const [showExportModal, setShowExportModal] = useState(false)
   const [exporting,       setExporting]       = useState(false)
   const [selected,      setSelected]      = useState(null)
+  const [showClosingManagerModal, setShowClosingManagerModal] = useState(false)
+  const [closingManagerLead, setClosingManagerLead] = useState(null)
 
   const menuRef = useRef(null)
   const [openMenuId, setOpenMenuId] = useState(null)
@@ -697,7 +786,16 @@ export default function Revisits() {
 
                     {/* Closing Person */}
                     <td className="py-3 px-4">
-                      <span className="text-xs text-gray-700 dark:text-gray-300">{rv.closing_person || '—'}</span>
+                      {rv.closing_person ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+                            <UserCheck size={11} className="text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                            {rv.closing_person}
+                          </span>
+                        </div>
+                      ) : <span className="text-xs text-gray-400">—</span>}
                     </td>
 
                     {/* Actions */}
@@ -741,9 +839,17 @@ export default function Revisits() {
                                   <MessageSquare size={14} /> Submit Feedback
                                 </button>
                               )}
+                              {rv.status === 'done' && rv.lead_id && perms.edit && (
+                                <button
+                                  onClick={() => { setClosingManagerLead({ id: rv.lead_id, name: rv.lead_name || 'Lead', closing_person: rv.closing_person || '' }); setShowClosingManagerModal(true); setOpenMenuId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-t border-gray-100 dark:border-gray-800">
+                                  <UserCheck size={14} />
+                                  {rv.closing_person ? 'Edit Closing Manager' : 'Add Closing Manager'}
+                                </button>
+                              )}
                               {perms.delete && (
                                 <button onClick={() => { setSelected(rv); setShowDelete(true); setOpenMenuId(null) }}
-                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t border-gray-100 dark:border-gray-800">
                                   <Trash2 size={14} /> Delete
                                 </button>
                               )}
@@ -811,6 +917,15 @@ export default function Revisits() {
         message={`Delete re-visit for "${selected?.lead_name}"? This cannot be undone.`}
         confirmText="Delete"
       />
+
+      {/* Closing Manager Modal */}
+      {showClosingManagerModal && closingManagerLead && (
+        <ClosingManagerModal
+          lead={closingManagerLead}
+          onClose={() => { setShowClosingManagerModal(false); setClosingManagerLead(null) }}
+          onSuccess={() => { fetchRevisits(); }}
+        />
+      )}
     </div>
   )
 }

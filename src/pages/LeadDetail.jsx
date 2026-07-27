@@ -8,7 +8,7 @@ import {
   Clock, CheckCircle, Info, ExternalLink, ShieldCheck,
   PlusCircle, CalendarPlus, ArrowRight, RefreshCw, History, Users, PhoneCall as PhoneCallIcon,
   Mic, MicOff, Play, Pause, Upload, Trash, Edit2, Plus, X, Settings2,
-  Eye, FileText
+  Eye, FileText, AlertCircle
 } from 'lucide-react'
 import api from '../api/axios'
 import CustomSelect from '../components/ui/CustomSelect'
@@ -307,6 +307,74 @@ export function EoiDocumentsSection({ lead, onUploaded }) {
   )
 }
 
+// ─── Closing Manager Modal ────────────────────────────────────────────────────
+function ClosingManagerModal({ lead, onClose, onSuccess }) {
+  const [closingPerson, setClosingPerson] = useState(lead.closing_person || '')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSave = async () => {
+    if (!closingPerson.trim()) { setError('Please enter the closing manager name'); return }
+    setLoading(true); setError('')
+    try {
+      await api.patch(`/leads/${lead.id}/closing-manager`, { closing_person: closingPerson.trim() })
+      onSuccess()
+      onClose()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to set closing manager')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title={lead.closing_person ? 'Edit Closing Manager' : 'Add Closing Manager'} size="sm">
+      <div className="space-y-4">
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30">
+          <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+            <UserCheck size={18} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+              Closing Manager for <span className="text-brand">{lead.name}</span>
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+              This person will handle the final negotiation and closing for this lead.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">
+            Closing Manager Name *
+          </label>
+          <input
+            autoFocus
+            value={closingPerson}
+            onChange={e => setClosingPerson(e.target.value)}
+            placeholder="e.g. Priya Mehta"
+            className="w-full px-4 py-3.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-gray-900 dark:text-gray-100 font-semibold"
+          />
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+            <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+            <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-2">
+          <Button type="button" variant="outline" className="flex-1 rounded-2xl py-3" onClick={onClose}>Cancel</Button>
+          <Button type="button" className="flex-1 rounded-2xl py-3 font-bold" loading={loading} onClick={handleSave}>
+            {lead.closing_person ? 'Update' : 'Add'} Closing Manager
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 const activityIconMap = {
   status_change: { emoji: '🔄', color: 'bg-blue-50 dark:bg-blue-900/20', icon: Clock },
   note: { emoji: '📝', color: 'bg-gray-50 dark:bg-gray-800', icon: Info },
@@ -365,6 +433,7 @@ export default function LeadDetail() {
   const [reassignError,      setReassignError]      = useState('')
   const [reassignSuccess,    setReassignSuccess]    = useState('')
   const [activeTab,          setActiveTab]          = useState('activity')
+  const [showClosingManagerModal, setShowClosingManagerModal] = useState(false)
 
   // ── Call Recordings ────────────────────────────────────────────────────────
   const [recordings,     setRecordings]     = useState([])
@@ -643,7 +712,7 @@ export default function LeadDetail() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-10">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mt-10">
                   {/* Phone Number tile — smart: admin sees full, others see masked + view */}
                   <div className="p-4 rounded-2xl border border-gray-50 dark:border-gray-800/50 bg-gray-50/50 dark:bg-[#0f0f0f]/50">
                     <div className="flex items-center gap-3 mb-2">
@@ -688,7 +757,7 @@ export default function LeadDetail() {
                     ) : <p className="text-sm font-semibold text-gray-400">--</p>}
                   </div>
 
-                  {/* Email + Location + Budget tiles */}
+                  {/* Email + Location + Closing Manager tiles */}
                   {[
                     { icon: Mail,   label: 'Email Address',    color: 'text-purple-600 bg-purple-50', value: lead.email, href: lead.email ? `mailto:${lead.email}` : null },
                     { icon: MapPin, label: 'Finding Location', color: 'text-teal-600 bg-teal-50',     value: lead.location_preference, href: null },
@@ -702,6 +771,44 @@ export default function LeadDetail() {
                              : <div className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{value || '--'}</div>}
                     </div>
                   ))}
+
+                  {/* Closing Manager tile */}
+                  <div className="p-4 rounded-2xl border border-gray-50 dark:border-gray-800/50 bg-gray-50/50 dark:bg-[#0f0f0f]/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20"><UserCheck size={14}/></div>
+                        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Closing Manager</span>
+                      </div>
+                      {(lead.status === 'site_visit_done' || lead.status === 'negotiation' || lead.status === 'booked') && canSeeHistory && (
+                        <button
+                          onClick={() => setShowClosingManagerModal(true)}
+                          className="p-1 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                          title={lead.closing_person ? 'Edit Closing Manager' : 'Add Closing Manager'}
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                    {lead.closing_person ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+                          <UserCheck size={11} className="text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{lead.closing_person}</span>
+                      </div>
+                    ) : (
+                      (lead.status === 'site_visit_done' || lead.status === 'negotiation' || lead.status === 'booked') && canSeeHistory ? (
+                        <button
+                          onClick={() => setShowClosingManagerModal(true)}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 px-2.5 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Plus size={11}/> Add Closing Manager
+                        </button>
+                      ) : (
+                        <p className="text-sm font-semibold text-gray-400">--</p>
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1248,6 +1355,18 @@ export default function LeadDetail() {
         isOpen={showStatusModal} 
         onClose={() => setShowStatusModal(false)} 
       />
+
+      {/* Closing Manager Modal */}
+      {showClosingManagerModal && lead && (
+        <ClosingManagerModal
+          lead={lead}
+          onClose={() => setShowClosingManagerModal(false)}
+          onSuccess={() => {
+            dispatch(fetchLeadById(id))
+            dispatch(fetchLeadActivities(id))
+          }}
+        />
+      )}
     </div>
   )
 }

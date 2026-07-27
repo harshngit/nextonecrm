@@ -680,6 +680,75 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, stageOptions, tea
 }
 
 
+// ─── Closing Manager Modal ────────────────────────────────────────────────────
+function ClosingManagerModal({ lead, onClose, onSuccess }) {
+  const [closingPerson, setClosingPerson] = useState(lead.closing_person || '')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSave = async () => {
+    if (!closingPerson.trim()) { setError('Please enter the closing manager name'); return }
+    setLoading(true); setError('')
+    try {
+      await api.patch(`/leads/${lead.id}/closing-manager`, { closing_person: closingPerson.trim() })
+      onSuccess()
+      onClose()
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to set closing manager')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title={lead.closing_person ? 'Edit Closing Manager' : 'Add Closing Manager'} size="sm">
+      <div className="space-y-4">
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30">
+          <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+            <UserCheck size={18} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+              Closing Manager for <span className="text-brand">{lead.name}</span>
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+              This person will handle the final negotiation and closing for this lead.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">
+            Closing Manager Name *
+          </label>
+          <input
+            autoFocus
+            value={closingPerson}
+            onChange={e => setClosingPerson(e.target.value)}
+            placeholder="e.g. Priya Mehta"
+            className="w-full px-4 py-3.5 text-sm bg-gray-50 dark:bg-[#0f0f0f] border border-gray-200 dark:border-gray-800 rounded-2xl outline-none focus:border-brand focus:ring-4 focus:ring-brand/5 transition-all text-gray-900 dark:text-gray-100 font-semibold"
+          />
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+            <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+            <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-2">
+          <Button type="button" variant="outline" className="flex-1 rounded-2xl py-3" onClick={onClose}>Cancel</Button>
+          <Button type="button" className="flex-1 rounded-2xl py-3 font-bold" loading={loading} onClick={handleSave}>
+            {lead.closing_person ? 'Update' : 'Add'} Closing Manager
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+
 // Shows full number (clickable) if admin.
 // Shows masked + View button for others.
 // Shows last 5 digits when View is clicked.
@@ -1747,6 +1816,8 @@ export default function Leads() {
   const [openMenuLeadId, setOpenMenuLeadId] = useState(null)
   const [menuPos,        setMenuPos]        = useState(null)
   const menuRef = useRef(null)
+  const [showClosingManagerModal, setShowClosingManagerModal] = useState(false)
+  const [closingManagerLead, setClosingManagerLead] = useState(null)
 
   useEffect(() => {
     dispatch(fetchProjects())
@@ -2357,7 +2428,7 @@ export default function Leads() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[780px] text-sm">
+            <table className="w-full min-w-[880px] text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-800 bg-blue-50/50 dark:bg-blue-900/10">
                   <th className="py-3 pl-4 pr-2 w-8">
@@ -2365,7 +2436,7 @@ export default function Leads() {
                       checked={selectedLeads.length === list.length && list.length > 0}
                       onChange={toggleAll} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
                   </th>
-                  {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Project', 'Actions']
+                  {['Lead', 'Phone', 'Source', 'Assigned', 'Status', 'Project', 'Closing Manager', 'Actions']
                     .filter(h => !(h === 'Assigned' && showLeadsTabs && leadsTab === 'my'))
                     .map(h => (
                     <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wide whitespace-nowrap
@@ -2425,6 +2496,18 @@ export default function Leads() {
                     <td className="py-3 px-3 text-xs text-gray-400">
                       {lead.project_name || '—'}
                     </td>
+                    <td className="py-3 px-3">
+                      {lead.closing_person ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
+                            <UserCheck size={11} className="text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                            {lead.closing_person}
+                          </span>
+                        </div>
+                      ) : <span className="text-xs text-gray-400">—</span>}
+                    </td>
                     <td className="py-3 px-3" ref={openMenuLeadId === lead.id ? menuRef : null}>
                       <div className="flex items-center justify-end">
                         <div className="relative">
@@ -2476,6 +2559,15 @@ export default function Leads() {
                                 >
                                   <Users size={14} />
                                   Reassign
+                                </button>
+                              )}
+                              {(lead.status === 'site_visit_done' || lead.status === 'negotiation' || lead.status === 'booked') && perms.edit && (
+                                <button
+                                  onClick={() => { setClosingManagerLead(lead); setShowClosingManagerModal(true); setOpenMenuLeadId(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-t border-gray-100 dark:border-gray-800"
+                                >
+                                  <UserCheck size={14} />
+                                  {lead.closing_person ? 'Edit Closing Manager' : 'Add Closing Manager'}
                                 </button>
                               )}
                               {perms.delete && (
@@ -2708,6 +2800,15 @@ export default function Leads() {
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-emerald-500 text-white px-5 py-3 rounded-2xl shadow-xl shadow-emerald-500/30 animate-in slide-in-from-bottom-2">
           <CheckCircle2 size={16}/> {bulkDeleteSuccess}
         </div>
+      )}
+
+      {/* Closing Manager Modal */}
+      {showClosingManagerModal && closingManagerLead && (
+        <ClosingManagerModal
+          lead={closingManagerLead}
+          onClose={() => { setShowClosingManagerModal(false); setClosingManagerLead(null) }}
+          onSuccess={() => { reloadLeads() }}
+        />
       )}
     </div>
   )
