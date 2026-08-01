@@ -218,17 +218,6 @@ const projectStatuses = [
   { value: 'ready_to_move',      label: 'Ready To Move' },
 ]
 
-// The upload-* endpoints (developer logo, photos, unit plans, etc.) return
-// the full file record ({ file_name, file_path, file_size, mime_type, url,
-// document_type }) so the form can preview it (name, thumbnail) before the
-// project is saved — but the create/update project endpoints only want the
-// plain `url` string back.
-const fileUrl = (file) => {
-  if (!file) return undefined
-  if (typeof file === 'string') return file
-  return file.url || file.file_path || undefined
-}
-
 const defaultForm = {
   name: '',
   developer: '',
@@ -731,11 +720,11 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
               <AuthImage path={resolveFileUrl(logo)} alt="Developer logo"
                 className="w-10 h-10 rounded-lg object-contain bg-white border border-gray-200 dark:border-gray-700 flex-shrink-0" />
               <span className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1">{logo.file_name || 'Uploaded logo'}</span>
-              {!projectId && (
-                <button type="button" onClick={removePendingLogo} className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
-                  <X size={12} />
-                </button>
-              )}
+              <button type="button"
+                onClick={() => projectId ? onDeleteExisting?.('developer_logo', logo.id) : removePendingLogo()}
+                className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+                <X size={12} />
+              </button>
             </div>
           ) : null
         })()}
@@ -1097,9 +1086,10 @@ export default function Projects() {
       const projectData = {
         ...addForm,
         total_units: addForm.total_units ? parseInt(addForm.total_units) : 0,
-        developer_logo: fileUrl(addForm.developer_logo),
-        // Each photo entry must keep its full { file_name, file_path, ... }
-        // shape — the backend rejects plain URL strings here.
+        // developer_logo and each photo entry must keep their full
+        // { file_name, file_path, ... } shape — the backend rejects plain
+        // URL strings here.
+        developer_logo: addForm.developer_logo || undefined,
         photos: addForm.photos || [],
       }
       const result = await dispatch(createProject(projectData))
@@ -1223,7 +1213,10 @@ export default function Projects() {
   const handleDeleteExistingFile = async (type, docId) => {
     try {
       await api.delete(`/projects/${selectedProject.id}/documents/${docId}`)
-      setExistingFiles(prev => ({ ...prev, [type]: prev[type].filter(f => f.id !== docId) }))
+      setExistingFiles(prev => ({
+        ...prev,
+        [type]: type === 'developer_logo' ? null : prev[type].filter(f => f.id !== docId)
+      }))
     } catch {}
   }
 

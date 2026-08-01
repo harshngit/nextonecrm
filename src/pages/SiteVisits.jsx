@@ -719,6 +719,7 @@ export default function SiteVisits() {
   const loadVisits = () => {
     const params = { page, per_page: resolvePerPage(perPage) }
     if (filterStatus) params.status = filterStatus
+    if (search) params.search = search
     if (filterView === 'mine') {
       dispatch(fetchMySiteVisits(params))
     } else {
@@ -726,7 +727,7 @@ export default function SiteVisits() {
     }
   }
 
-  useEffect(() => { loadVisits() }, [dispatch, filterView, filterStatus, page, perPage])
+  useEffect(() => { loadVisits() }, [dispatch, filterView, filterStatus, search, page, perPage])
 
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
@@ -743,14 +744,6 @@ export default function SiteVisits() {
   const canManage = true // All roles can manage site visits
   const perms = useModulePermissions('site_visits')
   const canBulkDeleteVisits = ['admin', 'super_admin'].includes(currentUser?.role)
-
-  const displayedList = search
-    ? list.filter(v =>
-        (v.lead_name || v['lead name'] || '').toLowerCase().includes(search.toLowerCase()) ||
-        (v.project_name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (v.assigned_to_name || '').toLowerCase().includes(search.toLowerCase())
-      )
-    : list
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -825,7 +818,7 @@ export default function SiteVisits() {
   const toggleSelectVisit = (id) =>
     setSelectedVisits(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
   const toggleAllVisits = () =>
-    setSelectedVisits(selectedVisits.length === displayedList.length && displayedList.length > 0 ? [] : displayedList.map(v => v.id))
+    setSelectedVisits(selectedVisits.length === list.length && list.length > 0 ? [] : list.map(v => v.id))
 
   const handleBulkDelete = async () => {
     if (selectedVisits.length === 0) return
@@ -1059,7 +1052,7 @@ export default function SiteVisits() {
           {/* Search */}
           <div className="relative flex-1 min-w-[180px] max-w-xs">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
               placeholder="Search lead, project..."
               className="w-full pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand placeholder-gray-400" />
           </div>
@@ -1173,7 +1166,7 @@ export default function SiteVisits() {
               <div className="grid grid-cols-7 gap-2 min-w-[560px] sm:min-w-0">
                 {weekDates.map((date, i) => {
                   const dateStr = date.toISOString().split('T')[0]
-                  const dayVisits = displayedList.filter(v => (v.visit_date || '').startsWith(dateStr))
+                  const dayVisits = list.filter(v => (v.visit_date || '').startsWith(dateStr))
                   const isSelected = selectedDate === dateStr
                   const isToday = dateStr === new Date().toISOString().split('T')[0]
 
@@ -1212,12 +1205,12 @@ export default function SiteVisits() {
                 Visits on {new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
               </h4>
               <span className="text-xs font-semibold px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-full">
-                {displayedList.filter(v => (v.visit_date || '').startsWith(selectedDate)).length} visits
+                {list.filter(v => (v.visit_date || '').startsWith(selectedDate)).length} visits
               </span>
             </div>
 
             <div className="space-y-3">
-              {(() => { const dayVisits = displayedList.filter(v => (v.visit_date || '').startsWith(selectedDate)); return dayVisits.length === 0 ? (
+              {(() => { const dayVisits = list.filter(v => (v.visit_date || '').startsWith(selectedDate)); return dayVisits.length === 0 ? (
                 <div className="py-10 text-center text-gray-400 dark:text-gray-500 italic">
                   No visits scheduled for this day
                 </div>
@@ -1329,7 +1322,7 @@ export default function SiteVisits() {
       ) : (
         // ── List ──────────────────────────────────────────────────────────────
         <div className="bg-card text-card-foreground border border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 rounded-2xl shadow-md shadow-gray-300/50 dark:shadow-gray-900/50 hover:shadow-lg hover:shadow-gray-300/50 dark:hover:shadow-gray-900/50 transition-all duration-200">
-          {displayedList.length === 0 ? (
+          {list.length === 0 ? (
             <div className="py-16 text-center text-gray-400 dark:text-[#888]">
               <CalendarDays size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" strokeWidth={1.5} />
               <p className="font-medium">No site visits found</p>
@@ -1343,7 +1336,7 @@ export default function SiteVisits() {
                     {canBulkDeleteVisits && (
                       <th className="py-3 pl-4 pr-2 w-8">
                         <input type="checkbox"
-                          checked={selectedVisits.length === displayedList.length && displayedList.length > 0}
+                          checked={selectedVisits.length === list.length && list.length > 0}
                           onChange={toggleAllVisits} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
                       </th>
                     )}
@@ -1353,7 +1346,7 @@ export default function SiteVisits() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {displayedList.map((visit, visitIdx) => (
+                  {list.map((visit, visitIdx) => (
                     <tr key={visit.id} className="hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-colors">
                       {canBulkDeleteVisits && (
                         <td className="py-3 pl-4 pr-2">

@@ -530,6 +530,7 @@ export default function Revisits() {
     try {
       const params = { page, per_page: resolvePerPage(perPage) }
       if (filterStatus) params.status = filterStatus
+      if (search) params.search = search
       const endpoint = filterView === 'mine' ? '/me/revisits' : '/site-revisits'
       const res = await api.get(endpoint, { params })
       setRevisits(res.data.data || [])
@@ -545,7 +546,7 @@ export default function Revisits() {
     } catch {}
   }
 
-  useEffect(() => { fetchRevisits() }, [page, filterView, filterStatus, perPage])
+  useEffect(() => { fetchRevisits() }, [page, filterView, filterStatus, search, perPage])
   useEffect(() => { fetchSideData() }, [])
   useEffect(() => { if (user?.id) dispatch(fetchTeamTree(user.id)) }, [user?.id, dispatch])
 
@@ -569,14 +570,6 @@ export default function Revisits() {
       setShowExportModal(false)
     } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
   }
-
-  const displayed = search
-    ? revisits.filter(r =>
-        r.lead_name?.toLowerCase().includes(search.toLowerCase()) ||
-        r.project_name?.toLowerCase().includes(search.toLowerCase()) ||
-        r.assigned_to_name?.toLowerCase().includes(search.toLowerCase())
-      )
-    : revisits
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   const stats = STATUS_VALUES.reduce((acc, s) => {
@@ -649,7 +642,7 @@ export default function Revisits() {
         )}
         <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)}
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
             placeholder="Search lead, project..."
             className="w-full pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand placeholder-gray-400" />
         </div>
@@ -675,7 +668,7 @@ export default function Revisits() {
       <div className="bg-card border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="p-4"><ListSkeleton rows={5} /></div>
-        ) : displayed.length === 0 ? (
+        ) : revisits.length === 0 ? (
           <div className="py-16 text-center">
             <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
               <RotateCcw size={28} className="text-gray-400" strokeWidth={1.5} />
@@ -700,7 +693,7 @@ export default function Revisits() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {displayed.map(rv => (
+                {revisits.map(rv => (
                   <tr key={rv.id} className="hover:bg-gray-50/60 dark:hover:bg-[#0f0f0f]/60 transition-colors group">
                     {/* Lead */}
                     <td className="py-3 px-4">
