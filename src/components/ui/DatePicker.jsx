@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { DayPicker } from 'react-day-picker'
 import { Calendar as CalendarIcon, X as ClearIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -25,16 +25,16 @@ const formatDisplay = (s) => {
 // built-in ones are hidden here rather than removed — keeps the day-grid itself
 // untouched while we drive month navigation and the year-grid view ourselves.
 const classNames = {
-  root: 'p-3 font-sans',
+  root: 'p-2 font-sans',
   months: 'flex flex-col',
   month_caption: 'hidden',
   nav: 'hidden',
   month_grid: 'w-full border-collapse',
   weekdays: 'flex',
-  weekday: 'w-9 text-[11px] font-medium text-gray-400 uppercase',
-  week: 'flex w-full mt-1',
-  day: 'w-9 h-9 text-center text-sm p-0 relative',
-  day_button: 'w-9 h-9 rounded-lg flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-brand/10 hover:text-brand transition-colors',
+  weekday: 'w-7 text-[10px] font-medium text-gray-400 uppercase',
+  week: 'flex w-full mt-0.5',
+  day: 'w-7 h-7 text-center text-xs p-0 relative',
+  day_button: 'w-7 h-7 rounded-lg flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-brand/10 hover:text-brand transition-colors',
   today: 'font-bold text-brand',
   selected: '[&>button]:bg-brand [&>button]:text-white [&>button]:hover:bg-brand-dark [&>button]:hover:text-white',
   outside: 'text-gray-300 dark:text-gray-600 opacity-50',
@@ -48,6 +48,7 @@ const SIZE_CLASSES = {
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const YEAR_GRID_SIZE = 12
+const VIEWPORT_PAD = 8
 
 export default function DatePicker({
   value,
@@ -64,8 +65,8 @@ export default function DatePicker({
   size = 'md',
 }) {
   const [open, setOpen] = useState(false)
-  const [position, setPosition] = useState('bottom')
   const [rect, setRect] = useState(null)
+  const [popupPos, setPopupPos] = useState(null) // { left, top } — computed from the popup's actual measured size
   const [view, setView] = useState('day') // 'day' | 'year'
   const [month, setMonth] = useState(() => parseYMD(value) || new Date())
   const [yearBlockStart, setYearBlockStart] = useState(() => {
@@ -73,6 +74,7 @@ export default function DatePicker({
     return y - (y % YEAR_GRID_SIZE)
   })
   const containerRef = useRef(null)
+  const popupRef = useRef(null)
 
   const currentYear = new Date().getFullYear()
   const minYear = fromYear ?? currentYear - 100
@@ -96,18 +98,36 @@ export default function DatePicker({
 
   useEffect(() => {
     if (open && containerRef.current) {
-      const containerRect = containerRef.current.getBoundingClientRect()
-      const spaceBelow = window.innerHeight - containerRect.bottom
-      const spaceAbove = containerRect.top
-      const spaceRight = window.innerWidth - containerRect.right
-
-      let next = 'bottom'
-      if (spaceBelow < 360 && spaceAbove > spaceBelow) next = 'top'
-      if (spaceRight < 220) next = next.replace('bottom', 'bottom-right').replace('top', 'top-right')
-      setPosition(next)
-      setRect(containerRect)
+      setRect(containerRef.current.getBoundingClientRect())
+    } else {
+      setRect(null)
+      setPopupPos(null)
     }
-  }, [open, view])
+  }, [open])
+
+  // Position the popup from its own *measured* size rather than a guessed
+  // constant — the day grid is 4-6 weeks tall depending on the month, and a
+  // fixed-height guess either left gaps or, worse, let the popup run off
+  // the top/right/bottom edge on small screens. Runs before paint (layout
+  // effect) so there's no visible jump from an unclamped first position.
+  useLayoutEffect(() => {
+    if (!open || !rect || !popupRef.current) return
+    const el = popupRef.current
+    const width  = Math.min(el.offsetWidth,  window.innerWidth  - VIEWPORT_PAD * 2)
+    const height = Math.min(el.offsetHeight, window.innerHeight - VIEWPORT_PAD * 2)
+
+    let left = Math.min(rect.left, window.innerWidth - width - VIEWPORT_PAD)
+    left = Math.max(VIEWPORT_PAD, left)
+
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const openUpward = spaceBelow < height + 4 && spaceAbove > spaceBelow
+    let top = openUpward ? rect.top - height - 4 : rect.bottom + 4
+    top = Math.min(top, window.innerHeight - height - VIEWPORT_PAD)
+    top = Math.max(VIEWPORT_PAD, top)
+
+    setPopupPos({ left, top })
+  }, [open, rect, view, month])
 
   const disabledMatchers = []
   if (min) disabledMatchers.push({ before: parseYMD(min) })
@@ -160,31 +180,31 @@ export default function DatePicker({
 
       {open && rect && (
         <div
+          ref={popupRef}
           style={{
             position: 'fixed',
-            ...(position.includes('right')
-              ? { right: window.innerWidth - rect.right }
-              : { left: rect.left }),
-            ...(position.startsWith('top')
-              ? { bottom: window.innerHeight - rect.top + 4 }
-              : { top: rect.bottom + 4 }),
+            left: popupPos ? popupPos.left : rect.left,
+            top: popupPos ? popupPos.top : rect.bottom + 4,
+            maxWidth: `calc(100vw - ${VIEWPORT_PAD * 2}px)`,
+            maxHeight: `calc(100vh - ${VIEWPORT_PAD * 2}px)`,
+            visibility: popupPos ? 'visible' : 'hidden',
           }}
-          className="z-[999] w-[300px] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200"
+          className="z-[999] w-[220px] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200"
         >
           {view === 'day' ? (
             <>
-              <div className="flex items-center justify-between px-3 pt-3 pb-1">
+              <div className="flex items-center justify-between px-2 pt-2 pb-1">
                 <button type="button" onClick={prevMonth}
-                  className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand transition-colors">
-                  <ChevronLeft size={16} />
+                  className="h-6 w-6 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand transition-colors">
+                  <ChevronLeft size={14} />
                 </button>
                 <button type="button" onClick={() => setView('year')}
-                  className="text-sm font-semibold text-gray-900 dark:text-gray-100 hover:text-brand transition-colors px-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+                  className="text-xs font-semibold text-gray-900 dark:text-gray-100 hover:text-brand transition-colors px-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
                   {MONTH_NAMES[month.getMonth()]} {month.getFullYear()}
                 </button>
                 <button type="button" onClick={nextMonth}
-                  className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand transition-colors">
-                  <ChevronRight size={16} />
+                  className="h-6 w-6 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand transition-colors">
+                  <ChevronRight size={14} />
                 </button>
               </div>
               <DayPicker
@@ -199,29 +219,29 @@ export default function DatePicker({
             </>
           ) : (
             <div>
-              <div className="flex items-center justify-between px-3 pt-3 pb-1">
+              <div className="flex items-center justify-between px-2 pt-2 pb-1">
                 <button type="button" onClick={() => setYearBlockStart(y => y - YEAR_GRID_SIZE)}
                   disabled={yearBlockStart - 1 < minYear}
-                  className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand transition-colors disabled:opacity-30 disabled:pointer-events-none">
-                  <ChevronLeft size={16} />
+                  className="h-6 w-6 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand transition-colors disabled:opacity-30 disabled:pointer-events-none">
+                  <ChevronLeft size={14} />
                 </button>
-                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">
                   {yearBlockStart} - {yearBlockStart + YEAR_GRID_SIZE - 1}
                 </span>
                 <button type="button" onClick={() => setYearBlockStart(y => y + YEAR_GRID_SIZE)}
                   disabled={yearBlockStart + YEAR_GRID_SIZE > maxYear}
-                  className="h-7 w-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand transition-colors disabled:opacity-30 disabled:pointer-events-none">
-                  <ChevronRight size={16} />
+                  className="h-6 w-6 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand transition-colors disabled:opacity-30 disabled:pointer-events-none">
+                  <ChevronRight size={14} />
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-2 p-4">
+              <div className="grid grid-cols-3 gap-1.5 p-2">
                 {Array.from({ length: YEAR_GRID_SIZE }, (_, i) => yearBlockStart + i).map((y) => (
                   <button
                     key={y}
                     type="button"
                     disabled={y < minYear || y > maxYear}
                     onClick={() => pickYear(y)}
-                    className={`py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-30 disabled:pointer-events-none ${
+                    className={`py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-30 disabled:pointer-events-none ${
                       y === month.getFullYear()
                         ? 'bg-brand text-white'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-brand/10 hover:text-brand'
@@ -233,13 +253,13 @@ export default function DatePicker({
               </div>
             </div>
           )}
-          <div className="px-3 py-2 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+          <div className="px-2 py-1.5 border-t border-gray-100 dark:border-gray-800 flex justify-end">
             <button
               type="button"
               onClick={() => { onChange(''); setOpen(false) }}
-              className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-red-500 transition-colors"
+              className="flex items-center gap-1 text-[11px] font-semibold text-gray-400 hover:text-red-500 transition-colors"
             >
-              <ClearIcon size={11} /> Clear
+              <ClearIcon size={10} /> Clear
             </button>
           </div>
         </div>
