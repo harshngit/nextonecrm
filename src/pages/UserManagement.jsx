@@ -12,6 +12,7 @@ import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
 import ExportModal from '../components/ui/ExportModal'
 import CustomSelect from '../components/ui/CustomSelect'
+import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 
 const roleColors = {
   super_admin:    'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30',
@@ -208,6 +209,8 @@ export default function UserManagement() {
   const [selectedUser,    setSelectedUser]    = useState(null)
   const [assignTarget,    setAssignTarget]    = useState(null)
   const [filterRole,      setFilterRole]      = useState('')
+  const [filterActive,    setFilterActive]    = useState('')
+  const [filterManagerId, setFilterManagerId] = useState('')
   const [success,         setSuccess]         = useState('')
   const [assignSuccess,   setAssignSuccess]   = useState('')
   const [showPassword,    setShowPassword]    = useState(false)
@@ -225,10 +228,9 @@ export default function UserManagement() {
     dispatch(fetchRoles())
   }, [dispatch])
 
-  // sales_manager: API already scopes to their team; fetch without is_active to get all
   useEffect(() => {
-    dispatch(fetchUsers({ role: filterRole, page, per_page: 10 }))
-  }, [dispatch, filterRole, page])
+    dispatch(fetchUsers({ role: filterRole, is_active: filterActive, search, manager_id: filterManagerId, page, per_page: 10 }))
+  }, [dispatch, filterRole, filterActive, search, filterManagerId, page])
 
   useEffect(() => {
     if (!showModal)       { dispatch(clearUserError()); setSuccess('');       setShowPassword(false) }
@@ -251,31 +253,29 @@ export default function UserManagement() {
   }, [])
 
 
-  // For sales_manager: only show sales_executive and external_caller
+  // For sales_manager: only show sales_executive and external_caller.
+  // Search/role/status/manager filtering all now happen server-side (see the
+  // fetchUsers effect above) — `list` already reflects the active filters.
   const visibleList = isSalesManager
     ? list.filter(u => ['sales_executive', 'external_caller'].includes(u.role))
     : list
 
-  const searchedList = search
-    ? visibleList.filter(u => {
-        const q = search.toLowerCase()
-        return (
-          u.first_name?.toLowerCase().includes(q) ||
-          u.last_name?.toLowerCase().includes(q) ||
-          u.email?.toLowerCase().includes(q) ||
-          u.phone_number?.includes(q)
-        )
-      })
-    : visibleList
-
-  const activeUsers   = searchedList.filter(u => u.is_active)
-  const inactiveUsers = searchedList.filter(u => !u.is_active)
+  const activeUsers   = visibleList.filter(u => u.is_active)
+  const inactiveUsers = visibleList.filter(u => !u.is_active)
 
   // Role filter options — sales_manager doesn't need the filter (always scoped)
   const roleFilterOptions = [
     { value: '', label: 'All Roles' },
     ...roles,
   ]
+
+  const searchManagerUsers = async (q) => {
+    const res = await api.get('/users', { params: { search: q, per_page: 20 } })
+    return (res.data?.data || []).map(u => ({
+      value: u.id,
+      label: `${u.first_name} ${u.last_name} · ${ROLE_DISPLAY_NAME[u.role] || u.role?.replace(/_/g, ' ')}`,
+    }))
+  }
 
   const handleOpenModal = (user = null) => {
     if (user) {
@@ -328,7 +328,7 @@ export default function UserManagement() {
       const result = await dispatch(createUser(form))
       if (createUser.fulfilled.match(result)) {
         setSuccess('User registered successfully!')
-        dispatch(fetchUsers({ role: filterRole }))
+        dispatch(fetchUsers({ role: filterRole, is_active: filterActive, search, manager_id: filterManagerId }))
         setTimeout(() => setShowModal(false), 800)
       }
     }
@@ -339,7 +339,7 @@ export default function UserManagement() {
     const result = await dispatch(assignManager({ userId: assignTarget.id, managerId }))
     if (assignManager.fulfilled.match(result)) {
       setAssignSuccess('Manager assigned successfully!')
-      dispatch(fetchUsers({ role: filterRole }))
+      dispatch(fetchUsers({ role: filterRole, is_active: filterActive, search, manager_id: filterManagerId }))
       setTimeout(() => setShowAssignModal(false), 800)
     }
   }
@@ -349,7 +349,7 @@ export default function UserManagement() {
     const result = await dispatch(toggleUserStatus({ id: userToDelete.id, is_active: false }))
     if (toggleUserStatus.fulfilled.match(result)) {
       showStatusToast(`${userToDelete.first_name} ${userToDelete.last_name} has been deactivated`)
-      dispatch(fetchUsers({ role: filterRole, page, per_page: 10 }))
+      dispatch(fetchUsers({ role: filterRole, is_active: filterActive, search, manager_id: filterManagerId, page, per_page: 10 }))
     } else {
       showStatusToast(result.payload || 'Failed to deactivate user', true)
     }
@@ -361,7 +361,7 @@ export default function UserManagement() {
     const result = await dispatch(toggleUserStatus({ id: user.id, is_active: true }))
     if (toggleUserStatus.fulfilled.match(result)) {
       showStatusToast(`${user.first_name} ${user.last_name} has been activated`)
-      dispatch(fetchUsers({ role: filterRole, page, per_page: 10 }))
+      dispatch(fetchUsers({ role: filterRole, is_active: filterActive, search, manager_id: filterManagerId, page, per_page: 10 }))
     } else {
       showStatusToast(result.payload || 'Failed to activate user', true)
     }
@@ -553,7 +553,7 @@ export default function UserManagement() {
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
               placeholder="Search by name, email, phone..."
               className="pl-9 pr-4 py-2 text-sm bg-white dark:bg-[#1a1a1a] border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand w-64 text-gray-900 dark:text-white placeholder-gray-400"
             />
@@ -562,14 +562,37 @@ export default function UserManagement() {
             <div className="w-48">
               <CustomSelect
                 value={filterRole}
-                onChange={val => setFilterRole(val)}
+                onChange={val => { setFilterRole(val); setPage(1) }}
                 options={roleFilterOptions}
                 placeholder="All Roles"
               />
             </div>
           )}
+          <div className="w-40">
+            <CustomSelect
+              value={filterActive}
+              onChange={val => { setFilterActive(val); setPage(1) }}
+              options={[
+                { value: '', label: 'All Status' },
+                { value: 'true', label: 'Active' },
+                { value: 'false', label: 'Inactive' },
+              ]}
+              placeholder="All Status"
+            />
+          </div>
+          {!isSalesManager && (
+            <div className="w-56">
+              <AsyncSearchSelect
+                value={filterManagerId}
+                onChange={val => { setFilterManagerId(val); setPage(1) }}
+                onSearch={searchManagerUsers}
+                initialOptions={[]}
+                placeholder="Filter by manager..."
+              />
+            </div>
+          )}
           <button
-            onClick={() => dispatch(fetchUsers({ role: filterRole, page, per_page: 10 }))}
+            onClick={() => dispatch(fetchUsers({ role: filterRole, is_active: filterActive, search, manager_id: filterManagerId, page, per_page: 10 }))}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors shadow-sm bg-white dark:bg-[#1a1a1a]">
             <RefreshCw size={14} />
           </button>

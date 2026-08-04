@@ -14,7 +14,7 @@ import api from '../api/axios'
 import CustomSelect from '../components/ui/CustomSelect'
 import {
   fetchLeadById, fetchLeadActivities, addLeadNote, updateLeadStatus, clearCurrentLead,
-  fetchLeadStatuses
+  fetchLeadStatuses, fetchLeadSources, fetchLeadConfigurations
 } from '../store/leadSlice'
 import { fetchTeamTree } from '../store/userSlice'
 import Badge from '../components/ui/Badge'
@@ -22,7 +22,10 @@ import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import ConvertLeadModal from '../components/modals/ConvertLeadModal'
+import ConvertToRevisitModal from '../components/modals/ConvertToRevisitModal'
 import LeadStatusManagementModal from '../components/modals/LeadStatusManagementModal'
+import LeadSourceManagementModal from '../components/modals/LeadSourceManagementModal'
+import LeadConfigurationManagementModal from '../components/modals/LeadConfigurationManagementModal'
 import PhoneActions from '../components/ui/PhoneActions'
 
 const defaultLeadStages = [
@@ -398,10 +401,15 @@ export default function LeadDetail() {
   const [newStatus, setNewStatus] = useState('')
   const [noteError, setNoteError] = useState('')
   const [showConvertModal, setShowConvertModal] = useState(false)
+  const [showRevisitModal, setShowRevisitModal] = useState(false)
   const [convertInitialStep, setConvertInitialStep] = useState('choose')
   const [showStatusModal, setShowStatusModal] = useState(false)
+  const [showSourceModal, setShowSourceModal] = useState(false)
+  const [showConfigModal, setShowConfigModal] = useState(false)
+  const [showManageMenu, setShowManageMenu] = useState(false)
 
   const isAdmin = ['admin', 'super_admin'].includes(currentUser?.role)
+  const isAdminOrManager = ['admin', 'super_admin', 'manager'].includes(currentUser?.role)
   const leadStages = statuses?.length > 0 
     ? statuses.filter(s => s.is_active).map(s => ({ value: s.key, label: s.label, color: s.color }))
     : defaultLeadStages
@@ -566,6 +574,8 @@ export default function LeadDetail() {
     dispatch(fetchLeadActivities(id))
     if (currentUser?.id) dispatch(fetchTeamTree(currentUser.id))
     dispatch(fetchLeadStatuses())
+    dispatch(fetchLeadSources())
+    dispatch(fetchLeadConfigurations())
     fetchReassignHistory(1)
     fetchRecordings()
     return () => dispatch(clearCurrentLead())
@@ -645,6 +655,8 @@ export default function LeadDetail() {
     } else if (targetStatus === 'follow_up') {
       setConvertInitialStep('follow_up')
       setShowConvertModal(true)
+    } else if (targetStatus === 're_visit') {
+      setShowRevisitModal(true)
     }
   }
 
@@ -672,6 +684,37 @@ export default function LeadDetail() {
             >
               <CalendarPlus size={14} className="mr-2" /> Convert Lead
             </Button>
+          )}
+          {isAdminOrManager && (
+            <div className="relative flex-shrink-0">
+              <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setShowManageMenu(o => !o)}>
+                <Settings2 size={14} className="mr-2" /> Manage
+              </Button>
+              {showManageMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowManageMenu(false)} />
+                  <div className="absolute right-0 top-full mt-2 z-50 w-52 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg py-1">
+                    <button
+                      onClick={() => { setShowSourceModal(true); setShowManageMenu(false) }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      Manage Sources
+                    </button>
+                    <button
+                      onClick={() => { setShowConfigModal(true); setShowManageMenu(false) }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      Manage Configuration
+                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => { setShowStatusModal(true); setShowManageMenu(false) }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        Manage Status
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           )}
           <Button variant="outline" size="sm" className="rounded-xl flex-shrink-0">
             <ExternalLink size={14} className="mr-2" /> Share
@@ -1133,14 +1176,6 @@ export default function LeadDetail() {
                 <h3 className="font-display text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <CheckCircle size={18} className="text-green-500" /> Pipeline Status
                 </h3>
-                {isAdmin && (
-                  <button onClick={() => setShowStatusModal(true)} 
-                    className="p-2 text-gray-400 hover:text-brand hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all"
-                    title="Manage Statuses"
-                  >
-                    <Settings2 size={16} />
-                  </button>
-                )}
               </div>
               
               <div className="space-y-5">
@@ -1350,10 +1385,35 @@ export default function LeadDetail() {
         />
       )}
 
+      {/* Convert-to-Revisit Modal — opened automatically after the lead's
+          status is changed to "re_visit". */}
+      {showRevisitModal && lead && (
+        <ConvertToRevisitModal
+          lead={lead}
+          onClose={() => setShowRevisitModal(false)}
+          onSuccess={() => {
+            dispatch(fetchLeadById(id))
+            dispatch(fetchLeadActivities(id))
+          }}
+        />
+      )}
+
       {/* Lead Status Management Modal */}
-      <LeadStatusManagementModal 
-        isOpen={showStatusModal} 
-        onClose={() => setShowStatusModal(false)} 
+      <LeadStatusManagementModal
+        isOpen={showStatusModal}
+        onClose={() => setShowStatusModal(false)}
+      />
+
+      {/* Lead Source Management Modal */}
+      <LeadSourceManagementModal
+        isOpen={showSourceModal}
+        onClose={() => setShowSourceModal(false)}
+      />
+
+      {/* Lead Configuration Management Modal */}
+      <LeadConfigurationManagementModal
+        isOpen={showConfigModal}
+        onClose={() => setShowConfigModal(false)}
       />
 
       {/* Closing Manager Modal */}

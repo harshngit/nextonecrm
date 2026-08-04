@@ -184,6 +184,54 @@ export const deleteLeadSource = createAsyncThunk(
   }
 )
 
+export const fetchLeadConfigurations = createAsyncThunk(
+  'leads/fetchConfigurations',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/config/lead-configurations')
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch lead configurations')
+    }
+  }
+)
+
+export const addLeadConfiguration = createAsyncThunk(
+  'leads/addConfiguration',
+  async (name, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/config/lead-configurations', { name })
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to add lead configuration')
+    }
+  }
+)
+
+export const updateLeadConfiguration = createAsyncThunk(
+  'leads/updateConfiguration',
+  async ({ id, name, is_active }, { rejectWithValue }) => {
+    try {
+      const response = await api.put(`/config/lead-configurations/${id}`, { name, is_active })
+      return response.data.data
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to update lead configuration')
+    }
+  }
+)
+
+export const deleteLeadConfiguration = createAsyncThunk(
+  'leads/deleteConfiguration',
+  async (id, { rejectWithValue }) => {
+    try {
+      await api.delete(`/config/lead-configurations/${id}`)
+      return id
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete lead configuration')
+    }
+  }
+)
+
 export const fetchLeadStatuses = createAsyncThunk(
   'leads/fetchStatuses',
   async (includeInactive = false, { rejectWithValue }) => {
@@ -257,6 +305,7 @@ const leadSlice = createSlice({
     activities:   [],
     sources:      [],
     statuses:     [],
+    configurations: [],
     pagination:   { total: 0, page: 1, per_page: 20, total_pages: 0 },
     loading:      false,
     detailLoading: false,
@@ -335,6 +384,23 @@ const leadSlice = createSlice({
         state.sources = state.sources.filter(s => s.id !== action.payload)
       })
 
+      // ── fetchLeadConfigurations ────────────────────────────────────────────
+      .addCase(fetchLeadConfigurations.fulfilled, (state, action) => {
+        state.configurations = action.payload || []
+      })
+
+      .addCase(addLeadConfiguration.fulfilled, (state, action) => {
+        state.configurations = [...state.configurations, action.payload]
+      })
+
+      .addCase(updateLeadConfiguration.fulfilled, (state, action) => {
+        state.configurations = state.configurations.map(c => c.id === action.payload.id ? action.payload : c)
+      })
+
+      .addCase(deleteLeadConfiguration.fulfilled, (state, action) => {
+        state.configurations = state.configurations.filter(c => c.id !== action.payload)
+      })
+
       // ── fetchLeadStatuses ──────────────────────────────────────────────────
       .addCase(fetchLeadStatuses.fulfilled, (state, action) => {
         state.statuses = action.payload || []
@@ -359,7 +425,7 @@ const leadSlice = createSlice({
       // ── create / update / delete / status / reassign — action loading ─────
       .addMatcher(
         (action) =>
-          ['leads/create', 'leads/update', 'leads/delete', 'leads/bulkDelete', 'leads/updateStatus', 'leads/reassign', 'leads/addNote', 'leads/addSource', 'leads/updateSource', 'leads/deleteSource', 'leads/addStatus', 'leads/updateStatusConfig', 'leads/deleteStatus', 'leads/reorderStatuses']
+          ['leads/create', 'leads/update', 'leads/delete', 'leads/bulkDelete', 'leads/updateStatus', 'leads/reassign', 'leads/addNote', 'leads/addSource', 'leads/updateSource', 'leads/deleteSource', 'leads/addStatus', 'leads/updateStatusConfig', 'leads/deleteStatus', 'leads/reorderStatuses', 'leads/addConfiguration', 'leads/updateConfiguration', 'leads/deleteConfiguration']
             .some(t => action.type.startsWith(t)),
         (state, action) => {
           if (action.type.endsWith('/pending'))   { state.actionLoading = true;  state.actionError = null }

@@ -10,6 +10,8 @@ export const fetchUsers = createAsyncThunk(
       const allowedParams = {}
       if (params.role && params.role !== '--') allowedParams.role = params.role
       if (params.is_active !== '' && params.is_active !== undefined) allowedParams.is_active = params.is_active
+      if (params.search) allowedParams.search = params.search
+      if (params.manager_id) allowedParams.manager_id = params.manager_id
       if (params.page) allowedParams.page = params.page
       if (params.per_page) allowedParams.per_page = params.per_page
 
