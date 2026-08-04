@@ -29,6 +29,8 @@ import DateTimePicker from '../components/ui/DateTimePicker'
 
 const ROLE_LABEL = { super_admin: 'Super Admin', admin: 'Admin', associate_partner: 'Associate Partner', cluster_head: 'Cluster Head', partner: 'Partner', team_leader: 'Team Leader', sales_manager: 'Sales Manager', sales_executive: 'Sales Executive', external_caller: 'External Caller' }
 
+const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+
 const visitStatuses = ['scheduled', 'done', 'cancelled', 'rescheduled', 'no_show']
 const statusLabel = { scheduled: 'Scheduled', done: 'Completed', cancelled: 'Cancelled', rescheduled: 'Rescheduled', no_show: 'No Show' }
 const statusOptions = visitStatuses.map(s => ({ value: s, label: statusLabel[s] }))
@@ -506,9 +508,11 @@ function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
 
   const [form, setForm] = useState({
     original_visit_id: visit.id,
+    project_id: visit.project_id || '',
+    project_name: visit.project_id ? '' : (visit.project_name || ''),
     visit_date: '',
     visit_time: '',
-    assigned_to: typeof visit.assigned_to === 'object' ? visit.assigned_to.id : visit.assigned_to,
+    assigned_to: visit.assigned_to && typeof visit.assigned_to === 'object' ? visit.assigned_to.id : (visit.assigned_to || ''),
     reason: '',
     notes: '',
     transport_arranged: false,
@@ -521,6 +525,11 @@ function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
     ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
   ]
 
+  const searchProjects = async q => {
+    const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` — ${p.city}` : ''}` }))
+  }
+
   const handleSubmit = async e => {
     e.preventDefault()
     if (!form.visit_date || !form.visit_time) {
@@ -528,7 +537,8 @@ function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
     }
     setLoading(true); setError('')
     try {
-      await api.post('/site-revisits', form)
+      const { project_name, ...rest } = form
+      await api.post('/site-revisits', { ...rest, project_id: form.project_id || project_name || undefined })
       onSuccess()
       onClose()
     } catch (e) { setError(e.response?.data?.message || 'Failed to schedule re-visit') }
@@ -562,6 +572,17 @@ function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
             icon={Clock}
           />
         </div>
+
+        <AsyncSearchSelect
+          label="Project"
+          value={form.project_id}
+          onChange={v => setForm(p => ({ ...p, project_id: v, project_name: '' }))}
+          onTextChange={text => setForm(p => ({ ...p, project_name: text }))}
+          onSearch={searchProjects}
+          placeholder="Default: original visit's project — type to override..."
+          fallbackToInput
+          defaultText={form.project_id ? '' : (form.project_name || '')}
+        />
 
         <CustomSelect label="Assign To" value={form.assigned_to}
           onChange={v => setForm(p => ({ ...p, assigned_to: v }))}
@@ -1340,7 +1361,7 @@ export default function SiteVisits() {
                           onChange={toggleAllVisits} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
                       </th>
                     )}
-                    {['Lead', 'Project', 'Date & Time', ...(filterView !== 'mine' ? ['Assigned To'] : []), 'Transport', 'Status', 'Feedback', 'Closing Person', 'Actions'].map(h => (
+                    {['Lead', 'Project', 'Date & Time', ...(filterView !== 'mine' ? ['Assigned To'] : []), 'Transport', 'Status', 'Feedback', 'Closing Person', 'Created', 'Actions'].map(h => (
                       <th key={h} className="py-3 px-4 text-left text-xs font-medium text-gray-500 dark:text-[#888] uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -1419,6 +1440,9 @@ export default function SiteVisits() {
                       </td>
                       <td className="py-3 px-4">
                         <span className="text-xs text-gray-700 dark:text-gray-300">{visit.closing_person || '—'}</span>
+                      </td>
+                      <td className="py-3 px-4 text-xs text-gray-400 whitespace-nowrap">
+                        {fmtDate(visit.created_at)}
                       </td>
                       <td className="py-3 px-4" ref={openMenuVisitId === visit.id ? menuRef : null}>
                         <div className="flex items-center justify-end gap-1">

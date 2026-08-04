@@ -2570,6 +2570,8 @@ export default function EOILeads() {
       {showRevisitModal && revisitLead && (
         <ConvertToRevisitModal
           lead={revisitLead}
+          teamMembers={teamMembers}
+          currentUser={currentUser}
           onClose={() => { setShowRevisitModal(false); setRevisitLead(null) }}
           onSuccess={reloadLeads}
         />

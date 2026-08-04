@@ -85,6 +85,8 @@ function formatDue(task) {
     (task.due_time ? ` at ${task.due_time}` : '')
 }
 
+const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+
 // ── Form — defined OUTSIDE to prevent typing/focus bug ────────────────────────
 function FollowUpForm({ formData, setFormData, leads, teamMembers = [], isEdit, selectedTask, currentUser }) {
   const ic = "w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all duration-200"
@@ -1470,7 +1472,7 @@ export default function FollowUps() {
                       checked={selectedTasks.length === list.length && list.length > 0}
                       onChange={toggleAll} className="rounded border-gray-300 text-[#0082f3] focus:ring-[#0082f3]" />
                   </th>
-                  {['Lead', 'Task', 'Due', 'Priority', ...(filterView !== 'mine' ? ['Assigned'] : []), 'Status', 'Actions'].map((h, i) => (
+                  {['Lead', 'Task', 'Due', 'Priority', ...(filterView !== 'mine' ? ['Assigned'] : []), 'Status', 'Created', 'Actions'].map((h, i) => (
                     <th key={h} className={`py-3 px-3 text-left text-xs font-medium text-blue-900/70 dark:text-blue-200/70 uppercase tracking-wide whitespace-nowrap
                       ${h === 'Priority' ? 'hidden md:table-cell' : ''}
                       ${h === 'Actions' ? 'text-right' : ''}`}>
@@ -1542,6 +1544,9 @@ export default function FollowUps() {
                             category === 'overdue' ? 'Overdue' :
                             category === 'today' ? 'Today' : 'Upcoming'}
                         </span>
+                      </td>
+                      <td className="py-3 px-3 text-xs text-gray-400 whitespace-nowrap">
+                        {fmtDate(task.created_at)}
                       </td>
                       <td className="py-3 px-3" ref={openMenuTaskId === task.id ? menuRef : null}>
                         <div className="flex items-center justify-end gap-1">

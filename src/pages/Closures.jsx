@@ -1078,7 +1078,7 @@ export default function Closures() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-[#0f0f0f] border-b border-gray-200 dark:border-gray-800">
-                  {['Lead', 'Project', 'Unit', 'Booking Date', 'Deal Value', 'Commission', 'Status', 'Closed By', 'Actions'].map(h => (
+                  {['Lead', 'Project', 'Unit', 'Booking Date', 'Deal Value', 'Commission', 'Status', 'Closed By', 'Created', 'Actions'].map(h => (
                     <th key={h} className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -1150,6 +1150,11 @@ export default function Closures() {
                         <Avatar name={c.closed_by_name || '?'} size="xs" />
                         <span className="text-xs text-gray-600 dark:text-gray-400">{c.closed_by_name || '—'}</span>
                       </div>
+                    </td>
+
+                    {/* Created */}
+                    <td className="py-3 px-4 text-xs text-gray-400 whitespace-nowrap">
+                      {fmtDate(c.created_at)}
                     </td>
 
                     {/* Actions */}

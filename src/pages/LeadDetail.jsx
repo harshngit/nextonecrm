@@ -1390,6 +1390,8 @@ export default function LeadDetail() {
       {showRevisitModal && lead && (
         <ConvertToRevisitModal
           lead={lead}
+          teamMembers={teamMembers}
+          currentUser={currentUser}
           onClose={() => setShowRevisitModal(false)}
           onSuccess={() => {
             dispatch(fetchLeadById(id))

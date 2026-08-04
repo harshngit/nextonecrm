@@ -15,6 +15,7 @@ import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import CustomSelect from '../components/ui/CustomSelect'
+import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 import DatePicker from '../components/ui/DatePicker'
 import ClockPicker from '../components/ui/ClockPicker'
 import PhoneActions from '../components/ui/PhoneActions'
@@ -29,9 +30,11 @@ function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
 
   const [form, setForm] = useState({
     original_visit_id: visit.id,
+    project_id: visit.project_id || '',
+    project_name: visit.project_id ? '' : (visit.project_name || ''),
     visit_date: '',
     visit_time: '',
-    assigned_to: typeof visit.assigned_to === 'object' ? visit.assigned_to.id : visit.assigned_to,
+    assigned_to: visit.assigned_to && typeof visit.assigned_to === 'object' ? visit.assigned_to.id : (visit.assigned_to || ''),
     reason: '',
     notes: '',
     transport_arranged: false,
@@ -44,6 +47,11 @@ function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
     ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))
   ]
 
+  const searchProjects = async q => {
+    const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` — ${p.city}` : ''}` }))
+  }
+
   const handleSubmit = async e => {
     e.preventDefault()
     if (!form.visit_date || !form.visit_time) {
@@ -51,7 +59,8 @@ function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
     }
     setLoading(true); setError('')
     try {
-      await api.post('/site-revisits', form)
+      const { project_name, ...rest } = form
+      await api.post('/site-revisits', { ...rest, project_id: form.project_id || project_name || undefined })
       onSuccess()
       onClose()
     } catch (e) { setError(e.response?.data?.message || 'Failed to schedule re-visit') }
@@ -85,6 +94,17 @@ function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
             icon={Clock}
           />
         </div>
+
+        <AsyncSearchSelect
+          label="Project"
+          value={form.project_id}
+          onChange={v => setForm(p => ({ ...p, project_id: v, project_name: '' }))}
+          onTextChange={text => setForm(p => ({ ...p, project_name: text }))}
+          onSearch={searchProjects}
+          placeholder="Default: original visit's project — type to override..."
+          fallbackToInput
+          defaultText={form.project_id ? '' : (form.project_name || '')}
+        />
 
         <CustomSelect label="Assign To" value={form.assigned_to}
           onChange={v => setForm(p => ({ ...p, assigned_to: v }))}

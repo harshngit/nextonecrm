@@ -62,7 +62,7 @@ function StatusBadge({ status }) {
 // ── Schedule Revisit Modal ────────────────────────────────────────────────────
 function ScheduleModal({ siteVisits, salesExecs, currentUser, onClose, onSuccess }) {
   const [form, setForm] = useState({
-    original_visit_id: '', visit_date: '', visit_time: '',
+    original_visit_id: '', project_id: '', project_name: '', visit_date: '', visit_time: '',
     assigned_to: '', reason: '', notes: '', transport_arranged: false,
   })
   const [loading, setLoading] = useState(false)
@@ -77,6 +77,10 @@ function ScheduleModal({ siteVisits, salesExecs, currentUser, onClose, onSuccess
     const term = q.toLowerCase()
     return svOptions.filter(opt => opt.label.toLowerCase().includes(term))
   }
+  const searchProjects = async q => {
+    const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` — ${p.city}` : ''}` }))
+  }
   const execOptions = [
     ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL_MAP[currentUser.role] || currentUser.role}` }] : []),
     ...salesExecs.filter(u => u.id !== currentUser?.id).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL_MAP[u.role] || u.role}` }))
@@ -89,7 +93,8 @@ function ScheduleModal({ siteVisits, salesExecs, currentUser, onClose, onSuccess
     }
     setLoading(true); setError('')
     try {
-      await api.post('/site-revisits', form)
+      const { project_name, ...rest } = form
+      await api.post('/site-revisits', { ...rest, project_id: form.project_id || project_name || undefined })
       onSuccess()
       onClose()
     } catch (e) { setError(e.response?.data?.message || 'Failed to schedule re-visit') }
@@ -119,6 +124,17 @@ function ScheduleModal({ siteVisits, salesExecs, currentUser, onClose, onSuccess
             icon={Clock}
           />
         </div>
+
+        <AsyncSearchSelect
+          label="Project"
+          value={form.project_id}
+          onChange={v => setForm(p => ({ ...p, project_id: v, project_name: '' }))}
+          onTextChange={text => setForm(p => ({ ...p, project_name: text }))}
+          onSearch={searchProjects}
+          placeholder="Default: original visit's project — type to override..."
+          fallbackToInput
+          defaultText={form.project_id ? '' : (form.project_name || '')}
+        />
 
         <CustomSelect label="Assign To" value={form.assigned_to}
           onChange={v => setForm(p => ({ ...p, assigned_to: v }))}
@@ -687,7 +703,7 @@ export default function Revisits() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-[#0f0f0f] border-b border-gray-200 dark:border-gray-800">
-                  {['Lead', 'Project', 'Date & Time', ...(filterView !== 'mine' ? ['Assigned To'] : []), 'Reason', 'Transport', 'Status', 'Feedback', 'Closing Person', 'Actions'].map(h => (
+                  {['Lead', 'Project', 'Date & Time', ...(filterView !== 'mine' ? ['Assigned To'] : []), 'Reason', 'Transport', 'Status', 'Feedback', 'Closing Person', 'Created', 'Actions'].map(h => (
                     <th key={h} className="py-3 px-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -789,6 +805,11 @@ export default function Revisits() {
                           </span>
                         </div>
                       ) : <span className="text-xs text-gray-400">—</span>}
+                    </td>
+
+                    {/* Created */}
+                    <td className="py-3 px-4 text-xs text-gray-400 whitespace-nowrap">
+                      {fmtDate(rv.created_at)}
                     </td>
 
                     {/* Actions */}
