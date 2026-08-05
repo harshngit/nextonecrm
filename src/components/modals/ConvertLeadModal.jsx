@@ -8,7 +8,7 @@ import AsyncSearchSelect from '../ui/AsyncSearchSelect'
 import ClockPicker from '../ui/ClockPicker'
 import DatePicker from '../ui/DatePicker'
 
-export default function ConvertLeadModal({ lead, onClose, onSuccess, initialStep = 'choose' }) {
+export default function ConvertLeadModal({ lead, currentUser, onClose, onSuccess, initialStep = 'choose' }) {
   const [step, setStep] = useState(initialStep)  // 'choose' | 'follow_up' | 'site_visit'
   const [converting, setConverting] = useState(false)
   const [error, setError] = useState('')
@@ -23,6 +23,9 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess, initialStep
   const { list: projectList } = useSelector(s => s.projects)
   const { teamTree: teamMembers = [] } = useSelector(s => s.users)
   const salesExecs = teamMembers.filter(u => !u.is_self)
+  // Only admin/super_admin can reassign at conversion time — every other
+  // role is locked to whoever the lead is already assigned to (or themselves).
+  const isRestricted = !['admin', 'super_admin'].includes(currentUser?.role)
 
   useEffect(() => {
     // Fetch conversion options to pre-fill
@@ -34,13 +37,13 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess, initialStep
         setFuForm(f => ({
           ...f,
           title: pf.title || `Follow-up with ${lead.name}`,
-          assigned_to: pf.assigned_to || lead.assigned_to || '',
+          assigned_to: pf.assigned_to || lead.assigned_to || (isRestricted ? currentUser?.id : '') || '',
         }))
         setSvForm(f => ({
           ...f,
           project_id:        sv.project_id || lead.project_id || '',
           project_name:      sv.project_name || lead.project_name || '',
-          assigned_to:       sv.assigned_to || lead.assigned_to || '',
+          assigned_to:       sv.assigned_to || lead.assigned_to || (isRestricted ? currentUser?.id : '') || '',
           transport_arranged: sv.transport_arranged || false,
         }))
       })
@@ -50,6 +53,7 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess, initialStep
 
   const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300 transition-colors placeholder-gray-400"
   const labelCls = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5"
+  const disabledCls = "w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-70"
 
   const projectOptions = (options?.projects || projectList || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
   const userOptions    = (options?.users    || salesExecs    || []).map(u => ({ value: u.id, label: u.name || `${u.first_name} ${u.last_name}` }))
@@ -57,6 +61,14 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess, initialStep
   const searchProjects = async (q) => {
     const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
     return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
+  }
+
+  // For restricted roles: show whichever team member the lead is currently
+  // assigned to, falling back to the caller's own name if none resolves.
+  const assigneeDisplayName = (assignedTo) => {
+    const match = userOptions.find(o => String(o.value) === String(assignedTo))
+    if (match) return match.label
+    return `${currentUser?.first_name ?? ''} ${currentUser?.last_name ?? ''}`.trim() || 'Self'
   }
 
   const handleConvertFollowUp = async () => {
@@ -175,7 +187,14 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess, initialStep
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <CustomSelect label="Priority" value={fuForm.priority} onChange={v => setFuForm(f => ({...f, priority: v}))} options={priorityOpts} />
-            <CustomSelect label="Assign To" value={fuForm.assigned_to} onChange={v => setFuForm(f => ({...f, assigned_to: v}))} options={userOptions} placeholder="Keep current" />
+            {isRestricted ? (
+              <div>
+                <label className={labelCls}>Assign To</label>
+                <div className={disabledCls}>{assigneeDisplayName(fuForm.assigned_to)}</div>
+              </div>
+            ) : (
+              <CustomSelect label="Assign To" value={fuForm.assigned_to} onChange={v => setFuForm(f => ({...f, assigned_to: v}))} options={userOptions} placeholder="Keep current" />
+            )}
           </div>
           <div>
             <label className={labelCls}>Notes <span className="font-normal text-gray-400">(optional)</span></label>
@@ -212,7 +231,14 @@ export default function ConvertLeadModal({ lead, onClose, onSuccess, initialStep
               <ClockPicker label="Visit Time *" value={svForm.visit_time} onChange={v => setSvForm(f => ({...f, visit_time: v}))} required />
             </div>
           </div>
-          <CustomSelect label="Assign To" value={svForm.assigned_to} onChange={v => setSvForm(f => ({...f, assigned_to: v}))} options={userOptions} placeholder="Keep current" />
+          {isRestricted ? (
+            <div>
+              <label className={labelCls}>Assign To</label>
+              <div className={disabledCls}>{assigneeDisplayName(svForm.assigned_to)}</div>
+            </div>
+          ) : (
+            <CustomSelect label="Assign To" value={svForm.assigned_to} onChange={v => setSvForm(f => ({...f, assigned_to: v}))} options={userOptions} placeholder="Keep current" />
+          )}
           <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 cursor-pointer" onClick={() => setSvForm(f => ({...f, transport_arranged: !f.transport_arranged}))}>
             <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors flex-shrink-0 ${svForm.transport_arranged ? 'bg-[#0082f3] border-[#0082f3]' : 'border-gray-300 dark:border-gray-600'}`}>
               {svForm.transport_arranged && <CheckCircle2 size={12} className="text-white"/>}

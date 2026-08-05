@@ -1695,6 +1695,28 @@ export default function Leads() {
   }, [currentUser?.id, dispatch])
 
   useEffect(() => {
+    fetchAllLeads()
+  }, [dispatch, search, filterStatus, filterSource, filterAssigned, filterProjectId, filterProjectName, page, myPage, perPage, showLeadsTabs, isExternalCaller])
+
+  useEffect(() => {
+    dispatch(fetchLeadSources())
+    dispatch(fetchLeadStatuses())
+    dispatch(fetchLeadConfigurations())
+    dispatch(fetchProjects())
+  }, [dispatch])
+
+  const sourceList = sources?.length > 0 ? sources : defaultSources
+  const configList = configurations?.length > 0
+    ? configurations.filter(c => c.is_active !== false).map(c => ({ value: c.name, label: c.name }))
+    : configurationOptions
+
+  // Single source of truth for the leads list request — used by the
+  // filter-driven effect above AND by reloadLeads() after every action (edit,
+  // status change, reassign, delete, ...). Building these params in two
+  // separate places previously let the post-action refetch silently drop
+  // whatever status/search/source/assigned/project filter was active, so an
+  // action could make the list appear to reset the user's filters.
+  const fetchAllLeads = () => {
     const params = { page, per_page: resolvePerPage(perPage) }
     if (search)         params.search      = search
     if (filterStatus)   params.status      = filterStatus
@@ -1721,24 +1743,9 @@ export default function Leads() {
       else if (filterProjectName) myParams.project     = filterProjectName
       dispatch(fetchMyLeads(myParams))
     }
-  }, [dispatch, search, filterStatus, filterSource, filterAssigned, filterProjectId, filterProjectName, page, myPage, perPage, showLeadsTabs, isExternalCaller])
-
-  useEffect(() => {
-    dispatch(fetchLeadSources())
-    dispatch(fetchLeadStatuses())
-    dispatch(fetchLeadConfigurations())
-    dispatch(fetchProjects())
-  }, [dispatch])
-
-  const sourceList = sources?.length > 0 ? sources : defaultSources
-  const configList = configurations?.length > 0
-    ? configurations.filter(c => c.is_active !== false).map(c => ({ value: c.name, label: c.name }))
-    : configurationOptions
-
-  const reloadLeads = () => {
-    dispatch(fetchLeads({ page, per_page: resolvePerPage(perPage) }))
-    if (showLeadsTabs) dispatch(fetchMyLeads({ page: myPage, per_page: resolvePerPage(perPage) }))
   }
+
+  const reloadLeads = fetchAllLeads
 
   // Shared lead fields carried over into the create-with-lead payloads below
   // (mirrors the "New Lead + Site Visit" / "New Lead + Follow-up" flows).
@@ -2636,6 +2643,7 @@ export default function Leads() {
       {showConvertModal && convertLead && (
         <ConvertLeadModal
           lead={convertLead}
+          currentUser={currentUser}
           initialStep={convertInitialStep}
           onClose={() => { setShowConvertModal(false); setConvertLead(null); setConvertInitialStep('choose') }}
           onSuccess={handleConvertSuccess}

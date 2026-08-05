@@ -486,7 +486,7 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
         setForm(f => ({
           ...f,
           project_id:         projectId,
-          assigned_to:        isAdmin ? (pf.assigned_to || task.assigned_to || '') : (currentUser?.id || ''),
+          assigned_to:        pf.assigned_to || task.assigned_to || currentUser?.id || '',
           transport_arranged: pf.transport_arranged || false,
         }))
       })
@@ -496,6 +496,7 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
 
   const inputCls = "w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-[#0082f3] text-gray-700 dark:text-gray-300 transition-colors placeholder-gray-400"
   const labelCls = "block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5"
+  const disabledCls = "w-full px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-70"
 
   const projectOpts = (options?.projects || projectList || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
   const searchProjects = async (q) => {
@@ -507,6 +508,14 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
     ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
     ..._baseUsers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u => ({ value: u.id, label: u.name || `${u.first_name} ${u.last_name}${u.role ? ` · ${ROLE_LABEL[u.role] || u.role}` : ''}` }))
   ]
+
+  // For non-admin roles: show whichever team member the task is currently
+  // assigned to, falling back to the caller's own name if none resolves.
+  const assigneeDisplayName = (assignedTo) => {
+    const match = userOpts.find(o => String(o.value) === String(assignedTo))
+    if (match) return match.label
+    return `${currentUser?.first_name ?? ''} ${currentUser?.last_name ?? ''}`.trim() || 'Self'
+  }
 
   const svAvailable = options?.conversions?.to_site_visit?.available !== false
 
@@ -521,7 +530,7 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
         project_id:        form.project_id || form.project_name,
         visit_date:        form.visit_date,
         visit_time:        form.visit_time,
-        assigned_to:       (isAdmin ? form.assigned_to : currentUser?.id) || undefined,
+        assigned_to:       form.assigned_to || undefined,
         transport_arranged: Boolean(form.transport_arranged),
         notes:             form.notes || undefined,
       })
@@ -583,7 +592,10 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
           {isAdmin ? (
             <CustomSelect label="Assign To" value={form.assigned_to} onChange={v => setForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" searchable />
           ) : (
-            <p className="text-xs text-gray-500 dark:text-gray-400 px-1">This site visit will be assigned to you.</p>
+            <div>
+              <label className={labelCls}>Assign To</label>
+              <div className={disabledCls}>{assigneeDisplayName(form.assigned_to)}</div>
+            </div>
           )}
           <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-800 cursor-pointer"
             onClick={() => setForm(f => ({...f, transport_arranged: !f.transport_arranged}))}>

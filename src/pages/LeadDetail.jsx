@@ -1374,6 +1374,7 @@ export default function LeadDetail() {
       {showConvertModal && lead && (
         <ConvertLeadModal
           lead={lead}
+          currentUser={currentUser}
           initialStep={convertInitialStep}
           onClose={() => { setShowConvertModal(false); setConvertInitialStep('choose') }}
           onSuccess={(type) => {

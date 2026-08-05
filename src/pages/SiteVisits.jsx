@@ -577,7 +577,7 @@ function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
           label="Project"
           value={form.project_id}
           onChange={v => setForm(p => ({ ...p, project_id: v, project_name: '' }))}
-          onTextChange={text => setForm(p => ({ ...p, project_name: text }))}
+          onTextChange={text => setForm(p => ({ ...p, project_name: text, project_id: '' }))}
           onSearch={searchProjects}
           placeholder="Default: original visit's project — type to override..."
           fallbackToInput

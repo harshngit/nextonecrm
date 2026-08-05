@@ -82,7 +82,7 @@ export default function ConvertToRevisitModal({ lead, teamMembers = [], currentU
           label="Project"
           value={form.project_id}
           onChange={val => setForm(p => ({ ...p, project_id: val, project_name: '' }))}
-          onTextChange={text => setForm(p => ({ ...p, project_name: text }))}
+          onTextChange={text => setForm(p => ({ ...p, project_name: text, project_id: '' }))}
           onSearch={searchProjects}
           placeholder="Type to search projects..."
           fallbackToInput
