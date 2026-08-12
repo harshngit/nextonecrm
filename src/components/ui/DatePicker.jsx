@@ -105,6 +105,25 @@ export default function DatePicker({
     }
   }, [open])
 
+  // Forms inside a modal are frequently taller than the modal's visible
+  // area and scroll internally — without this, the popup (fixed to the
+  // viewport) stays put while the input scrolls away underneath it, so it
+  // visually drifts away from the field instead of tracking it. Capture
+  // phase so this fires for scroll on any nested scrollable ancestor, not
+  // just window-level scroll.
+  useEffect(() => {
+    if (!open) return
+    const updateRect = () => {
+      if (containerRef.current) setRect(containerRef.current.getBoundingClientRect())
+    }
+    window.addEventListener('scroll', updateRect, true)
+    window.addEventListener('resize', updateRect)
+    return () => {
+      window.removeEventListener('scroll', updateRect, true)
+      window.removeEventListener('resize', updateRect)
+    }
+  }, [open])
+
   // Position the popup from its own *measured* size rather than a guessed
   // constant — the day grid is 4-6 weeks tall depending on the month, and a
   // fixed-height guess either left gaps or, worse, let the popup run off

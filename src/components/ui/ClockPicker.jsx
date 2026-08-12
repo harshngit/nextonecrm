@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Clock } from 'lucide-react'
 
 const ITEM_H = 36   // px height of each wheel row
@@ -8,6 +8,7 @@ const WHEEL_H = ITEM_H * (PAD_ROWS * 2 + 1)
 const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')) // '01'..'12'
 const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
 const MERIDIEMS = ['AM', 'PM']
+const VIEWPORT_PAD = 8
 
 // One scrollable, snap-to-center column (hour / minute / AM-PM) — the
 // mobile-style "wheel" picker. Value sync only runs on mount (i.e. each time
@@ -65,8 +66,10 @@ function WheelColumn({ items, value, onChange }) {
 
 export default function ClockPicker({ value, onChange, label, icon: Icon, iconColor = 'text-gray-400', required = false }) {
   const [open, setOpen] = useState(false)
-  const [position, setPosition] = useState('bottom')
+  const [rect, setRect] = useState(null)
+  const [popupPos, setPopupPos] = useState(null) // { left, top } — computed from the popup's actual measured size
   const containerRef = useRef(null)
+  const popupRef = useRef(null)
 
   const [hh, mm] = value ? value.split(':') : ['10', '00']
   const hour24 = parseInt(hh || 10)
@@ -82,17 +85,54 @@ export default function ClockPicker({ value, onChange, label, icon: Icon, iconCo
 
   useEffect(() => {
     if (open && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect()
-      const spaceBelow = window.innerHeight - rect.bottom
-      const spaceAbove = rect.top
-      const spaceRight = window.innerWidth - rect.right
-
-      let next = 'bottom'
-      if (spaceBelow < 300 && spaceAbove > spaceBelow) next = 'top'
-      if (spaceRight < 200) next = next.replace('bottom', 'bottom-right').replace('top', 'top-right')
-      setPosition(next)
+      setRect(containerRef.current.getBoundingClientRect())
+    } else {
+      setRect(null)
+      setPopupPos(null)
     }
   }, [open])
+
+  // Forms inside a modal are frequently taller than the modal's visible
+  // area and scroll internally — keep the popup tracking the input as any
+  // scrollable ancestor scrolls (capture phase catches nested scroll, not
+  // just window-level).
+  useEffect(() => {
+    if (!open) return
+    const updateRect = () => {
+      if (containerRef.current) setRect(containerRef.current.getBoundingClientRect())
+    }
+    window.addEventListener('scroll', updateRect, true)
+    window.addEventListener('resize', updateRect)
+    return () => {
+      window.removeEventListener('scroll', updateRect, true)
+      window.removeEventListener('resize', updateRect)
+    }
+  }, [open])
+
+  // Position from the popup's own *measured* size and anchor to the
+  // viewport (position: fixed) rather than the nearest positioned ancestor —
+  // an `absolute` popup nested inside a scrollable modal body gets clipped
+  // by that ancestor's overflow once it runs past the modal's visible
+  // bounds, which is what was hiding the Done button. Runs before paint so
+  // there's no visible jump from an unclamped first position.
+  useLayoutEffect(() => {
+    if (!open || !rect || !popupRef.current) return
+    const el = popupRef.current
+    const width  = Math.min(el.offsetWidth,  window.innerWidth  - VIEWPORT_PAD * 2)
+    const height = Math.min(el.offsetHeight, window.innerHeight - VIEWPORT_PAD * 2)
+
+    let left = Math.min(rect.left, window.innerWidth - width - VIEWPORT_PAD)
+    left = Math.max(VIEWPORT_PAD, left)
+
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const openUpward = spaceBelow < height + 4 && spaceAbove > spaceBelow
+    let top = openUpward ? rect.top - height - 4 : rect.bottom + 4
+    top = Math.min(top, window.innerHeight - height - VIEWPORT_PAD)
+    top = Math.max(VIEWPORT_PAD, top)
+
+    setPopupPos({ left, top })
+  }, [open, rect])
 
   const emit = (h12, m, mer) => {
     let h = parseInt(h12, 10) % 12
@@ -122,13 +162,19 @@ export default function ClockPicker({ value, onChange, label, icon: Icon, iconCo
         <Clock size={14} className="text-gray-400 flex-shrink-0" />
       </div>
 
-      {open && (
-        <div className={`absolute z-[100] mt-1 w-[240px] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200 ${
-          position === 'top' ? 'bottom-full mb-1' :
-          position === 'bottom-right' ? 'right-0' :
-          position === 'top-right' ? 'right-0 bottom-full mb-1' :
-          'top-full'
-        }`}>
+      {open && rect && (
+        <div
+          ref={popupRef}
+          style={{
+            position: 'fixed',
+            left: popupPos ? popupPos.left : rect.left,
+            top: popupPos ? popupPos.top : rect.bottom + 4,
+            maxWidth: `calc(100vw - ${VIEWPORT_PAD * 2}px)`,
+            maxHeight: `calc(100vh - ${VIEWPORT_PAD * 2}px)`,
+            visibility: popupPos ? 'visible' : 'hidden',
+          }}
+          className="z-[999] w-[240px] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200"
+        >
           <div className="relative py-1">
             {/* Center highlight row, shared across all three columns */}
             <div
