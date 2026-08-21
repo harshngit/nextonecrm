@@ -84,7 +84,6 @@ function RevisitModal({ visit, salesExecs, currentUser, onClose, onSuccess }) {
             required
             value={form.visit_date}
             onChange={val => setForm(p => ({ ...p, visit_date: val }))}
-            min={new Date().toISOString().split('T')[0]}
           />
           <ClockPicker
             label="Visit Time"

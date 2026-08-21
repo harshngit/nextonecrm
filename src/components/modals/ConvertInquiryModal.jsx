@@ -100,7 +100,6 @@ export default function ConvertInquiryModal({ inquiry, onClose, onSuccess }) {
               required
               value={form.visit_date}
               onChange={(v) => setForm(f => ({ ...f, visit_date: v }))}
-              min={new Date().toISOString().split('T')[0]}
             />
             <ClockPicker
               label={step === 'follow_up' ? 'Due Time' : 'Visit Time'}

@@ -583,8 +583,7 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
             defaultText={form.project_id ? '' : (form.project_name || '')}
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <DatePicker label="Visit Date" required value={form.visit_date} onChange={v => setForm(f => ({...f, visit_date: v}))}
-              min={new Date().toISOString().split('T')[0]} />
+            <DatePicker label="Visit Date" required value={form.visit_date} onChange={v => setForm(f => ({...f, visit_date: v}))} />
             <div>
               <ClockPicker label="Visit Time *" value={form.visit_time} onChange={v => setForm(f => ({...f, visit_time: v}))} required />
             </div>
@@ -702,8 +701,7 @@ function BulkConvertFUModal({ taskIds, tasks, onClose, onSuccess, teamMembers = 
         </div>
         <CustomSelect label="Project *" value={form.project_id} onChange={v => setForm(f => ({...f, project_id: v}))} options={projectOpts} placeholder="Select project" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <DatePicker label="Visit Date" required value={form.visit_date} onChange={v => setForm(f => ({...f, visit_date: v}))}
-            min={new Date().toISOString().split('T')[0]} />
+          <DatePicker label="Visit Date" required value={form.visit_date} onChange={v => setForm(f => ({...f, visit_date: v}))} />
           <div>
             <ClockPicker label="Visit Time" value={form.visit_time} onChange={v => setForm(f => ({...f, visit_time: v}))} />
           </div>

@@ -114,8 +114,7 @@ export default function ConvertFollowUpModal({ task, onClose, onSuccess }) {
             defaultText={form.project_id ? '' : (form.project_name || '')}
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <DatePicker label="Visit Date" value={form.visit_date} onChange={v => setForm(f => ({...f, visit_date: v}))}
-              min={new Date().toISOString().split('T')[0]} />
+            <DatePicker label="Visit Date" value={form.visit_date} onChange={v => setForm(f => ({...f, visit_date: v}))} />
             <div>
               <ClockPicker label="Visit Time *" value={form.visit_time} onChange={v => setForm(f => ({...f, visit_time: v}))} required />
             </div>

@@ -579,7 +579,6 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, configOptions, st
               required
               value={formData.visit_date}
               onChange={val => setFormData(prev => ({ ...prev, visit_date: val }))}
-              min={new Date().toISOString().split('T')[0]}
             />
             <ClockPicker
               label="Visit Time"
@@ -613,7 +612,6 @@ function LeadForm({ formData, setFormData, isEdit, sourceList, configOptions, st
               required
               value={formData.due_date}
               onChange={val => setFormData(prev => ({ ...prev, due_date: val }))}
-              min={new Date().toISOString().split('T')[0]}
             />
             <ClockPicker
               label="Due Time"
@@ -1413,8 +1411,7 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess, teamMembers 
               placeholder="Follow-up" className={inputCls} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <DatePicker label="Due Date" value={fuForm.due_date} onChange={v => setFuForm(f => ({...f, due_date: v}))}
-              min={new Date().toISOString().split('T')[0]} />
+            <DatePicker label="Due Date" value={fuForm.due_date} onChange={v => setFuForm(f => ({...f, due_date: v}))} />
             <div>
               <ClockPicker label="Due Time" value={fuForm.due_time} onChange={v => setFuForm(f => ({...f, due_time: v}))} />
             </div>
@@ -1441,8 +1438,7 @@ function BulkConvertLeadModal({ leadIds, leads, onClose, onSuccess, teamMembers 
         <div className="space-y-4">
           <CustomSelect label="Project *" value={svForm.project_id} onChange={v => setSvForm(f => ({...f, project_id: v}))} options={projectOpts} placeholder="Select project" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <DatePicker label="Visit Date" value={svForm.visit_date} onChange={v => setSvForm(f => ({...f, visit_date: v}))}
-              min={new Date().toISOString().split('T')[0]} />
+            <DatePicker label="Visit Date" value={svForm.visit_date} onChange={v => setSvForm(f => ({...f, visit_date: v}))} />
             <div>
               <ClockPicker label="Visit Time *" value={svForm.visit_time} onChange={v => setSvForm(f => ({...f, visit_time: v}))} required />
             </div>
