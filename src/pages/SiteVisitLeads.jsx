@@ -1078,8 +1078,9 @@ function BulkUploadModal({ onClose, onSuccess, teamMembers = [], currentUser = n
 
 
 // ─── Single Reassign Modal (uses /leads/:id/reassign) ─────────────────────────
-function ReassignModal({ lead, teamMembers = [], currentUser, onClose, onSuccess }) {
+function ReassignModal({ lead, teamMembers = [], currentUser, statusOptions = [], onClose, onSuccess }) {
   const [assignTo,setAssignTo]=useState(lead?.assigned_to?.id||(typeof lead?.assigned_to==='string'?lead.assigned_to:''))
+  const [status,setStatus]=useState(lead?.status || '')
   const [reason,setReason]=useState('')
   const [loading,setLoading]=useState(false)
   const [error,setError]=useState('')
@@ -1088,7 +1089,10 @@ function ReassignModal({ lead, teamMembers = [], currentUser, onClose, onSuccess
   const LC="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
   const curName=typeof lead?.assigned_to==='object'?lead.assigned_to?.full_name:teamMembers.find(u=>u.id===lead?.assigned_to)?`${teamMembers.find(u=>u.id===lead.assigned_to).first_name} ${teamMembers.find(u=>u.id===lead.assigned_to).last_name}`:'Unassigned'
   const submit=async(e)=>{e.preventDefault();if(!assignTo){setError('Please select a team member');return}setError('');setLoading(true)
-    try{await api.patch(`/leads/${lead.id}/reassign`,{assigned_to:assignTo,reason:reason||undefined});setSuccess('Reassigned!');setTimeout(()=>{onSuccess();onClose()},700)}
+    const body={assigned_to:assignTo}
+    if(reason) body.reason=reason
+    if(status && status !== lead?.status) body.status=status
+    try{await api.patch(`/leads/${lead.id}/reassign`,body);setSuccess('Reassigned!');setTimeout(()=>{onSuccess();onClose()},700)}
     catch(e){setError(e.response?.data?.message||'Reassignment failed')}finally{setLoading(false)}}
   return (
     <Modal isOpen={true} onClose={onClose} title="Reassign Lead">
@@ -1102,6 +1106,12 @@ function ReassignModal({ lead, teamMembers = [], currentUser, onClose, onSuccess
           ...(currentUser ? [{ value: currentUser.id, label: `Self · ${currentUser.role.replace(/_/g,' ')}` }] : []),
           ...teamMembers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u=>({value:u.id,label:`${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}`}))
         ]} placeholder="Select team member" searchable />
+        {statusOptions.length>0 && (
+          <CustomSelect label="Change Status (optional)" value={status} onChange={setStatus} options={[
+            {value:'',label:'— Keep current status —'},
+            ...statusOptions.map(s=>({value:s.value,label:s.label}))
+          ]} placeholder="Select status (optional)" />
+        )}
         <div><label className={LC}>Reason <span className="font-normal text-gray-400">(optional)</span></label><input value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. Better territorial alignment" className={IC}/></div>
         {error&&<div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"><AlertCircle size={13} className="text-red-500"/><p className="text-xs text-red-600">{error}</p></div>}
         {success&&<div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5"><CheckCircle2 size={13} className="text-green-500"/><p className="text-xs text-green-600">{success}</p></div>}
@@ -1158,8 +1168,9 @@ function ChangeStatusModal({ lead, stageOptions, statusMap, onClose, onSuccess }
 }
 
 // ─── Bulk Reassign Modal (uses /leads/bulk-reassign) ──────────────────────────
-function BulkReassignModal({ leadIds, leads, teamMembers = [], currentUser, onClose, onSuccess }) {
+function BulkReassignModal({ leadIds, leads, teamMembers = [], currentUser, statusOptions = [], onClose, onSuccess }) {
   const [assignTo,setAssignTo]=useState('')
+  const [status,setStatus]=useState('')
   const [reason,setReason]=useState('')
   const [loading,setLoading]=useState(false)
   const [error,setError]=useState('')
@@ -1168,20 +1179,29 @@ function BulkReassignModal({ leadIds, leads, teamMembers = [], currentUser, onCl
   const LC="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
   const sel=leads.filter(l=>leadIds.includes(l.id))
   const submit=async(e)=>{e.preventDefault();if(!assignTo){setError('Please select a team member');return}setError('');setLoading(true)
-    try{const r=await api.post('/leads/bulk-reassign',{lead_ids:leadIds,assigned_to:assignTo,reason:reason||undefined});setResult(r.data.data)}
+    const body={lead_ids:leadIds,assigned_to:assignTo}
+    if(reason) body.reason=reason
+    if(status) body.status=status
+    try{const r=await api.post('/leads/bulk-reassign',body);setResult(r.data.data)}
     catch(e){setError(e.response?.data?.message||'Bulk reassignment failed')}finally{setLoading(false)}}
   if(result) return (
     <Modal isOpen={true} onClose={()=>{onSuccess();onClose()}} title="Reassignment Complete">
       <div className="space-y-4 py-2">
         <div className="flex flex-col items-center gap-2"><div className="w-14 h-14 rounded-2xl bg-green-50 dark:bg-green-900/20 flex items-center justify-center"><CheckCircle2 size={28} className="text-green-500"/></div><p className="text-base font-bold text-gray-900 dark:text-white">Done!</p></div>
-        <div className="grid grid-cols-3 gap-3">
-          {[{label:'Reassigned',val:result.successful,c:'text-green-600 dark:text-green-400',bg:'bg-green-50 dark:bg-green-900/20'},{label:'Skipped',val:result.skipped,c:'text-amber-600 dark:text-amber-400',bg:'bg-amber-50 dark:bg-amber-900/20'},{label:'Requested',val:result.totalRequested,c:'text-brand',bg:'bg-brand/5'}].map(x=>(
+        <div className={`grid gap-3 ${result.statusChanged>0?'grid-cols-4':'grid-cols-3'}`}>
+          {[
+            {label:'Reassigned',val:result.successful,c:'text-green-600 dark:text-green-400',bg:'bg-green-50 dark:bg-green-900/20'},
+            result.statusChanged>0?{label:'Status',val:result.statusChanged,c:'text-blue-600 dark:text-blue-400',bg:'bg-blue-50 dark:bg-blue-900/20'}:null,
+            {label:'Skipped',val:result.skipped,c:'text-amber-600 dark:text-amber-400',bg:'bg-amber-50 dark:bg-amber-900/20'},
+            {label:'Requested',val:result.totalRequested,c:'text-brand',bg:'bg-brand/5'}
+          ].filter(Boolean).map(x=>(
             <div key={x.label} className={`rounded-xl px-3 py-3 text-center ${x.bg}`}><p className={`text-2xl font-bold ${x.c}`}>{x.val??0}</p><p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mt-0.5">{x.label}</p></div>
           ))}
         </div>
         <div className="flex items-center gap-2 p-3 rounded-xl bg-gray-50 dark:bg-[#111] border border-gray-100 dark:border-gray-800">
           <Avatar name={result.newAssignee?.name} size="sm"/>
-          <div><p className="text-xs text-gray-400">Assigned to</p><p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{result.newAssignee?.name}</p></div>
+          <div className="flex-1"><p className="text-xs text-gray-400">Assigned to</p><p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{result.newAssignee?.name}</p></div>
+          {result.newStatus && statusOptions.length>0 && (<div className="text-right"><p className="text-xs text-gray-400">Status set to</p><p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{statusOptions.find(s=>s.value===result.newStatus)?.label || result.newStatus}</p></div>)}
         </div>
         <Button className="w-full" onClick={()=>{onSuccess();onClose()}}>Done</Button>
       </div>
@@ -1201,6 +1221,12 @@ function BulkReassignModal({ leadIds, leads, teamMembers = [], currentUser, onCl
           ...(currentUser ? [{ value: currentUser.id, label: `Self · ${currentUser.role.replace(/_/g,' ')}` }] : []),
           ...teamMembers.filter(u => u.id !== currentUser?.id && !u.is_self).map(u=>({value:u.id,label:`${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}`}))
         ]} placeholder="Select team member" searchable />
+        {statusOptions.length>0 && (
+          <CustomSelect label="Change Status (optional)" value={status} onChange={setStatus} options={[
+            {value:'',label:'— Do not change status —'},
+            ...statusOptions.map(s=>({value:s.value,label:s.label}))
+          ]} placeholder="Select status (optional)" />
+        )}
         <div><label className={LC}>Reason <span className="font-normal text-gray-400">(optional)</span></label><input value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. Workload balancing" className={IC}/></div>
         {error&&<div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"><AlertCircle size={13} className="text-red-500"/><p className="text-xs text-red-600">{error}</p></div>}
         <div className="flex gap-3 pt-1">
@@ -2573,6 +2599,7 @@ export default function SiteVisitLeads() {
           lead={selectedLead}
           teamMembers={teamMembers}
           currentUser={currentUser}
+          statusOptions={stageOptions}
           onClose={() => { setShowReassignModal(false); setSelectedLead(null) }}
           onSuccess={() => reloadLeads()}
         />
@@ -2598,6 +2625,7 @@ export default function SiteVisitLeads() {
           leads={list}
           teamMembers={teamMembers}
           currentUser={currentUser}
+          statusOptions={stageOptions}
           onClose={() => setShowBulkReassignModal(false)}
           onSuccess={() => { setSelectedLeads([]); reloadLeads() }}
         />
