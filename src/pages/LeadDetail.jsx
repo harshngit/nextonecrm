@@ -436,6 +436,7 @@ export default function LeadDetail() {
   const [showReassignAction, setShowReassignAction] = useState(false)
   useEscapeKey(showReassignAction, () => setShowReassignAction(false))
   const [reassignTo,         setReassignTo]         = useState('')
+  const [reassignStatus,     setReassignStatus]     = useState('')
   const [reassignReason,     setReassignReason]     = useState('')
   const [reassigning,        setReassigning]        = useState(false)
   const [reassignError,      setReassignError]      = useState('')
@@ -619,11 +620,14 @@ export default function LeadDetail() {
     if (!reassignTo) { setReassignError('Please select a team member'); return }
     setReassignError(''); setReassigning(true)
     try {
-      await api.patch(`/leads/${id}/reassign`, { assigned_to: reassignTo, reason: reassignReason || undefined })
+      const body = { assigned_to: reassignTo }
+      if (reassignReason) body.reason = reassignReason
+      if (reassignStatus && reassignStatus !== lead?.status) body.status = reassignStatus
+      await api.patch(`/leads/${id}/reassign`, body)
       setReassignSuccess('Lead reassigned successfully!')
       fetchReassignHistory(1)
       dispatch(fetchLeadById(id))
-      setTimeout(() => { setShowReassignAction(false); setReassignTo(''); setReassignReason(''); setReassignSuccess('') }, 800)
+      setTimeout(() => { setShowReassignAction(false); setReassignTo(''); setReassignStatus(''); setReassignReason(''); setReassignSuccess('') }, 800)
     } catch (e) { setReassignError(e.response?.data?.message || 'Reassignment failed') }
     finally { setReassigning(false) }
   }
@@ -920,7 +924,7 @@ export default function LeadDetail() {
 
                 {/* Reassign action button — only on history tab for canSeeHistory */}
                 {canSeeHistory && activeTab === 'history' && (
-                  <button onClick={() => { setShowReassignAction(true); setReassignTo(''); setReassignReason(''); setReassignError(''); setReassignSuccess('') }}
+                  <button onClick={() => { setShowReassignAction(true); setReassignTo(''); setReassignStatus(lead?.status || ''); setReassignReason(''); setReassignError(''); setReassignSuccess('') }}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-semibold transition-colors border border-indigo-100 dark:border-indigo-800/40 flex-shrink-0 self-start sm:self-auto">
                     <Users size={13} /> Reassign Lead
                   </button>
@@ -1101,7 +1105,7 @@ export default function LeadDetail() {
                     <div className="text-center py-10 bg-gray-50 dark:bg-[#0f0f0f] rounded-2xl border-2 border-dashed border-gray-100 dark:border-gray-800">
                       <div className="text-3xl mb-2">🔄</div>
                       <p className="text-sm text-gray-400">This lead has never been reassigned</p>
-                      <button onClick={() => setShowReassignAction(true)}
+                      <button onClick={() => { setShowReassignAction(true); setReassignStatus(lead?.status || '') }}
                         className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 text-xs font-semibold mx-auto transition-colors hover:bg-indigo-100">
                         <Users size={13}/> Reassign now
                       </button>
@@ -1341,6 +1345,19 @@ export default function LeadDetail() {
                 options={salesExecs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}` }))}
                 placeholder="Select team member"
               />
+
+              {leadStages.length > 0 && (
+                <CustomSelect
+                  label="Change Status (optional)"
+                  value={reassignStatus}
+                  onChange={setReassignStatus}
+                  options={[
+                    { value: '', label: '— Keep current status —' },
+                    ...leadStages.map(s => ({ value: s.value, label: s.label }))
+                  ]}
+                  placeholder="Select status (optional)"
+                />
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">

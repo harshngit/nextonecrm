@@ -1107,7 +1107,7 @@ export default function SiteVisits() {
             {addMenuOpen && (
               <>
                 <div
-                  className="fixed inset-0 z-40"
+                  className="fixed inset-0 z-40"  
                   onClick={() => setAddMenuOpen(false)}
                 />
                 <div className="absolute lg:right-0 top-full mt-2 z-50 w-60 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg py-1">
