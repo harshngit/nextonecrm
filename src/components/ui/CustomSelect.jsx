@@ -75,7 +75,12 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
   }, [isOpen, searchable])
 
   useEffect(() => {
-    if (isOpen && containerRef.current) {
+    if (!isOpen || !containerRef.current) {
+      setDropdownRect(null)
+      return
+    }
+    const updateRect = () => {
+      if (!containerRef.current) return
       const containerRect = containerRef.current.getBoundingClientRect()
       const spaceBelow = window.innerHeight - containerRect.bottom
       const spaceAbove = containerRect.top
@@ -93,6 +98,18 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
 
       setDropdownPosition(newPosition)
       setDropdownRect(containerRect)
+    }
+    updateRect()
+    // The dropdown is `position: fixed`, measured once from the trigger's
+    // on-screen position — without this, scrolling the page (or a modal's
+    // inner scroll container) leaves the panel stuck at its original spot
+    // in the viewport instead of tracking the trigger. Capture phase so
+    // this fires for scroll on any nested scrollable ancestor too.
+    window.addEventListener('scroll', updateRect, true)
+    window.addEventListener('resize', updateRect)
+    return () => {
+      window.removeEventListener('scroll', updateRect, true)
+      window.removeEventListener('resize', updateRect)
     }
   }, [isOpen])
 

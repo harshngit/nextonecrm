@@ -1629,6 +1629,7 @@ export default function Leads() {
   const [filterAssigned, setFilterAssigned] = useState('')
   const [filterProjectId, setFilterProjectId] = useState('')
   const [filterProjectName, setFilterProjectName] = useState('')
+  const [filterLocation, setFilterLocation] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState('10')
 
@@ -1718,7 +1719,7 @@ export default function Leads() {
 
   useEffect(() => {
     fetchAllLeads()
-  }, [dispatch, search, filterStatus, filterSource, filterAssigned, filterProjectId, filterProjectName, page, myPage, perPage, showLeadsTabs, isExternalCaller])
+  }, [dispatch, search, filterStatus, filterSource, filterAssigned, filterProjectId, filterProjectName, filterLocation, page, myPage, perPage, showLeadsTabs, isExternalCaller])
 
   useEffect(() => {
     dispatch(fetchLeadSources())
@@ -1752,6 +1753,7 @@ export default function Leads() {
     }
     if (filterProjectId)        params.project_id = filterProjectId
     else if (filterProjectName) params.project     = filterProjectName
+    if (filterLocation) params.location = filterLocation
     if (isExternalCaller) {
       dispatch(fetchMyLeads(params))
     } else {
@@ -1763,6 +1765,7 @@ export default function Leads() {
       if (filterStatus) myParams.status = filterStatus
       if (filterProjectId)        myParams.project_id = filterProjectId
       else if (filterProjectName) myParams.project     = filterProjectName
+      if (filterLocation) myParams.location = filterLocation
       dispatch(fetchMyLeads(myParams))
     }
   }
@@ -2207,6 +2210,15 @@ export default function Leads() {
               initialOptions={projectList.slice(0, 20).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))}
               placeholder="Filter by project..."
               fallbackToInput
+            />
+          </div>
+          <div className="relative">
+            <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={filterLocation}
+              onChange={e => { setFilterLocation(e.target.value); setPage(1) }}
+              placeholder="Search location..."
+              className="pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand w-44 text-gray-900 dark:text-gray-100 placeholder-gray-400"
             />
           </div>
           <button

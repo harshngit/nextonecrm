@@ -40,6 +40,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // Default cap is 2 MiB — the main bundle is ~2.1 MB, so it gets
+        // silently skipped from offline precaching (and, in strict mode,
+        // fails the build) unless this is raised.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
