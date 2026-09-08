@@ -469,6 +469,9 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
   const { list: projectList } = useSelector(s => s.projects)
   const { user: currentUser } = useSelector(s => s.auth)
   const isAdmin = ['admin', 'super_admin'].includes(currentUser?.role)
+  // associate/associate_partner may reassign within their own team (userOpts
+  // below is already scoped to it); every other non-admin role is locked.
+  const canReassign = isAdmin || ['associate', 'associate_partner'].includes(currentUser?.role)
 
   useEffect(() => {
     api.get(`/convert/follow-up/${task.id}/options`)
@@ -588,7 +591,7 @@ function ConvertFollowUpModal({ task, onClose, onSuccess, teamMembers = [] }) {
               <ClockPicker label="Visit Time *" value={form.visit_time} onChange={v => setForm(f => ({...f, visit_time: v}))} required />
             </div>
           </div>
-          {isAdmin ? (
+          {canReassign ? (
             <CustomSelect label="Assign To" value={form.assigned_to} onChange={v => setForm(f => ({...f, assigned_to: v}))} options={userOpts} placeholder="Keep current" searchable />
           ) : (
             <div>

@@ -568,18 +568,18 @@ function CheckInCard({ todayData, loading, dispatch, user, isAdmin, showStatusCh
 
           {/* Action buttons — always show both, disabled based on state */}
           <div className="flex gap-2">
-            <button onClick={() => openCamera('checkin')} disabled={loading.checkin || isCheckedIn || displayedStatus === 'leave' || displayedStatus === 'holiday'}
+            <button onClick={() => openCamera('checkin')} disabled={loading.checkin || isCheckedIn || displayedStatus === 'leave'}
               className={`flex-1 py-3 font-semibold rounded-xl flex items-center justify-center gap-2 transition-all ${
-                isCheckedIn || displayedStatus === 'leave' || displayedStatus === 'holiday'
+                isCheckedIn || displayedStatus === 'leave'
                   ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                   : 'bg-gradient-to-r from-brand to-blue-600 text-white hover:shadow-lg hover:shadow-blue-500/25 active:scale-[0.98]'
               } disabled:opacity-60`}>
               {loading.checkin ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
               Check In
             </button>
-            <button onClick={() => openCamera('checkout')} disabled={loading.checkout || !isCheckedIn || isCheckedOut || displayedStatus === 'leave' || displayedStatus === 'holiday'}
+            <button onClick={() => openCamera('checkout')} disabled={loading.checkout || !isCheckedIn || isCheckedOut || displayedStatus === 'leave'}
               className={`flex-1 py-3 font-semibold rounded-xl flex items-center justify-center gap-2 transition-all ${
-                isCheckedOut || !isCheckedIn || displayedStatus === 'leave' || displayedStatus === 'holiday'
+                isCheckedOut || !isCheckedIn || displayedStatus === 'leave'
                   ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                   : 'bg-gradient-to-r from-rose-500 to-red-500 text-white hover:shadow-lg hover:shadow-rose-500/25 active:scale-[0.98]'
               } disabled:opacity-60`}>
@@ -1084,7 +1084,7 @@ function UserHistoryDrawer({ userId, userName, defaultFrom, defaultTo, onClose }
   )
 }
 
-function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'company' }) {
+function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'company', isAdmin = false }) {
   // scope: 'company' (admin, all users via /by-month) | 'team' (team lead, own sub-tree via /by-month)
   const { byMonth, loading } = useSelector(s => s.attendance)
   const now = new Date()
@@ -1092,12 +1092,18 @@ function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'c
   const [year,  setYear]  = useState(now.getFullYear())
   const [page,  setPage]  = useState(1)
   const [historyUser, setHistoryUser] = useState(null)
+  const [selectedIds,   setSelectedIds]   = useState(new Set())
+  const [showBulkModal, setShowBulkModal] = useState(false)
+
+  const refresh = () => dispatch(fetchAttendanceByMonth({ month, year, page, per_page: PAGE_SIZE }))
 
   useEffect(() => {
     // Backend scopes by role automatically — team leads get their recursive sub-tree,
     // admin gets everyone. Same endpoint, different caller role.
-    dispatch(fetchAttendanceByMonth({ month, year, page, per_page: PAGE_SIZE }))
+    refresh()
   }, [dispatch, month, year, page])
+
+  useEffect(() => { setSelectedIds(new Set()) }, [month, year, page])
 
   const prev = () => { if (month === 1) { setMonth(12); setYear(y => y - 1) } else setMonth(m => m - 1) }
   const next = () => { if (month === 12) { setMonth(1); setYear(y => y + 1) } else setMonth(m => m + 1) }
@@ -1105,6 +1111,24 @@ function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'c
   const allDays  = byMonth?.all_days || []
   const userData = byMonth?.data     || []
   // No weekly off — every calendar day is a working day now.
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+  const pageUserIds = userData.map(u => u.user?.id).filter(Boolean)
+  const allSelected = pageUserIds.length > 0 && pageUserIds.every(id => selectedIds.has(id))
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => {
+      if (allSelected) return new Set()
+      const next = new Set(prev)
+      pageUserIds.forEach(id => next.add(id))
+      return next
+    })
+  }
 
   const ABBR       = { present: 'P', late: 'L', absent: 'A', leave: 'LV', holiday: 'H', not_joined: 'NJ' }
   const ABBR_STYLE = {
@@ -1124,6 +1148,11 @@ function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'c
           <p className="text-xs text-gray-400 mt-0.5">{MONTH_NAMES[month - 1]} {year} · Mon–Sun, no weekly off</p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button variant="outline" size="sm" icon={Pencil} disabled={selectedIds.size === 0} onClick={() => setShowBulkModal(true)}>
+              Bulk Update{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+            </Button>
+          )}
           <button onClick={prev} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-brand hover:text-brand transition-colors"><ChevronLeft size={15} /></button>
           <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 min-w-[110px] text-center">{MONTH_NAMES[month - 1]} {year}</span>
           <button onClick={next} className="w-8 h-8 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:border-brand hover:text-brand transition-colors"><ChevronRight size={15} /></button>
@@ -1139,7 +1168,15 @@ function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'c
           <table className="min-w-full text-xs">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/60">
-                <th className="sticky left-0 bg-gray-50 dark:bg-gray-800/60 px-4 py-3 text-left font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap z-10 min-w-[180px]">Employee</th>
+                <th className="sticky left-0 bg-gray-50 dark:bg-gray-800/60 px-4 py-3 text-left font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap z-10 min-w-[180px]">
+                  <div className="flex items-center gap-2">
+                    {isAdmin && (
+                      <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                        className="rounded border-gray-300 dark:border-gray-600 accent-brand" />
+                    )}
+                    Employee
+                  </div>
+                </th>
                 {allDays.map(d => {
                   const dt = new Date(d)
                   const isWk = [0,6].includes(dt.getDay())
@@ -1161,14 +1198,25 @@ function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'c
                 u.days?.forEach(d => { dayMap[d.date] = d })
                 return (
                   <tr key={u.user?.id || ui} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/20 transition-colors">
-                    <td className="sticky left-0 bg-white dark:bg-[#1a1a1a] px-4 py-2.5 z-10 cursor-pointer"
-                      onClick={() => u.user?.id && setHistoryUser(u.user)}>
-                      <div className="font-medium text-gray-700 dark:text-gray-200 truncate max-w-[160px] hover:text-brand transition-colors">{u.user?.full_name}</div>
-                      <div className="text-[10px] text-gray-400 capitalize">{u.user?.role?.replace(/_/g, ' ')}</div>
+                    <td className="sticky left-0 bg-white dark:bg-[#1a1a1a] px-4 py-2.5 z-10">
+                      <div className="flex items-center gap-2">
+                        {isAdmin && (
+                          <input type="checkbox" checked={u.user?.id ? selectedIds.has(u.user.id) : false}
+                            onChange={() => u.user?.id && toggleSelect(u.user.id)}
+                            className="rounded border-gray-300 dark:border-gray-600 accent-brand flex-shrink-0" />
+                        )}
+                        <div className="min-w-0 cursor-pointer" onClick={() => u.user?.id && setHistoryUser(u.user)}>
+                          <div className="font-medium text-gray-700 dark:text-gray-200 truncate max-w-[140px] hover:text-brand transition-colors">{u.user?.full_name}</div>
+                          <div className="text-[10px] text-gray-400 capitalize">{u.user?.role?.replace(/_/g, ' ')}</div>
+                        </div>
+                      </div>
                     </td>
                     {allDays.map(d => {
                       const rec = dayMap[d]
-                      const st  = displayStatus(rec) || 'absent'
+                      // No row yet for this Monday (cron hasn't synced it, e.g. a future
+                      // date) — default to the weekly holiday instead of "Absent".
+                      const isMonday = new Date(d).getDay() === 1
+                      const st  = rec ? (displayStatus(rec) || 'absent') : (isMonday ? 'holiday' : 'absent')
                       const ab  = ABBR[st] || 'A'
                       return (
                         <td key={d} className="px-0.5 py-2 text-center" title={STATUS_CONFIG[st]?.label}>
@@ -1205,7 +1253,181 @@ function MonthGridView({ dispatch, title = 'Monthly Attendance Grid', scope = 'c
           onClose={() => setHistoryUser(null)}
         />
       )}
+
+      {showBulkModal && (
+        <BulkAttendanceStatusModal
+          userIds={[...selectedIds]}
+          defaultFrom={`${year}-${String(month).padStart(2,'0')}-01`}
+          defaultTo={new Date(year, month, 0).toISOString().split('T')[0]}
+          onClose={() => setShowBulkModal(false)}
+          onSuccess={() => { setSelectedIds(new Set()); refresh() }}
+        />
+      )}
     </div>
+  )
+}
+
+// ─── Bulk Attendance Status Modal (admin/super_admin — PATCH /attendance/bulk-status) ──
+function BulkAttendanceStatusModal({ userIds, defaultFrom, defaultTo, onClose, onSuccess }) {
+  const [mode,    setMode]    = useState('range') // 'range' | 'dates'
+  const [from,    setFrom]    = useState(defaultFrom)
+  const [to,      setTo]      = useState(defaultTo)
+  const [pickDate,setPickDate]= useState(defaultFrom)
+  const [dates,   setDates]   = useState([])
+  const [status,  setStatus]  = useState('present')
+  const [reason,  setReason]  = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
+  const [result,  setResult]  = useState(null)
+
+  const STATUS_OPTS = [
+    { value: 'present', label: 'Present' },
+    { value: 'absent',  label: 'Absent'  },
+    { value: 'late',    label: 'Late'    },
+    { value: 'leave',   label: 'Leave'   },
+  ]
+
+  const addDate = () => {
+    if (!pickDate) return
+    setDates(prev => prev.includes(pickDate) ? prev : [...prev, pickDate].sort())
+  }
+  const removeDate = (d) => setDates(prev => prev.filter(x => x !== d))
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const payload = { user_ids: userIds, status, reason: reason.trim() || undefined }
+    if (mode === 'dates') {
+      if (dates.length === 0) { setError('Add at least one date'); return }
+      payload.dates = dates
+    } else {
+      if (!from || !to) { setError('From and To dates are required'); return }
+      if (new Date(from) > new Date(to)) { setError('From must be on or before To'); return }
+      payload.from = from
+      payload.to = to
+    }
+    setLoading(true); setError('')
+    try {
+      const res = await api.patch('/attendance/bulk-status', payload)
+      setResult(res.data?.data || null)
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to bulk-update attendance')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (result) {
+    return (
+      <Modal isOpen onClose={() => { onSuccess(); onClose() }} title="Bulk Update Complete" size="sm">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-3.5">
+            <CheckCircle2 size={20} className="text-emerald-500 flex-shrink-0" />
+            <p className="text-sm text-emerald-700 dark:text-emerald-400">
+              {result.users_updated} user(s) set to <span className="font-semibold capitalize">{status}</span> across {result.dates_updated} day(s) — {result.records_updated} record(s) touched.
+            </p>
+          </div>
+
+          {result.salary_slips_recalculated > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                Salary slips recalculated ({result.salary_slips_recalculated})
+              </p>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {(result.salary_impacts || []).map((s, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2">
+                    <span className="text-gray-500 dark:text-gray-400">{MONTH_NAMES[s.month - 1]} {s.year}</span>
+                    <span className={`font-semibold ${s.difference === 0 ? 'text-gray-400' : s.difference > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
+                      {s.difference > 0 ? '+' : ''}{s.difference} → ₹{s.new_final_salary}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result.not_found_user_ids?.length > 0 && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">{result.not_found_user_ids.length} user id(s) were not found and were skipped.</p>
+          )}
+
+          <Button className="w-full" onClick={() => { onSuccess(); onClose() }}>Done</Button>
+        </div>
+      </Modal>
+    )
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title="Bulk Update Attendance" size="sm">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400">
+          Applying to <span className="font-semibold text-gray-800 dark:text-gray-200">{userIds.length}</span> selected employee{userIds.length === 1 ? '' : 's'}
+        </div>
+
+        <div className="flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1 gap-1">
+          {[{ k: 'range', l: 'Date Range' }, { k: 'dates', l: 'Specific Dates' }].map(t => (
+            <button key={t.k} type="button" onClick={() => setMode(t.k)}
+              className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                mode === t.k ? 'bg-white dark:bg-gray-700 text-brand shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+              }`}>
+              {t.l}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'range' ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">From</p>
+              <DatePicker value={from} onChange={setFrom} />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">To</p>
+              <DatePicker value={to} onChange={setTo} />
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Dates</p>
+            <div className="flex gap-2">
+              <div className="flex-1"><DatePicker value={pickDate} onChange={setPickDate} /></div>
+              <Button type="button" variant="outline" size="sm" onClick={addDate}>Add</Button>
+            </div>
+            {dates.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
+                {dates.map(d => (
+                  <span key={d} className="inline-flex items-center gap-1 px-2 py-1 bg-brand/10 text-brand text-[11px] rounded-lg">
+                    {new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    <button type="button" onClick={() => removeDate(d)} className="hover:text-red-500">
+                      <X size={10} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <CustomSelect label="Status" required value={status} onChange={setStatus} options={STATUS_OPTS} />
+
+        <div>
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Reason (optional)</label>
+          <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2}
+            placeholder={`Bulk-set to "${status}" by admin`}
+            className="w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm resize-none" />
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">
+            <AlertCircle size={13} className="text-red-500 flex-shrink-0" />
+            <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-1">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+          <Button type="submit" className="flex-1" loading={loading}>Apply</Button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 
@@ -2284,7 +2506,7 @@ export default function Attendance() {
         <AttendanceListView dispatch={dispatch} title="Company Overview — Today" isAdmin={isAdmin} scope="company" onOpenPhoto={openLightbox} />
       )}
       {activeTab === 'monthly' && isAdmin && (
-        <MonthGridView dispatch={dispatch} title="Company — Monthly Grid" scope="company" />
+        <MonthGridView dispatch={dispatch} title="Company — Monthly Grid" scope="company" isAdmin={isAdmin} />
       )}
       {activeTab === 'summary' && isAdmin && <SummaryView dispatch={dispatch} isAdmin={isAdmin} />}
       {activeTab === 'late'    && isAdmin && <LateArrivalsReport dispatch={dispatch} onOpenPhoto={openLightbox} />}

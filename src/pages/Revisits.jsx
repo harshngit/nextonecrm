@@ -511,6 +511,7 @@ export default function Revisits() {
   const isExternalCaller = user?.role === 'external_caller'
   const [filterView,   setFilterView]   = useState(isExternalCaller ? 'mine' : 'team')
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterManagerId, setFilterManagerId] = useState('')
   const [search,       setSearch]       = useState('')
 
   // Sidebar data
@@ -548,6 +549,7 @@ export default function Revisits() {
       if (filterStatus) params.status = filterStatus
       if (search) params.search = search
       const endpoint = filterView === 'mine' ? '/me/revisits' : '/site-revisits'
+      if (filterView !== 'mine' && filterManagerId) params.manager_id = filterManagerId
       const res = await api.get(endpoint, { params })
       setRevisits(res.data.data || [])
       setPagination(res.data.pagination || {})
@@ -562,7 +564,7 @@ export default function Revisits() {
     } catch {}
   }
 
-  useEffect(() => { fetchRevisits() }, [page, filterView, filterStatus, search, perPage])
+  useEffect(() => { fetchRevisits() }, [page, filterView, filterStatus, filterManagerId, search, perPage])
   useEffect(() => { fetchSideData() }, [])
   useEffect(() => { if (user?.id) dispatch(fetchTeamTree(user.id)) }, [user?.id, dispatch])
 
@@ -667,6 +669,13 @@ export default function Revisits() {
             options={[{ value: '', label: 'All Status' }, ...STATUS_OPTIONS]}
             placeholder="All Status" />
         </div>
+        {filterView !== 'mine' && (
+          <div className="w-44">
+            <CustomSelect value={filterManagerId} onChange={v => { setFilterManagerId(v); setPage(1) }}
+              options={[{ value: '', label: 'All Team' }, ...salesExecs.filter(u => !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}` }))]}
+              placeholder="All Team" searchable />
+          </div>
+        )}
         <PageSizeSelect value={perPage} onChange={v => { setPerPage(v); setPage(1) }} />
         <button onClick={fetchRevisits}
           className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-brand hover:border-brand transition-colors">

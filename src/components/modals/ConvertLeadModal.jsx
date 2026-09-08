@@ -23,9 +23,11 @@ export default function ConvertLeadModal({ lead, currentUser, onClose, onSuccess
   const { list: projectList } = useSelector(s => s.projects)
   const { teamTree: teamMembers = [] } = useSelector(s => s.users)
   const salesExecs = teamMembers.filter(u => !u.is_self)
-  // Only admin/super_admin can reassign at conversion time — every other
-  // role is locked to whoever the lead is already assigned to (or themselves).
-  const isRestricted = !['admin', 'super_admin'].includes(currentUser?.role)
+  // Admin/super_admin can reassign to anyone; associate/associate_partner can
+  // reassign within their own team (userOptions is already scoped to their
+  // team tree below). Every other role is locked to whoever the lead is
+  // already assigned to (or themselves).
+  const isRestricted = !['admin', 'super_admin', 'associate', 'associate_partner'].includes(currentUser?.role)
 
   useEffect(() => {
     // Fetch conversion options to pre-fill

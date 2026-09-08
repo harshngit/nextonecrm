@@ -699,6 +699,7 @@ export default function SiteVisits() {
   const isExternalCaller = currentUser?.role === 'external_caller'
   const [filterView,    setFilterView]    = useState(isExternalCaller ? 'mine' : 'team')
   const [filterStatus,  setFilterStatus]  = useState('')
+  const [filterManagerId, setFilterManagerId] = useState('')
   const [search,        setSearch]        = useState('')
   const [selectedDate,  setSelectedDate]  = useState(new Date().toISOString().split('T')[0])
   const [page,          setPage]          = useState(1)
@@ -743,11 +744,12 @@ export default function SiteVisits() {
     if (filterView === 'mine') {
       dispatch(fetchMySiteVisits(params))
     } else {
+      if (filterManagerId) params.manager_id = filterManagerId
       dispatch(fetchSiteVisits(params))
     }
   }
 
-  useEffect(() => { loadVisits() }, [dispatch, filterView, filterStatus, search, page, perPage])
+  useEffect(() => { loadVisits() }, [dispatch, filterView, filterStatus, filterManagerId, search, page, perPage])
 
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
@@ -1086,6 +1088,19 @@ export default function SiteVisits() {
               placeholder="All Status"
             />
           </div>
+
+          {/* Team filter — scopes to a manager's entire reporting sub-tree */}
+          {filterView !== 'mine' && (
+            <div className="w-44">
+              <CustomSelect
+                value={filterManagerId}
+                onChange={val => { setFilterManagerId(val); setPage(1) }}
+                options={[{ value: '', label: 'All Team' }, ...teamMembers.filter(u => !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}` }))]}
+                placeholder="All Team"
+                searchable
+              />
+            </div>
+          )}
 
           <button onClick={() => loadVisits()}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-brand hover:border-brand transition-colors">
