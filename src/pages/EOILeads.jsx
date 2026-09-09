@@ -2012,7 +2012,7 @@ export default function EOILeads() {
     setSelectedLeads(selectedLeads.length === list.length && list.length > 0 ? [] : list.map(l => l.id))
 
   const perms        = useModulePermissions('leads')
-  const canReassign     = ['super_admin', 'admin', 'sales_manager'].includes(currentUser?.role)
+  const canReassign     = ['super_admin', 'admin', 'sales_manager', 'team_leader', 'associate_partner', 'associate'].includes(currentUser?.role)
   const canRequestPhone = ['sales_manager', 'sales_executive', 'external_caller'].includes(currentUser?.role)
   const canBulkUpload = true  // all authenticated users can bulk upload — exec/caller auto-assigned to self
   const canSeePhone  = ['super_admin', 'admin'].includes(currentUser?.role)

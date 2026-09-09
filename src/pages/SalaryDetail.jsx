@@ -10,6 +10,7 @@ import {
 import api from '../api/axios'
 import Avatar from '../components/ui/Avatar'
 import Modal from '../components/ui/Modal'
+import ConfirmModal from '../components/ui/ConfirmModal'
 import AsyncSearchSelect from '../components/ui/AsyncSearchSelect'
 import DatePicker from '../components/ui/DatePicker'
 import { updateAttendanceStatus } from '../store/attendanceSlice'
@@ -107,13 +108,30 @@ export default function SalaryDetail() {
   const { user } = useSelector(s => s.auth)
   const isAdmin = ['super_admin', 'admin'].includes(user?.role)
 
-  const deleteIncentive = async (incentiveId) => {
-    if (!confirm('Are you sure you want to delete this incentive?')) return
+  // Shared delete-confirmation state for incentives/commissions/advances —
+  // replaces the native window.confirm() popups with the app's own modal.
+  const [deleteTarget, setDeleteTarget] = useState(null) // { type: 'incentive'|'commission'|'advance', id }
+  const [deleting, setDeleting] = useState(false)
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      await api.delete(`/salary/incentive/${incentiveId}`)
-      fetchIncentives()
+      if (deleteTarget.type === 'incentive') {
+        await api.delete(`/salary/incentive/${deleteTarget.id}`)
+        fetchIncentives()
+      } else if (deleteTarget.type === 'commission') {
+        await api.delete(`/salary/commission/${deleteTarget.id}`)
+        fetchCommissions()
+      } else if (deleteTarget.type === 'advance') {
+        await api.delete(`/salary/advance/${deleteTarget.id}`)
+        fetchAdvances()
+      }
+      setDeleteTarget(null)
     } catch (err) {
-      console.error('Failed to delete incentive:', err)
+      console.error(`Failed to delete ${deleteTarget.type}:`, err)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -351,15 +369,6 @@ export default function SalaryDetail() {
     }
   }
 
-  const deleteCommission = async (id) => {
-    if (!confirm('Are you sure you want to delete this commission?')) return
-    try {
-      await api.delete(`/salary/commission/${id}`)
-      fetchCommissions()
-    } catch (err) {
-      console.error('Failed to delete commission:', err)
-    }
-  }
 
   // ── Fetch advances for this user ─────────────────────────────────────────────
   const fetchAdvances = async () => {
@@ -398,7 +407,7 @@ export default function SalaryDetail() {
 
   // ── Add advance for this user ─────────────────────────────────────────────────
   const handleAddAdvance = async () => {
-    if (!advanceForm.advance_date || !advanceForm.amount || !advanceForm.payment_proof_url) return
+    if (!advanceForm.advance_date || !advanceForm.amount) return
     setAdvanceSaving(true)
     try {
       await api.post('/salary/advance', {
@@ -419,15 +428,6 @@ export default function SalaryDetail() {
     }
   }
 
-  const deleteAdvance = async (id) => {
-    if (!confirm('Are you sure you want to delete this advance?')) return
-    try {
-      await api.delete(`/salary/advance/${id}`)
-      fetchAdvances()
-    } catch (err) {
-      console.error('Failed to delete advance:', err)
-    }
-  }
 
   // ── Add incentive for this user ─────────────────────────────────────────────
   const handleAddIncentive = async () => {
@@ -941,7 +941,7 @@ export default function SalaryDetail() {
                           )}
                           {isAdmin && (
                             <button
-                              onClick={() => deleteIncentive(incentive.id)}
+                              onClick={() => setDeleteTarget({ type: 'incentive', id: incentive.id })}
                               className="p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 hover:text-red-600 transition-all"
                               title="Delete incentive"
                             >
@@ -1017,7 +1017,7 @@ export default function SalaryDetail() {
                                   <CheckCircle size={12} />
                                 </button>
                                 <button
-                                  onClick={() => deleteCommission(c.id)}
+                                  onClick={() => setDeleteTarget({ type: 'commission', id: c.id })}
                                   className="p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 hover:text-red-600 transition-all"
                                   title="Delete commission"
                                 >
@@ -1082,7 +1082,7 @@ export default function SalaryDetail() {
                           )}
                           {isAdmin && (
                             <button
-                              onClick={() => deleteAdvance(a.id)}
+                              onClick={() => setDeleteTarget({ type: 'advance', id: a.id })}
                               className="p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 hover:text-red-600 transition-all"
                               title="Delete advance"
                             >
@@ -1291,7 +1291,7 @@ export default function SalaryDetail() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Payment Proof *</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Payment Proof <span className="text-gray-400 font-normal">(optional)</span></label>
             {advanceForm.payment_proof_url ? (
               <div className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-[#141414] rounded-xl border border-gray-200 dark:border-gray-700">
                 <a
@@ -1348,7 +1348,7 @@ export default function SalaryDetail() {
           </button>
           <button
             onClick={handleAddAdvance}
-            disabled={advanceSaving || advanceProofUploading || !advanceForm.advance_date || !advanceForm.amount || !advanceForm.payment_proof_url}
+            disabled={advanceSaving || advanceProofUploading || !advanceForm.advance_date || !advanceForm.amount}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all disabled:opacity-50"
           >
             {advanceSaving ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
@@ -1356,6 +1356,17 @@ export default function SalaryDetail() {
           </button>
         </div>
       </Modal>
+
+      {/* ── Delete Confirmation (incentive / commission / advance) ────────────── */}
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title={`Delete ${deleteTarget?.type === 'incentive' ? 'Incentive' : deleteTarget?.type === 'commission' ? 'Commission' : 'Advance'}`}
+        message={`Are you sure you want to delete this ${deleteTarget?.type || 'record'}? This action cannot be undone.`}
+        confirmText="Delete"
+        loading={deleting}
+      />
 
       {/* ── Modal: Edit Attendance Status ─────────────────────────────────────── */}
       <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title="Edit Attendance Status" size="sm">

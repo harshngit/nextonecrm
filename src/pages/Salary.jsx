@@ -22,6 +22,7 @@ import {
 } from '../store/salarySlice'
 import api from '../api/axios'
 import Modal from '../components/ui/Modal'
+import ConfirmModal from '../components/ui/ConfirmModal'
 import DatePicker from '../components/ui/DatePicker'
 import Avatar from '../components/ui/Avatar'
 import Button from '../components/ui/Button'
@@ -279,6 +280,8 @@ function AdminSalaryView({ user }) {
   const [advanceForm, setAdvanceForm] = useState({
     user_id: '', advance_date: '', amount: '', transaction_reference: '', payment_proof_url: '', notes: '',
   })
+  const [deleteAdvanceTarget, setDeleteAdvanceTarget] = useState(null)
+  const [deletingAdvance, setDeletingAdvance] = useState(false)
 
   useEffect(() => {
     dispatch(fetchAllEmployeeSalaries({ page: employeesPage, per_page: perPage }))
@@ -586,7 +589,7 @@ function AdminSalaryView({ user }) {
   }
 
   const handleAddAdvance = async () => {
-    if (!advanceForm.user_id || !advanceForm.advance_date || !advanceForm.amount || !advanceForm.payment_proof_url) return
+    if (!advanceForm.user_id || !advanceForm.advance_date || !advanceForm.amount) return
     setAdvanceSaving(true)
     try {
       await api.post('/salary/advance', {
@@ -606,13 +609,17 @@ function AdminSalaryView({ user }) {
     }
   }
 
-  const deleteAdvance = async (id) => {
-    if (!confirm('Are you sure you want to delete this advance?')) return
+  const confirmDeleteAdvance = async () => {
+    if (!deleteAdvanceTarget) return
+    setDeletingAdvance(true)
     try {
-      await api.delete(`/salary/advance/${id}`)
+      await api.delete(`/salary/advance/${deleteAdvanceTarget.id}`)
       fetchAdvances(advancesPage, advanceFilters)
+      setDeleteAdvanceTarget(null)
     } catch (err) {
       console.error('Failed to delete advance:', err)
+    } finally {
+      setDeletingAdvance(false)
     }
   }
 
@@ -1309,7 +1316,7 @@ function AdminSalaryView({ user }) {
                             <div className="flex items-center justify-end gap-1">
                               {perms.delete && (
                                 <button
-                                  onClick={() => deleteAdvance(a.id)}
+                                  onClick={() => setDeleteAdvanceTarget(a)}
                                   title="Delete advance"
                                   className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"
                                 >
@@ -2002,7 +2009,7 @@ function AdminSalaryView({ user }) {
           </div>
 
           <div>
-            <label className={labelCls}>Payment Proof *</label>
+            <label className={labelCls}>Payment Proof <span className="text-gray-400 font-normal">(optional)</span></label>
             {advanceForm.payment_proof_url ? (
               <div className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-[#141414] rounded-xl border border-gray-200 dark:border-gray-700">
                 <a
@@ -2054,7 +2061,7 @@ function AdminSalaryView({ user }) {
           <button onClick={() => setAddAdvanceModal(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Cancel</button>
           <button
             onClick={handleAddAdvance}
-            disabled={advanceSaving || advanceProofUploading || !advanceForm.user_id || !advanceForm.advance_date || !advanceForm.amount || !advanceForm.payment_proof_url}
+            disabled={advanceSaving || advanceProofUploading || !advanceForm.user_id || !advanceForm.advance_date || !advanceForm.amount}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#0082f3] hover:bg-[#006fd4] rounded-xl transition-all disabled:opacity-50"
           >
             {advanceSaving ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
@@ -2062,6 +2069,17 @@ function AdminSalaryView({ user }) {
           </button>
         </div>
       </Modal>
+
+      {/* Delete Advance Confirmation */}
+      <ConfirmModal
+        isOpen={!!deleteAdvanceTarget}
+        onClose={() => setDeleteAdvanceTarget(null)}
+        onConfirm={confirmDeleteAdvance}
+        title="Delete Advance"
+        message={`Are you sure you want to delete this advance${deleteAdvanceTarget ? ` of ${fmtCurrency(deleteAdvanceTarget.amount)}` : ''}? This action cannot be undone.`}
+        confirmText="Delete"
+        loading={deletingAdvance}
+      />
 
       {/* Export Modal */}
       <ExportModal
