@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useModulePermissions } from '../hooks/usePermission'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
@@ -257,6 +257,81 @@ function ShareProjectModal({ projectId, projectName, onClose, projectDocuments }
   const [error,      setError]      = useState('')
   const [showDocumentsDropdown, setShowDocumentsDropdown] = useState(false)
   const [showFieldsDropdown, setShowFieldsDropdown] = useState(false)
+  const [fieldsPos, setFieldsPos] = useState(null)
+  const [docsPos,   setDocsPos]   = useState(null)
+  const fieldsBtnRef   = useRef(null)
+  const docsBtnRef     = useRef(null)
+  const fieldsPopupRef = useRef(null)
+  const docsPopupRef   = useRef(null)
+
+  // These dropdowns render inside the modal's own scrollable body — plain
+  // `position: absolute` gets clipped by that overflow once the list runs
+  // past the modal's visible edge. Fixed-position instead, anchored to the
+  // trigger's live rect (kept in sync on scroll — the modal body scrolls,
+  // and so does the checklist's own internal `overflow-y-auto` list, so a
+  // "close on scroll" here would dismiss the dropdown the instant someone
+  // tries to scroll through its own options), then corrected once the real
+  // popup size is known so it never renders off-screen.
+  const computeFieldsPos = () => {
+    if (!fieldsBtnRef.current) return
+    const r = fieldsBtnRef.current.getBoundingClientRect()
+    const below = window.innerHeight - r.bottom
+    setFieldsPos({ left: r.left, width: r.width, ...(below > 220 ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) })
+  }
+  const computeDocsPos = () => {
+    if (!docsBtnRef.current) return
+    const r = docsBtnRef.current.getBoundingClientRect()
+    const below = window.innerHeight - r.bottom
+    setDocsPos({ left: r.left, width: r.width, ...(below > 220 ? { top: r.bottom + 4 } : { bottom: window.innerHeight - r.top + 4 }) })
+  }
+
+  useLayoutEffect(() => {
+    if (!showFieldsDropdown || !fieldsPopupRef.current) return
+    const r = fieldsPopupRef.current.getBoundingClientRect()
+    const pad = 8
+    setFieldsPos(p => {
+      if (!p) return p
+      const next = { ...p }
+      if (r.top < pad) { next.top = pad; next.bottom = undefined }
+      if (r.bottom > window.innerHeight - pad) { next.bottom = pad; next.top = undefined }
+      if (r.right > window.innerWidth - pad) next.left = Math.max(pad, window.innerWidth - pad - r.width)
+      return next
+    })
+  }, [showFieldsDropdown])
+
+  useLayoutEffect(() => {
+    if (!showDocumentsDropdown || !docsPopupRef.current) return
+    const r = docsPopupRef.current.getBoundingClientRect()
+    const pad = 8
+    setDocsPos(p => {
+      if (!p) return p
+      const next = { ...p }
+      if (r.top < pad) { next.top = pad; next.bottom = undefined }
+      if (r.bottom > window.innerHeight - pad) { next.bottom = pad; next.top = undefined }
+      if (r.right > window.innerWidth - pad) next.left = Math.max(pad, window.innerWidth - pad - r.width)
+      return next
+    })
+  }, [showDocumentsDropdown])
+
+  useEffect(() => {
+    if (!showFieldsDropdown) return
+    window.addEventListener('scroll', computeFieldsPos, true)
+    window.addEventListener('resize', computeFieldsPos)
+    return () => {
+      window.removeEventListener('scroll', computeFieldsPos, true)
+      window.removeEventListener('resize', computeFieldsPos)
+    }
+  }, [showFieldsDropdown])
+
+  useEffect(() => {
+    if (!showDocumentsDropdown) return
+    window.addEventListener('scroll', computeDocsPos, true)
+    window.addEventListener('resize', computeDocsPos)
+    return () => {
+      window.removeEventListener('scroll', computeDocsPos, true)
+      window.removeEventListener('resize', computeDocsPos)
+    }
+  }, [showDocumentsDropdown])
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -422,15 +497,19 @@ function ShareProjectModal({ projectId, projectName, onClose, projectDocuments }
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
               Fields to include
             </label>
-            <button onClick={() => setShowFieldsDropdown(!showFieldsDropdown)}
+            <button ref={fieldsBtnRef} onClick={() => {
+                if (!showFieldsDropdown) computeFieldsPos()
+                setShowFieldsDropdown(o => !o)
+              }}
               className={ic + " flex items-center justify-between"}>
               <span className="text-sm">
                 {selectedFields.length === 0 ? 'Select fields' : `${selectedFields.length} field${selectedFields.length > 1 ? 's' : ''} selected`}
               </span>
               <ChevronDown size={14} className={`transition-transform ${showFieldsDropdown ? 'rotate-180' : ''}`}/>
             </button>
-            {showFieldsDropdown && (
-              <div className="absolute w-full mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto">
+            {showFieldsDropdown && fieldsPos && (
+              <div ref={fieldsPopupRef} style={{ position: 'fixed', top: fieldsPos.top, bottom: fieldsPos.bottom, left: fieldsPos.left, width: fieldsPos.width }}
+                className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[60] max-h-48 overflow-y-auto">
                 {availableFields.map(field => (
                   <label key={field.key} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 first:rounded-t-xl last:rounded-b-xl">
                     <input type="checkbox"
@@ -451,15 +530,19 @@ function ShareProjectModal({ projectId, projectName, onClose, projectDocuments }
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
                 Documents to include
               </label>
-              <button onClick={() => setShowDocumentsDropdown(!showDocumentsDropdown)}
+              <button ref={docsBtnRef} onClick={() => {
+                  if (!showDocumentsDropdown) computeDocsPos()
+                  setShowDocumentsDropdown(o => !o)
+                }}
                 className={ic + " flex items-center justify-between"}>
                 <span className="text-sm">
                   {selectedDocuments.length === 0 ? 'Select documents' : `${selectedDocuments.length} document${selectedDocuments.length > 1 ? 's' : ''} selected`}
                 </span>
                 <ChevronDown size={14} className={`transition-transform ${showDocumentsDropdown ? 'rotate-180' : ''}`}/>
               </button>
-              {showDocumentsDropdown && (
-                <div className="absolute w-full mt-1 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto">
+              {showDocumentsDropdown && docsPos && (
+                <div ref={docsPopupRef} style={{ position: 'fixed', top: docsPos.top, bottom: docsPos.bottom, left: docsPos.left, width: docsPos.width }}
+                  className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[60] max-h-48 overflow-y-auto">
                   <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800">
                     <input type="checkbox"
                       checked={selectedDocuments.length === allDocuments.length && allDocuments.length > 0}

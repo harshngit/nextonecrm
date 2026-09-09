@@ -1,16 +1,24 @@
 import { useState, useRef, useEffect } from 'react'
 import { Phone, MessageCircle, Mail, AlertCircle } from 'lucide-react'
+import ShareProjectWhatsappModal from '../modals/ShareProjectWhatsappModal'
 
 // Wraps a phone number/icon trigger — clicking it opens a small popover with
-// "Call" (tel:), "WhatsApp" (wa.me), and "Email" (mailto:) options instead of
+// "Call" (tel:), "WhatsApp", and "Email" (mailto:) options instead of
 // navigating straight to a tel: link. Uses fixed positioning so it isn't
 // clipped by table/card overflow containers. When `email` isn't supplied (or
 // the record simply has none), the Email option shows an inline
 // "Email ID not exists" notice instead of opening a mail client.
-export default function PhoneActions({ phone, email, children, className = '' }) {
+//
+// When `projectId` is supplied (a lead linked to a project), "WhatsApp"
+// no longer opens a plain wa.me chat — it opens a picker that sends the
+// project's own details + chosen documents straight through the WhatsApp
+// Business API instead. Without a projectId it falls back to the plain
+// wa.me link, unchanged.
+export default function PhoneActions({ phone, email, projectId, projectName, children, className = '' }) {
   const [open, setOpen] = useState(false)
   const [pos,  setPos]  = useState(null)
   const [emailError, setEmailError] = useState(false)
+  const [showWhatsappShare, setShowWhatsappShare] = useState(false)
   const ref = useRef(null)
 
   useEffect(() => {
@@ -54,10 +62,17 @@ export default function PhoneActions({ phone, email, children, className = '' })
             className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
             <Phone size={13} className="text-blue-500" /> Call
           </a>
-          <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-            <MessageCircle size={13} className="text-green-500" /> WhatsApp
-          </a>
+          {projectId ? (
+            <button type="button" onClick={() => { setOpen(false); setShowWhatsappShare(true) }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              <MessageCircle size={13} className="text-green-500" /> WhatsApp
+            </button>
+          ) : (
+            <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              <MessageCircle size={13} className="text-green-500" /> WhatsApp
+            </a>
+          )}
           <a href={email ? `mailto:${email}` : undefined} onClick={handleEmailClick}
             className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer">
             <Mail size={13} className="text-amber-500" /> Email
@@ -68,6 +83,14 @@ export default function PhoneActions({ phone, email, children, className = '' })
             </p>
           )}
         </div>
+      )}
+      {showWhatsappShare && (
+        <ShareProjectWhatsappModal
+          projectId={projectId}
+          projectName={projectName}
+          phone={phone}
+          onClose={() => setShowWhatsappShare(false)}
+        />
       )}
     </span>
   )

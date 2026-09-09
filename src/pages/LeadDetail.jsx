@@ -767,9 +767,9 @@ export default function LeadDetail() {
                       <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Phone Number</span>
                     </div>
                     {canSeePhone ? (
-                      <PhoneActions phone={lead.phone} email={lead.email}><span className="text-sm font-semibold text-brand hover:underline">{lead.phone}</span></PhoneActions>
+                      <PhoneActions phone={lead.phone} email={lead.email} projectId={lead.project_id} projectName={lead.project_name}><span className="text-sm font-semibold text-brand hover:underline">{lead.phone}</span></PhoneActions>
                     ) : showPhone ? (
-                      <PhoneActions phone={lead.phone} email={lead.email}><span className="text-sm font-semibold text-brand hover:underline">{lead.phone}</span></PhoneActions>
+                      <PhoneActions phone={lead.phone} email={lead.email} projectId={lead.project_id} projectName={lead.project_name}><span className="text-sm font-semibold text-brand hover:underline">{lead.phone}</span></PhoneActions>
                     ) : (
                       <div>
                         <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">*****{lead.phone?.slice(-5)}</p>
@@ -789,9 +789,9 @@ export default function LeadDetail() {
                     </div>
                     {lead.alternate_phone_number ? (
                       canSeePhone ? (
-                        <PhoneActions phone={lead.alternate_phone_number} email={lead.email}><span className="text-sm font-semibold text-brand hover:underline">{lead.alternate_phone_number}</span></PhoneActions>
+                        <PhoneActions phone={lead.alternate_phone_number} email={lead.email} projectId={lead.project_id} projectName={lead.project_name}><span className="text-sm font-semibold text-brand hover:underline">{lead.alternate_phone_number}</span></PhoneActions>
                       ) : showAltPhone ? (
-                        <PhoneActions phone={lead.alternate_phone_number} email={lead.email}><span className="text-sm font-semibold text-brand hover:underline">{lead.alternate_phone_number}</span></PhoneActions>
+                        <PhoneActions phone={lead.alternate_phone_number} email={lead.email} projectId={lead.project_id} projectName={lead.project_name}><span className="text-sm font-semibold text-brand hover:underline">{lead.alternate_phone_number}</span></PhoneActions>
                       ) : (
                         <div>
                           <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">*****{lead.alternate_phone_number?.slice(-5)}</p>

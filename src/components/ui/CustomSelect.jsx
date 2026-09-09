@@ -82,19 +82,15 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
     const updateRect = () => {
       if (!containerRef.current) return
       const containerRect = containerRef.current.getBoundingClientRect()
-      const spaceBelow = window.innerHeight - containerRect.bottom
-      const spaceAbove = containerRect.top
       const spaceRight = window.innerWidth - containerRect.right
 
-      let newPosition = 'bottom'
-      if (spaceBelow < 280 && spaceAbove > spaceBelow) {
-        newPosition = 'top'
-      }
-
-      // Check if we need to align to right edge
-      if (spaceRight < 200) {
-        newPosition = newPosition.replace('bottom', 'bottom-right').replace('top', 'top-right')
-      }
+      // Always anchored below the trigger, tracked live on scroll — no
+      // flip-to-above. A preemptive top/bottom flip based on a guessed
+      // panel height caused a visible jump mid-scroll once space below
+      // dipped under the threshold; simpler and less surprising to just
+      // stay put under the input (the list's own max-h-60 scroll handles
+      // long option lists regardless of how close to the bottom it opens).
+      let newPosition = spaceRight < 200 ? 'bottom-right' : 'bottom'
 
       setDropdownPosition(newPosition)
       setDropdownRect(containerRect)
