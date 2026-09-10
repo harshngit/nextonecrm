@@ -5,6 +5,7 @@ import {
   Globe, Search, RefreshCw, Mail, Building2,
   Calendar, MoreVertical, Edit2, Trash2, ArrowRightCircle,
   CheckCircle2, AlertCircle, ChevronLeft, ChevronRight,
+  X, Phone, MessageSquare, Tag, Eye, Download,
 } from 'lucide-react'
 import {
   fetchWebsiteInquiries, updateWebsiteInquiry, deleteWebsiteInquiry, clearWebsiteInquiryError,
@@ -21,6 +22,7 @@ import DatePicker from '../components/ui/DatePicker'
 import PhoneActions from '../components/ui/PhoneActions'
 import PageSizeSelect, { resolvePerPage } from '../components/ui/PageSizeSelect'
 import ConvertInquiryModal from '../components/modals/ConvertInquiryModal'
+import ExportModal from '../components/ui/ExportModal'
 import api from '../api/axios'
 
 const ADMIN_ROLES = ['super_admin', 'admin']
@@ -80,6 +82,70 @@ function InquiryForm({ form, setForm, projectOptions, searchProjects }) {
   )
 }
 
+// ─── Right-side detail drawer — opens on clicking a row ────────────────────────
+function InquiryDetailDrawer({ inquiry, onClose, onEdit, onConvert, onDelete }) {
+  const row = (icon, label, value) => value ? (
+    <div className="flex items-start gap-3 py-3 border-b border-gray-100 dark:border-gray-800 last:border-b-0">
+      <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 text-gray-400">
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+        <div className="text-sm text-gray-800 dark:text-gray-200 mt-0.5 break-words">{value}</div>
+      </div>
+    </div>
+  ) : null
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose} style={{ margin: 0 }}>
+      <div className="bg-white dark:bg-[#1a1a1a] w-full max-w-md h-full overflow-y-auto border-l border-gray-200 dark:border-gray-800 shadow-2xl flex flex-col"
+        onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="sticky top-0 bg-white dark:bg-[#1a1a1a] border-b border-gray-100 dark:border-gray-800 z-10">
+          <div className="px-5 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-brand flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-xs font-bold">{inquiry.name?.[0]?.toUpperCase() || '?'}</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{inquiry.name || 'Website Inquiry'}</p>
+                <p className="text-xs text-gray-400">Received {fmtDate(inquiry.created_at)}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0">
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-2">
+          {row(<Phone size={14} />, 'Phone', inquiry.phone && (
+            <PhoneActions phone={inquiry.phone} email={inquiry.email}>
+              <span className="hover:text-brand transition-colors">{inquiry.phone}</span>
+            </PhoneActions>
+          ))}
+          {row(<Mail size={14} />, 'Email', inquiry.email)}
+          {row(<Building2 size={14} />, 'Project', inquiry.project_name || inquiry.project?.name)}
+          {row(<Tag size={14} />, 'Source', inquiry.source && <span className="capitalize">{inquiry.source}</span>)}
+          {row(<CheckCircle2 size={14} />, 'Status', <Badge label={inquiry.status || 'new'} />)}
+          {row(<MessageSquare size={14} />, 'Message', inquiry.message)}
+        </div>
+
+        {/* Footer actions */}
+        <div className="sticky bottom-0 bg-white dark:bg-[#1a1a1a] border-t border-gray-100 dark:border-gray-800 px-5 py-4 flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1" icon={Edit2} onClick={() => { onClose(); onEdit(inquiry) }}>Edit</Button>
+          <Button size="sm" className="flex-1" icon={ArrowRightCircle} onClick={() => { onClose(); onConvert(inquiry) }}>Convert</Button>
+          <button onClick={() => { onClose(); onDelete(inquiry) }}
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-red-200 dark:border-red-900/40 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex-shrink-0">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function WebsiteInquiries() {
   const { user: currentUser } = useSelector(s => s.auth)
   const isAdmin = ADMIN_ROLES.includes(currentUser?.role)
@@ -95,7 +161,6 @@ function WebsiteInquiriesContent() {
   const { list: projectList } = useSelector(s => s.projects)
 
   const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
   const [filterProjectId, setFilterProjectId] = useState('')
   const [filterProjectName, setFilterProjectName] = useState('')
   const [filterFrom, setFilterFrom] = useState('')
@@ -114,12 +179,15 @@ function WebsiteInquiriesContent() {
   const [deleting, setDeleting] = useState(false)
 
   const [convertTarget, setConvertTarget] = useState(null)
+  const [viewTarget, setViewTarget] = useState(null)
   const [toast, setToast] = useState('')
+
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const loadInquiries = () => {
     const params = { page, per_page: resolvePerPage(perPage) }
     if (search) params.search = search
-    if (filterStatus) params.status = filterStatus
     if (filterProjectId) params.project = filterProjectId
     else if (filterProjectName) params.project = filterProjectName
     if (filterFrom) params.from = filterFrom
@@ -127,7 +195,7 @@ function WebsiteInquiriesContent() {
     dispatch(fetchWebsiteInquiries(params))
   }
 
-  useEffect(() => { loadInquiries() }, [dispatch, search, page, perPage, filterStatus, filterProjectId, filterProjectName, filterFrom, filterTo])
+  useEffect(() => { loadInquiries() }, [dispatch, search, page, perPage, filterProjectId, filterProjectName, filterFrom, filterTo])
   useEffect(() => { dispatch(fetchProjects()) }, [dispatch])
 
   useEffect(() => {
@@ -197,6 +265,25 @@ function WebsiteInquiriesContent() {
     }
   }
 
+  const handleExport = async (dateRange) => {
+    try {
+      setExporting(true)
+      const params = { ...dateRange }
+      if (search) params.search = search
+      if (filterProjectId) params.project = filterProjectId
+      else if (filterProjectName) params.project = filterProjectName
+      const res = await api.get('/export/website-inquiries', { params, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a'); a.href = url; a.download = `WebsiteInquiries_${dateRange.from}_to_${dateRange.to}.xlsx`
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+      setShowExportModal(false)
+    } catch (err) {
+      console.error('Export failed:', err)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const handleConvertSuccess = (convertTo) => {
     setConvertTarget(null)
     setToast(
@@ -220,10 +307,15 @@ function WebsiteInquiriesContent() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Contact-form submissions from the website</p>
         </div>
-        <button onClick={loadInquiries}
-          className="w-9 h-9 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-400 hover:text-brand hover:border-brand transition-colors">
-          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+            Export
+          </Button>
+          <button onClick={loadInquiries}
+            className="w-9 h-9 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-400 hover:text-brand hover:border-brand transition-colors">
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
       {actionError && (
@@ -242,14 +334,6 @@ function WebsiteInquiriesContent() {
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             placeholder="Search name, phone, email..."
             className="pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand w-56 text-gray-900 dark:text-gray-100 placeholder-gray-400"
-          />
-        </div>
-        <div className="w-40">
-          <CustomSelect
-            value={filterStatus}
-            onChange={(v) => { setFilterStatus(v); setPage(1) }}
-            options={[{ value: '', label: 'All Status' }, ...STATUS_OPTIONS]}
-            placeholder="All Status"
           />
         </div>
         <div className="w-52">
@@ -304,7 +388,8 @@ function WebsiteInquiriesContent() {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {list.map((inq) => (
-                  <tr key={inq.id} className="hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-colors">
+                  <tr key={inq.id} onClick={() => setViewTarget(inq)}
+                    className="hover:bg-gray-50 dark:hover:bg-[#0f0f0f] transition-colors cursor-pointer">
                     <td className="py-3 px-4">
                       <div className="font-medium text-gray-900 dark:text-gray-100">{inq.name || '—'}</div>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
@@ -338,7 +423,7 @@ function WebsiteInquiriesContent() {
                         <Calendar size={11} /> {fmtDate(inq.created_at)}
                       </div>
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => setConvertTarget(inq)}
@@ -361,6 +446,10 @@ function WebsiteInquiriesContent() {
                           {openMenuId === inq.id && (
                             <div style={{ top: menuPos?.top, bottom: menuPos?.bottom, right: menuPos?.right }}
                               className="fixed w-40 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg z-[9999] py-1">
+                              <button onClick={() => { setViewTarget(inq); setOpenMenuId(null) }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                <Eye size={14} /> View Details
+                              </button>
                               <button onClick={() => openEdit(inq)}
                                 className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                                 <Edit2 size={14} /> Edit
@@ -418,6 +507,26 @@ function WebsiteInquiriesContent() {
         confirmText="Delete"
         loading={deleting}
       />
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
+        title="Export Website Inquiries"
+        loading={exporting}
+      />
+
+      {/* Detail Drawer */}
+      {viewTarget && (
+        <InquiryDetailDrawer
+          inquiry={viewTarget}
+          onClose={() => setViewTarget(null)}
+          onEdit={openEdit}
+          onConvert={setConvertTarget}
+          onDelete={setDeleteTarget}
+        />
+      )}
 
       {/* Convert Modal */}
       {convertTarget && (
