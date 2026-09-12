@@ -513,7 +513,7 @@ export default function SalaryDetail() {
     <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
       <AlertCircle size={32} className="text-red-400" />
       <p className="text-gray-500">{empError}</p>
-      <button onClick={() => navigate('/salary')} className="text-sm text-[#0082f3] hover:underline">← Back to Salary</button>
+      <button onClick={() => navigate(-1)} className="text-sm text-[#0082f3] hover:underline">← Back to Salary</button>
     </div>
   )
 
@@ -525,7 +525,7 @@ export default function SalaryDetail() {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <button
-          onClick={() => navigate('/salary')}
+          onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-[#0082f3] transition-colors group"
         >
           <div className="w-8 h-8 rounded-full bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 flex items-center justify-center group-hover:border-[#0082f3]/30 transition-all">

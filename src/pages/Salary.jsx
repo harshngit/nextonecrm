@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useModulePermissions } from '../hooks/usePermission'
 import {
   IndianRupee, TrendingUp, Calendar, Users, ChevronDown,
@@ -183,15 +183,26 @@ function SlipBadge({ slip }) {
 function AdminSalaryView({ user }) {
   const dispatch  = useDispatch()
   const navigate  = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { employees, slips, history, loading, error, actionSuccess, lastGenerated } = useSelector(s => s.salary)
   const perms = useModulePermissions('salary')
 
   const [tab, setTab]                   = useState('employees')
   const [filterMonth, setFilterMonth]   = useState(thisMonth)
   const [filterYear, setFilterYear]     = useState(thisYear)
-  const [employeesPage, setEmployeesPage] = useState(1)
+  // Kept in sync with the URL (below) so Back-navigation from an employee's
+  // salary detail page restores the employees-tab page instead of page 1.
+  const [employeesPage, setEmployeesPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1)
   const [slipsPage, setSlipsPage]         = useState(1)
   const perPage = 10
+
+  useEffect(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (employeesPage > 1) next.set('page', String(employeesPage)); else next.delete('page')
+      return next
+    }, { replace: true })
+  }, [employeesPage])
   const [openMenuEmpId, setOpenMenuEmpId] = useState(null)
   const [menuPos,       setMenuPos]       = useState(null)
   const menuRef = useRef(null)

@@ -664,7 +664,7 @@ export default function ProjectDetail() {
       <div className="text-center max-w-sm px-6">
         <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl">🏢</div>
         <h3 className="text-xl font-bold text-gray-900 mb-2">Project not found</h3>
-        <Button variant="outline" onClick={() => navigate('/projects')} className="w-full rounded-xl">Back to Projects</Button>
+        <Button variant="outline" onClick={() => navigate(-1)} className="w-full rounded-xl">Back to Projects</Button>
       </div>
     </div>
   )
@@ -678,7 +678,7 @@ export default function ProjectDetail() {
 
       {/* Nav bar */}
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate('/projects')}
+        <button onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-brand transition-colors group">
           <div className="w-8 h-8 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center group-hover:border-brand/40 transition-all">
             <ArrowLeft size={15}/>

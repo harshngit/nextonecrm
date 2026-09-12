@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { useModulePermissions } from '../hooks/usePermission'
 import { fetchTeamTree } from '../store/userSlice'
@@ -34,7 +34,7 @@ const STATUS_COLOR = {
 }
 const PAYMENT_PLANS = [
   'Construction Linked Plan', 'Down Payment Plan', 'Time Linked Plan',
-  'Flexi Pay Plan', 'Subvention Scheme', 'Custom',
+  'Flexi Pay Plan', 'Bank Subvention', 'Developer Subvention', 'Custom',
 ]
 
 const ic = 'w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all'
@@ -814,6 +814,7 @@ function ClosureDrawer({ closure, onClose }) {
 export default function Closures() {
   const navigate  = useNavigate()
   const dispatch  = useDispatch()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user }  = useSelector(s => s.auth)
   const { teamTree } = useSelector(s => s.users)
 
@@ -821,7 +822,15 @@ export default function Closures() {
   const [summary,    setSummary]    = useState(null)
   const [loading,    setLoading]    = useState(true)
   const [pagination, setPagination] = useState({})
-  const [page,       setPage]       = useState(1)
+  const [page,       setPage]       = useState(() => parseInt(searchParams.get('page'), 10) || 1)
+
+  useEffect(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (page > 1) next.set('page', String(page)); else next.delete('page')
+      return next
+    }, { replace: true })
+  }, [page])
 
   const [filterStatus, setFilterStatus] = useState('')
   const [search,       setSearch]       = useState('')

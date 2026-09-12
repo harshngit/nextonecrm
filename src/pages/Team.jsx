@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Shield, RefreshCw, Search, TrendingUp, Users, Calendar, BookOpen, Eye, UserCheck, MoreVertical } from 'lucide-react'
 import { fetchUsers, assignManager, clearUserError, fetchRoles } from '../store/userSlice'
 import ListSkeleton from '../components/loaders/ListSkeleton'
@@ -117,6 +117,7 @@ function AssignManagerModal({ isOpen, onClose, targetUser, managers, onAssign, l
 export default function Team() {
   const navigate   = useNavigate()
   const dispatch   = useDispatch()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { list, roles, loading, pagination, actionLoading, actionError } = useSelector(s => s.users)
   const { user: currentUser } = useSelector(s => s.auth)
 
@@ -129,7 +130,15 @@ export default function Team() {
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [assignTarget,    setAssignTarget]    = useState(null)
   const [assignSuccess,   setAssignSuccess]   = useState('')
-  const [page,            setPage]            = useState(1)
+  const [page,            setPage]            = useState(() => parseInt(searchParams.get('page'), 10) || 1)
+
+  useEffect(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (page > 1) next.set('page', String(page)); else next.delete('page')
+      return next
+    }, { replace: true })
+  }, [page])
   const [openMenuMemberId, setOpenMenuMemberId] = useState(null)
   const [menuPos,          setMenuPos]          = useState(null)
   const menuRef = useRef(null)
@@ -193,7 +202,7 @@ export default function Team() {
     const result = await dispatch(assignManager({ userId: assignTarget.id, managerId }))
     if (assignManager.fulfilled.match(result)) {
       setAssignSuccess('Manager assigned successfully!')
-      dispatch(fetchUsers({ role: filterRole, is_active: filterActive }))
+      dispatch(fetchUsers({ role: filterRole, is_active: filterActive, page, per_page: 10 }))
       setTimeout(() => setShowAssignModal(false), 800)
     }
   }
@@ -275,7 +284,7 @@ export default function Team() {
         <Button
           variant="outline" size="sm"
           className="rounded-xl border-gray-200 dark:border-gray-700 shadow-md shadow-gray-300/50 dark:shadow-gray-900/50"
-          onClick={() => dispatch(fetchUsers({ role: filterRole, is_active: filterActive }))}
+          onClick={() => dispatch(fetchUsers({ role: filterRole, is_active: filterActive, page, per_page: 10 }))}
         >
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
         </Button>

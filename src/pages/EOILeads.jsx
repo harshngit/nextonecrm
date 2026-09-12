@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, Eye, Edit2, UserCheck, RefreshCw, Trash2, MapPin, Download, ArrowRightCircle, CalendarPlus, PhoneCall, Phone, Loader2, AlertCircle, CheckCircle2, Upload, FileSpreadsheet, X, Users, Mic, MicOff, Play, Pause, Trash, Clock, CalendarClock, Settings2, MoreVertical } from 'lucide-react'
 import { fetchLeads, fetchMyLeads, createLead, updateLead, deleteLead, bulkDeleteLeads, fetchLeadSources, clearLeadError, fetchLeadStatuses, fetchLeadConfigurations } from '../store/leadSlice'
 import { fetchTeamTree } from '../store/userSlice'
@@ -1562,6 +1562,7 @@ function BulkLeadPhoneRequestModal({ leadIds, leads, onClose, onSuccess }) {
 export default function EOILeads() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { list, loading, pagination, sources, statuses, configurations, actionLoading, actionError,
           myList, myLoading, myPagination } = useSelector(s => s.leads)
   const { list: projectList } = useSelector(s => s.projects)
@@ -1575,7 +1576,7 @@ export default function EOILeads() {
   const [filterProjectId, setFilterProjectId] = useState('')
   const [filterProjectName, setFilterProjectName] = useState('')
   const [filterLocation, setFilterLocation] = useState('')
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1)
   const [perPage, setPerPage] = useState('10')
 
   const searchProjectsFilter = async (q) => {
@@ -1589,7 +1590,18 @@ export default function EOILeads() {
   const activeLeadListRef = useRef([])
   const activeLeadList = activeLeadListRef.current
   const [leadsTab, setLeadsTab] = useState(showLeadsTabs ? 'my' : 'team') // 'my' | 'team'
-  const [myPage,   setMyPage]   = useState(1)
+  const [myPage,   setMyPage]   = useState(() => parseInt(searchParams.get('my_page'), 10) || 1)
+
+  // Mirror page/myPage into the URL (replacing, not pushing) so leaving this
+  // page (e.g. to view a lead) and coming back via Back restores the page.
+  useEffect(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (page > 1) next.set('page', String(page)); else next.delete('page')
+      if (myPage > 1) next.set('my_page', String(myPage)); else next.delete('my_page')
+      return next
+    }, { replace: true })
+  }, [page, myPage])
 
   const stageOptions = useMemo(() => {
     if (statuses?.length > 0) {

@@ -339,7 +339,7 @@ export default function UserManagement() {
     const result = await dispatch(assignManager({ userId: assignTarget.id, managerId }))
     if (assignManager.fulfilled.match(result)) {
       setAssignSuccess('Manager assigned successfully!')
-      dispatch(fetchUsers({ role: filterRole, is_active: filterActive, search, manager_id: filterManagerId }))
+      dispatch(fetchUsers({ role: filterRole, is_active: filterActive, search, manager_id: filterManagerId, page, per_page: 10 }))
       setTimeout(() => setShowAssignModal(false), 800)
     }
   }

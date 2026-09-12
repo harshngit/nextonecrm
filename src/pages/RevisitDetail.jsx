@@ -129,7 +129,7 @@ export default function RevisitDetail() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => navigate('/revisits')}
+          onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-brand transition-colors group"
         >
           <div className="w-8 h-8 rounded-full bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 flex items-center justify-center group-hover:border-brand/30 transition-all">

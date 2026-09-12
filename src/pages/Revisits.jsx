@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
 import { useModulePermissions } from '../hooks/usePermission'
 import { fetchTeamTree } from '../store/userSlice'
@@ -498,14 +498,23 @@ function ClosingManagerModal({ lead, onClose, onSuccess }) {
 export default function Revisits() {
   const navigate    = useNavigate()
   const dispatch    = useDispatch()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user }    = useSelector(s => s.auth)
   const { teamTree: salesExecs, teamTreeLoading } = useSelector(s => s.users)
 
   const [revisits,   setRevisits]   = useState([])
   const [loading,    setLoading]    = useState(true)
   const [pagination, setPagination] = useState({})
-  const [page,       setPage]       = useState(1)
+  const [page,       setPage]       = useState(() => parseInt(searchParams.get('page'), 10) || 1)
   const [perPage,    setPerPage]    = useState('20')
+
+  useEffect(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (page > 1) next.set('page', String(page)); else next.delete('page')
+      return next
+    }, { replace: true })
+  }, [page])
 
   // Filters
   const isExternalCaller = user?.role === 'external_caller'

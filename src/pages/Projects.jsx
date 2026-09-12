@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useModulePermissions } from '../hooks/usePermission'
 import { useDispatch, useSelector } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Autoplay } from 'swiper/modules'
 import 'swiper/css'
@@ -1078,14 +1078,23 @@ function ProjectForm({ formData, setFormData, projectId, existingFiles = {}, onD
 export default function Projects() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { list, loading, pagination, actionLoading, actionError, projectDocuments } = useSelector(s => s.projects)
   const { user: currentUser } = useSelector(s => s.auth)
 
   const [search,       setSearch]       = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterCity,   setFilterCity]   = useState('')
-  const [page,         setPage]         = useState(1)
+  const [page,         setPage]         = useState(() => parseInt(searchParams.get('page'), 10) || 1)
   const [perPage,      setPerPage]      = useState('10')
+
+  useEffect(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (page > 1) next.set('page', String(page)); else next.delete('page')
+      return next
+    }, { replace: true })
+  }, [page])
 
   const [showAddModal,  setShowAddModal]  = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)

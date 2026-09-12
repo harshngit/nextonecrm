@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useModulePermissions } from '../hooks/usePermission'
 import { Plus, List, CalendarDays, ChevronDown, Edit2, X, CheckCircle, RefreshCw, Eye, Download, Clock, LogIn, LogOut, Building2, User, RotateCcw, StarIcon, MoreVertical, Phone, MapPin, CalendarClock, Trash2, CheckCircle2, UserCheck, AlertCircle, Search } from 'lucide-react'
 import {
@@ -689,6 +689,7 @@ function ClosingManagerModal({ lead, onClose, onSuccess }) {
 export default function SiteVisits() {
   const navigate = useNavigate()
   const dispatch = useDispatch()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.siteVisits)
   const { list: leadList, sources: sourceList } = useSelector(s => s.leads)
   const { list: projectList } = useSelector(s => s.projects)
@@ -702,8 +703,18 @@ export default function SiteVisits() {
   const [filterManagerId, setFilterManagerId] = useState('')
   const [search,        setSearch]        = useState('')
   const [selectedDate,  setSelectedDate]  = useState(new Date().toISOString().split('T')[0])
-  const [page,          setPage]          = useState(1)
+  // Kept in sync with the URL (below) so Back-navigation from a visit's
+  // detail page restores the page the user was on instead of resetting to 1.
+  const [page,          setPage]          = useState(() => parseInt(searchParams.get('page'), 10) || 1)
   const [perPage,       setPerPage]       = useState('20')
+
+  useEffect(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (page > 1) next.set('page', String(page)); else next.delete('page')
+      return next
+    }, { replace: true })
+  }, [page])
 
   const [showAddModal,      setShowAddModal]      = useState(false)
   const [showRevisitModal,  setShowRevisitModal]  = useState(false)

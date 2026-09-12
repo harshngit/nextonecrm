@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useModulePermissions } from '../hooks/usePermission'
 import {
   CheckCircle, Clock, AlertCircle, Phone, Plus, MapPin,
@@ -869,6 +869,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, ca
 export default function FollowUps() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { list, loading, pagination, actionLoading, actionError } = useSelector(s => s.followUps)
   const { list: leadList, sources: sourceList = [] } = useSelector(s => s.leads)
   const { list: projectList = [] } = useSelector(s => s.projects)
@@ -879,8 +880,16 @@ export default function FollowUps() {
   const [filterView,     setFilterView]     = useState(isExternalCaller ? 'mine' : 'team')
   const [filterStatus,   setFilterStatus]   = useState('all') // pending | overdue | all | completed
   const [filterAssigned, setFilterAssigned] = useState('')
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1)
   const [perPage, setPerPage] = useState('10')
+
+  useEffect(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (page > 1) next.set('page', String(page)); else next.delete('page')
+      return next
+    }, { replace: true })
+  }, [page])
 
   const [showAddModal,      setShowAddModal]      = useState(false)
   const [showEditModal,     setShowEditModal]     = useState(false)

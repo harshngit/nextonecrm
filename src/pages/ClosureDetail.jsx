@@ -84,7 +84,7 @@ export default function ClosureDetail() {
       <div className="text-center max-w-sm px-6">
         <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4 text-4xl">✅</div>
         <h3 className="text-xl font-display font-bold text-gray-900 dark:text-white mb-2">Closure not found</h3>
-        <Button variant="outline" onClick={() => navigate('/closures')} className="mt-4 rounded-xl">Back to Closures</Button>
+        <Button variant="outline" onClick={() => navigate(-1)} className="mt-4 rounded-xl">Back to Closures</Button>
       </div>
     </div>
   )
@@ -94,7 +94,7 @@ export default function ClosureDetail() {
       {/* Top Header / Breadcrumb */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => navigate('/closures')}
+          onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-brand transition-colors group"
         >
           <div className="w-8 h-8 rounded-full bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 flex items-center justify-center group-hover:border-brand/30 transition-all">
