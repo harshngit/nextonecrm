@@ -1635,7 +1635,7 @@ export default function Leads() {
   // a lead's detail) and coming back via the browser's Back button restores
   // whichever page the user was on, instead of always remounting at page 1.
   const [page, setPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1)
-  const [perPage, setPerPage] = useState('10')
+  const [perPage, setPerPage] = useState(() => searchParams.get('per_page') || '10')
 
   const searchProjectsFilter = async (q) => {
     const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
@@ -1650,16 +1650,18 @@ export default function Leads() {
   const [leadsTab, setLeadsTab] = useState(showLeadsTabs ? 'my' : 'team') // 'my' | 'team'
   const [myPage,   setMyPage]   = useState(() => parseInt(searchParams.get('my_page'), 10) || 1)
 
-  // Mirror page/myPage into the URL (replacing, not pushing, so paging doesn't
-  // spam browser history) so returning via Back restores the right page.
+  // Mirror page/myPage/perPage into the URL (replacing, not pushing, so
+  // paging doesn't spam browser history) so returning via Back restores the
+  // exact page AND page-size the user was on, instead of always page 1 / 10.
   useEffect(() => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       if (page > 1) next.set('page', String(page)); else next.delete('page')
       if (myPage > 1) next.set('my_page', String(myPage)); else next.delete('my_page')
+      if (perPage !== '10') next.set('per_page', perPage); else next.delete('per_page')
       return next
     }, { replace: true })
-  }, [page, myPage])
+  }, [page, myPage, perPage])
 
   const stageOptions = useMemo(() => {
     if (statuses?.length > 0) {

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Sidebar from './Sidebar'
 import Navbar  from './Navbar'
 import { useSocket } from '../../hooks/useSocket'
+import useScrollRestoration from '../../hooks/useScrollRestoration'
 
 export default function Layout({ children }) {
   const [collapsed,  setCollapsed]  = useState(false)
@@ -9,6 +10,11 @@ export default function Layout({ children }) {
 
   // Connect WebSocket when authenticated, disconnect on logout
   const { connected } = useSocket()
+
+  // Restores scroll position on Back/Forward across the whole app (this app
+  // uses plain <Routes>, not a data router, so there's no built-in
+  // <ScrollRestoration/> handling this for us).
+  useScrollRestoration()
 
   return (
     <div className="min-h-screen bg-[#f5f6fa]">

@@ -706,15 +706,16 @@ export default function SiteVisits() {
   // Kept in sync with the URL (below) so Back-navigation from a visit's
   // detail page restores the page the user was on instead of resetting to 1.
   const [page,          setPage]          = useState(() => parseInt(searchParams.get('page'), 10) || 1)
-  const [perPage,       setPerPage]       = useState('20')
+  const [perPage,       setPerPage]       = useState(() => searchParams.get('per_page') || '20')
 
   useEffect(() => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       if (page > 1) next.set('page', String(page)); else next.delete('page')
+      if (perPage !== '20') next.set('per_page', perPage); else next.delete('per_page')
       return next
     }, { replace: true })
-  }, [page])
+  }, [page, perPage])
 
   const [showAddModal,      setShowAddModal]      = useState(false)
   const [showRevisitModal,  setShowRevisitModal]  = useState(false)

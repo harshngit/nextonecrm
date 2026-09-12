@@ -506,15 +506,16 @@ export default function Revisits() {
   const [loading,    setLoading]    = useState(true)
   const [pagination, setPagination] = useState({})
   const [page,       setPage]       = useState(() => parseInt(searchParams.get('page'), 10) || 1)
-  const [perPage,    setPerPage]    = useState('20')
+  const [perPage,    setPerPage]    = useState(() => searchParams.get('per_page') || '20')
 
   useEffect(() => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       if (page > 1) next.set('page', String(page)); else next.delete('page')
+      if (perPage !== '20') next.set('per_page', perPage); else next.delete('per_page')
       return next
     }, { replace: true })
-  }, [page])
+  }, [page, perPage])
 
   // Filters
   const isExternalCaller = user?.role === 'external_caller'
