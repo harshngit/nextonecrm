@@ -4,7 +4,7 @@ import Button from './Button'
 import { Calendar, Download } from 'lucide-react'
 import DatePicker from './DatePicker'
 
-export default function ExportModal({ isOpen, onClose, onExport, title = "Export Data", loading = false }) {
+export default function ExportModal({ isOpen, onClose, onExport, title = "Export Data", loading = false, children }) {
   const now = new Date()
   const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const today = now.toISOString().split('T')[0]
@@ -48,6 +48,8 @@ export default function ExportModal({ isOpen, onClose, onExport, title = "Export
             onChange={(v) => setDateRange(prev => ({ ...prev, to: v }))}
           />
         </div>
+
+        {children}
 
         <div className="flex gap-3 pt-2">
           <Button 

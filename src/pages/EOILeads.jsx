@@ -1637,6 +1637,12 @@ export default function EOILeads() {
   const [showBulkUploadModal,   setShowBulkUploadModal]   = useState(false)
   const [showBulkPhoneReqModal, setShowBulkPhoneReqModal] = useState(false)
   const [showExportModal,       setShowExportModal]        = useState(false)
+  // Export's own filter selection — seeded from the page's active filters
+  // when the modal opens, but editable there without touching the table.
+  // Status isn't included — this page is always scoped to 'eoi'.
+  const [exportFilters, setExportFilters] = useState({
+    source: '', assignedTo: '', projectId: '', projectName: '', location: '', search: '',
+  })
   const [showDeleteModal,       setShowDeleteModal]        = useState(false)
   const [leadToDelete,          setLeadToDelete]           = useState(null)
   const [deleting,              setDeleting]               = useState(false)
@@ -2031,21 +2037,34 @@ export default function EOILeads() {
   const canBulkUpload = true  // all authenticated users can bulk upload — exec/caller auto-assigned to self
   const canSeePhone  = ['super_admin', 'admin'].includes(currentUser?.role)
 
+  const openExportModal = () => {
+    setExportFilters({
+      source: filterSource, assignedTo: filterAssigned,
+      projectId: filterProjectId, projectName: filterProjectName,
+      location: filterLocation, search,
+    })
+    setShowExportModal(true)
+  }
+
   const handleExport = async (dateRange) => {
     try {
       setExporting(true)
       const params = { ...dateRange }
-      if (filterStatus) params.status = filterStatus
-      if (filterSource) {
-        params.source_id = filterSource
-        const matchedSource = sourceList.find(s => s.id === filterSource)
+      if (filterStatus) params.status = filterStatus // always 'eoi' on this page
+      if (exportFilters.source) {
+        // The export endpoint only reads `source` (ILIKE match against the
+        // lead's own source string), not an id — matches GET /export/leads.
+        const matchedSource = sourceList.find(s => s.id === exportFilters.source)
         if (matchedSource) params.source = matchedSource.name
       }
-      if (filterProjectId)        params.project_id = filterProjectId
-      else if (filterProjectName) params.project     = filterProjectName
+      if (exportFilters.projectId)        params.project_id = exportFilters.projectId
+      else if (exportFilters.projectName) params.project     = exportFilters.projectName
+      if (exportFilters.assignedTo) params.assigned_to = exportFilters.assignedTo
+      if (exportFilters.location)   params.location    = exportFilters.location
+      if (exportFilters.search)     params.search      = exportFilters.search
       const res = await api.get('/export/leads', { params, responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
-      const a = document.createElement('a'); a.href = url; a.download = `Leads_${dateRange.from}_to_${dateRange.to}.xlsx`
+      const a = document.createElement('a'); a.href = url; a.download = `EOILeads_${dateRange.from}_to_${dateRange.to}.xlsx`
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
       setShowExportModal(false)
     } catch (err) { console.error('Export failed:', err) } finally { setExporting(false) }
@@ -2216,7 +2235,7 @@ export default function EOILeads() {
             </Button>
           )}
           {['admin', 'super_admin'].includes(currentUser?.role) && (
-            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={openExportModal}>
               Export
             </Button>
           )}
@@ -2637,13 +2656,54 @@ export default function EOILeads() {
       )}
 
       {/* Export Modal */}
-      <ExportModal 
-        isOpen={showExportModal} 
-        onClose={() => setShowExportModal(false)} 
-        onExport={handleExport} 
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
         loading={exporting}
         title="Export Leads"
-      />
+      >
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Filters (optional)</p>
+          <div className="grid grid-cols-2 gap-3">
+            <CustomSelect
+              label="Source"
+              value={exportFilters.source}
+              onChange={val => setExportFilters(f => ({ ...f, source: val }))}
+              options={[{ value: '', label: 'All Sources' }, ...sourceList.map(s => ({ value: s.id, label: s.name }))]}
+              placeholder="All Sources"
+            />
+            <CustomSelect
+              label="Assigned To"
+              value={exportFilters.assignedTo}
+              onChange={val => setExportFilters(f => ({ ...f, assignedTo: val }))}
+              options={[{ value: '', label: 'All Team' }, ...teamMembers.filter(u => !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${u.role.replace(/_/g,' ')}` }))]}
+              placeholder="All Team"
+              searchable
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Location</label>
+            <input
+              value={exportFilters.location}
+              onChange={e => setExportFilters(f => ({ ...f, location: e.target.value }))}
+              placeholder="Any location"
+              className="w-full px-3 py-2 text-sm bg-background border border-[#e2e8f0] dark:border-[#2a2a2a] rounded-xl outline-none focus:border-brand text-gray-900 dark:text-gray-100 shadow-sm transition-all"
+            />
+          </div>
+          <AsyncSearchSelect
+            label="Project"
+            value={exportFilters.projectId}
+            onChange={val => setExportFilters(f => ({ ...f, projectId: val, projectName: '' }))}
+            onTextChange={text => setExportFilters(f => ({ ...f, projectName: text, projectId: text ? '' : f.projectId }))}
+            onSearch={searchProjectsFilter}
+            initialOptions={projectList.slice(0, 20).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))}
+            placeholder="Any project"
+            fallbackToInput
+            defaultText={exportFilters.projectId ? '' : (exportFilters.projectName || '')}
+          />
+        </div>
+      </ExportModal>
 
       {/* Lead Source Management Modal */}
       <LeadSourceManagementModal
