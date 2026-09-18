@@ -535,6 +535,11 @@ export default function Revisits() {
   const [showDelete,    setShowDelete]    = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [exporting,       setExporting]       = useState(false)
+  // Export's own filter selection — seeded from the page's active filters
+  // when the modal opens, but editable there without touching the table.
+  const [exportFilters, setExportFilters] = useState({
+    status: '', assignedTo: '', managerId: '', projectId: '', projectName: '', leadId: '', leadLabel: '', search: '',
+  })
   const [selected,      setSelected]      = useState(null)
   const [showClosingManagerModal, setShowClosingManagerModal] = useState(false)
   const [closingManagerLead, setClosingManagerLead] = useState(null)
@@ -586,11 +591,39 @@ export default function Revisits() {
     } catch {}
   }
 
+  const searchExportLeads = async (q) => {
+    const res = await api.get('/leads', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(l => ({ value: l.id, label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}` }))
+  }
+  const searchExportProjects = async (q) => {
+    const res = await api.get('/projects', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(p => ({ value: p.id, label: `${p.name}${p.city ? ` · ${p.city}` : ''}` }))
+  }
+
+  const openExportModal = () => {
+    setExportFilters({
+      status: filterStatus,
+      assignedTo: filterView === 'mine' ? (user?.id || '') : '',
+      managerId: filterView === 'mine' ? '' : filterManagerId,
+      projectId: '', projectName: '',
+      leadId: '', leadLabel: '',
+      search,
+    })
+    setShowExportModal(true)
+  }
+
   const handleExport = async (dateRange) => {
     try {
       setExporting(true)
       const params = { ...dateRange }
-      if (filterStatus) params.status = filterStatus
+      if (exportFilters.status)     params.status      = exportFilters.status
+      if (exportFilters.assignedTo) params.assigned_to = exportFilters.assignedTo
+      if (exportFilters.managerId)  params.manager_id  = exportFilters.managerId
+      if (exportFilters.leadId)     params.lead_id     = exportFilters.leadId
+      // project_id accepts either a real UUID or an exact project name — same param either way.
+      if (exportFilters.projectId)        params.project_id = exportFilters.projectId
+      else if (exportFilters.projectName) params.project_id = exportFilters.projectName
+      if (exportFilters.search) params.search = exportFilters.search
       const res = await api.get('/export/site-revisits', { params, responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
       const a = document.createElement('a'); a.href = url; a.download = `Revisits_${dateRange.from}_to_${dateRange.to}.xlsx`
@@ -618,7 +651,7 @@ export default function Revisits() {
         </div>
         <div className="flex items-center gap-2">
           {['admin', 'super_admin'].includes(user?.role) && (
-            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={openExportModal}>
               Export
             </Button>
           )}
@@ -922,7 +955,57 @@ export default function Revisits() {
         onExport={handleExport}
         loading={exporting}
         title="Export Re-visits"
-      />
+      >
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Filters (optional)</p>
+          <div className="grid grid-cols-2 gap-3">
+            <CustomSelect
+              label="Status"
+              value={exportFilters.status}
+              onChange={val => setExportFilters(f => ({ ...f, status: val }))}
+              options={[{ value: '', label: 'All Status' }, ...STATUS_VALUES.map(s => ({ value: s, label: STATUS_LABEL[s] }))]}
+              placeholder="All Status"
+            />
+            <CustomSelect
+              label="Assigned To"
+              value={exportFilters.assignedTo}
+              onChange={val => setExportFilters(f => ({ ...f, assignedTo: val, managerId: val ? '' : f.managerId }))}
+              options={[
+                { value: '', label: 'All Team' },
+                ...(user ? [{ value: user.id, label: `Self · ${ROLE_LABEL_MAP[user.role] || user.role}` }] : []),
+                ...salesExecs.filter(u => !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL_MAP[u.role] || u.role}` })),
+              ]}
+              placeholder="All Team"
+              searchable
+            />
+          </div>
+          <CustomSelect
+            label="Team (manager's sub-tree)"
+            value={exportFilters.managerId}
+            onChange={val => setExportFilters(f => ({ ...f, managerId: val, assignedTo: val ? '' : f.assignedTo }))}
+            options={[{ value: '', label: 'No team filter' }, ...salesExecs.filter(u => !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL_MAP[u.role] || u.role}` }))]}
+            placeholder="No team filter"
+            searchable
+          />
+          <AsyncSearchSelect
+            label="Project"
+            value={exportFilters.projectId}
+            onChange={val => setExportFilters(f => ({ ...f, projectId: val, projectName: '' }))}
+            onTextChange={text => setExportFilters(f => ({ ...f, projectName: text, projectId: text ? '' : f.projectId }))}
+            onSearch={searchExportProjects}
+            placeholder="Any project"
+            fallbackToInput
+            defaultText={exportFilters.projectId ? '' : (exportFilters.projectName || '')}
+          />
+          <AsyncSearchSelect
+            label="Lead"
+            value={exportFilters.leadId}
+            onChange={val => setExportFilters(f => ({ ...f, leadId: val }))}
+            onSearch={searchExportLeads}
+            placeholder="Any lead"
+          />
+        </div>
+      </ExportModal>
 
       {/* Modals */}
       {showSchedule && (

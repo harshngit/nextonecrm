@@ -901,6 +901,11 @@ export default function FollowUps() {
   const [bulkDeleting,        setBulkDeleting]        = useState(false)
   const [bulkDeleteSuccess,   setBulkDeleteSuccess]   = useState('')
   const [showExportModal,   setShowExportModal]    = useState(false)
+  // Export's own filter selection — seeded from the page's active filters
+  // when the modal opens, but editable there without touching the table.
+  const [exportFilters, setExportFilters] = useState({
+    status: 'all', assignedTo: '', managerId: '', leadId: '', leadLabel: '',
+  })
   const [selectedTask,      setSelectedTask]       = useState(null)
   const [completeNotes,     setCompleteNotes]      = useState('')
 
@@ -1271,16 +1276,33 @@ export default function FollowUps() {
     )
   }
 
+  const searchExportLeads = async (q) => {
+    const res = await api.get('/leads', { params: { search: q, per_page: 20 } })
+    return (res.data.data || []).map(l => ({ value: l.id, label: `${l.name}${l.phone ? ` — ${l.phone}` : ''}` }))
+  }
+
+  const openExportModal = () => {
+    setExportFilters({
+      status: filterStatus,
+      assignedTo: filterView === 'mine' ? (currentUser?.id || '') : filterAssigned,
+      managerId: '',
+      leadId: '', leadLabel: '',
+    })
+    setShowExportModal(true)
+  }
+
   const handleExport = async (dateRange) => {
     try {
       setExporting(true)
       const params = { ...dateRange }
-      if (filterStatus !== 'all') {
-        if (filterStatus === 'pending')   params.is_completed = false
-        if (filterStatus === 'completed') params.is_completed = true
-        if (filterStatus === 'overdue')   { params.overdue = true; params.is_completed = false }
+      if (exportFilters.status && exportFilters.status !== 'all') {
+        if (exportFilters.status === 'pending')   params.is_completed = false
+        if (exportFilters.status === 'completed') params.is_completed = true
+        if (exportFilters.status === 'overdue')   { params.overdue = true; params.is_completed = false }
       }
-      if (filterAssigned) params.assigned_to = filterAssigned
+      if (exportFilters.assignedTo) params.assigned_to = exportFilters.assignedTo
+      if (exportFilters.managerId)  params.manager_id  = exportFilters.managerId
+      if (exportFilters.leadId)     params.lead_id     = exportFilters.leadId
 
       const res = await api.get('/export/follow-ups', { params, responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
@@ -1368,7 +1390,7 @@ export default function FollowUps() {
             </button>
           )}
           {['admin', 'super_admin'].includes(currentUser?.role) && (
-            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={() => setShowExportModal(true)}>
+            <Button variant="outline" size="sm" icon={Download} loading={exporting} disabled={exporting} onClick={openExportModal}>
               Export
             </Button>
           )}
@@ -1770,13 +1792,58 @@ export default function FollowUps() {
       )}
 
       {/* Export Modal */}
-      <ExportModal 
-        isOpen={showExportModal} 
-        onClose={() => setShowExportModal(false)} 
-        onExport={handleExport} 
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
         loading={exporting}
         title="Export Follow-ups"
-      />
+      >
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Filters (optional)</p>
+          <div className="grid grid-cols-2 gap-3">
+            <CustomSelect
+              label="Status"
+              value={exportFilters.status}
+              onChange={val => setExportFilters(f => ({ ...f, status: val }))}
+              options={[
+                { value: 'all',       label: 'All' },
+                { value: 'pending',   label: 'Pending' },
+                { value: 'overdue',   label: 'Overdue' },
+                { value: 'completed', label: 'Completed' },
+              ]}
+              placeholder="All"
+            />
+            <CustomSelect
+              label="Assigned To"
+              value={exportFilters.assignedTo}
+              onChange={val => setExportFilters(f => ({ ...f, assignedTo: val, managerId: val ? '' : f.managerId }))}
+              options={[
+                { value: '', label: 'All Team' },
+                ...(currentUser ? [{ value: currentUser.id, label: `Self · ${ROLE_LABEL[currentUser.role] || currentUser.role}` }] : []),
+                ...teamMembers.filter(u => !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` })),
+              ]}
+              placeholder="All Team"
+              searchable
+            />
+          </div>
+          <CustomSelect
+            label="Team (manager's sub-tree)"
+            value={exportFilters.managerId}
+            onChange={val => setExportFilters(f => ({ ...f, managerId: val, assignedTo: val ? '' : f.assignedTo }))}
+            options={[{ value: '', label: 'No team filter' }, ...teamMembers.filter(u => !u.is_self).map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name} · ${ROLE_LABEL[u.role] || u.role}` }))]}
+            placeholder="No team filter"
+            searchable
+          />
+          <AsyncSearchSelect
+            label="Lead"
+            value={exportFilters.leadId}
+            onChange={val => setExportFilters(f => ({ ...f, leadId: val }))}
+            onSearch={searchExportLeads}
+            placeholder="Any lead"
+          />
+        </div>
+      </ExportModal>
 
       <ConfirmModal
         isOpen={showDeleteModal}
