@@ -6,6 +6,7 @@ import {
   CheckCircle, Clock, AlertCircle, Phone, Plus, MapPin,
   Edit2, Trash2, Download, RefreshCw, ChevronDown, Filter, Eye, X,
   ArrowRightCircle, CheckCircle2, CalendarPlus, Loader2, MoreVertical, CalendarClock, User,
+  PauseCircle, PlayCircle, Search,
 } from 'lucide-react'
 import {
   fetchFollowUps, fetchMyFollowUps, createFollowUp, updateFollowUp,
@@ -69,6 +70,7 @@ const defaultLeadWithTaskForm = {
 
 function classifyTask(task) {
   if (task.is_completed) return 'completed'
+  if (task.is_paused) return 'paused'
   const now = new Date()
   const due = new Date(task.due_date)
   const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
@@ -736,7 +738,7 @@ function BulkConvertFUModal({ taskIds, tasks, onClose, onSuccess, teamMembers = 
 }
 
 
-function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, canEdit, canDelete, isSelected, onSelect, editLoading, openMenuTaskId, setOpenMenuTaskId }) {
+function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, onTogglePause, canManage, canEdit, canDelete, isSelected, onSelect, editLoading, openMenuTaskId, setOpenMenuTaskId }) {
   const navigate = useNavigate()
   const [menuPos, setMenuPos] = useState(null)
   const category = classifyTask(task)
@@ -746,6 +748,7 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, ca
     today:     'border-blue-200 dark:border-blue-900/40 bg-white dark:bg-[#1a1a1a]',
     upcoming:  'border-[#e2e8f0] dark:border-[#2a2a2a] bg-white dark:bg-[#1a1a1a]',
     completed: 'border-green-200 dark:border-green-900/40 bg-green-50/30 dark:bg-green-900/10 opacity-60',
+    paused:    'border-amber-200 dark:border-amber-900/40 bg-amber-50/30 dark:bg-amber-900/10 opacity-75',
   }
 
   return (
@@ -775,6 +778,11 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, ca
             {category === 'overdue' && (
               <span className="flex items-center gap-1 text-[10px] font-semibold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full flex-shrink-0">
                 <AlertCircle size={9} /> Overdue
+              </span>
+            )}
+            {category === 'paused' && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded-full flex-shrink-0">
+                <PauseCircle size={9} /> Paused
               </span>
             )}
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize flex-shrink-0 ${priorityStyle[task.priority] || priorityStyle.medium}`}>
@@ -846,6 +854,14 @@ function TaskCard({ task, onEdit, onDelete, onComplete, onConvert, canManage, ca
                         Edit
                       </button>
                     )}
+                    {canEdit && !task.is_completed && (
+                      <button
+                        onClick={() => { onTogglePause(task); setOpenMenuTaskId(null)}}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        {task.is_paused ? <PlayCircle size={14} /> : <PauseCircle size={14} />}
+                        {task.is_paused ? 'Resume' : 'Pause'}
+                      </button>
+                    )}
                     {canDelete && (
                       <button
                         onClick={() => { onDelete(task); setOpenMenuTaskId(null)}}
@@ -880,6 +896,7 @@ export default function FollowUps() {
   const [filterView,     setFilterView]     = useState(isExternalCaller ? 'mine' : 'team')
   const [filterStatus,   setFilterStatus]   = useState('all') // pending | overdue | all | completed
   const [filterAssigned, setFilterAssigned] = useState('')
+  const [search,         setSearch]         = useState('')
   const [page, setPage] = useState(() => parseInt(searchParams.get('page'), 10) || 1)
   const [perPage, setPerPage] = useState(() => searchParams.get('per_page') || '10')
 
@@ -904,7 +921,7 @@ export default function FollowUps() {
   // Export's own filter selection — seeded from the page's active filters
   // when the modal opens, but editable there without touching the table.
   const [exportFilters, setExportFilters] = useState({
-    status: 'all', assignedTo: '', managerId: '', leadId: '', leadLabel: '',
+    status: 'all', assignedTo: '', managerId: '', leadId: '', leadLabel: '', search: '',
   })
   const [selectedTask,      setSelectedTask]       = useState(null)
   const [completeNotes,     setCompleteNotes]      = useState('')
@@ -939,9 +956,11 @@ export default function FollowUps() {
   // ── Load data ───────────────────────────────────────────────────────────────
   const loadTasks = () => {
     const params = { page, per_page: resolvePerPage(perPage) }
-    if (filterStatus === 'pending')   { params.is_completed = false }
+    if (filterStatus === 'pending')   { params.is_completed = false; params.paused = false }
     if (filterStatus === 'completed') { params.is_completed = true }
     if (filterStatus === 'overdue')   { params.overdue = true; params.is_completed = false }
+    if (filterStatus === 'paused')    { params.paused = true }
+    if (search) params.search = search
     if (filterView === 'mine') {
       dispatch(fetchMyFollowUps(params))
     } else {
@@ -950,7 +969,7 @@ export default function FollowUps() {
     }
   }
 
-  useEffect(() => { loadTasks() }, [dispatch, filterView, filterStatus, filterAssigned, page, perPage])
+  useEffect(() => { loadTasks() }, [dispatch, filterView, filterStatus, filterAssigned, search, page, perPage])
 
   useEffect(() => {
     dispatch(fetchLeads({ per_page: 100 }))
@@ -1101,6 +1120,11 @@ export default function FollowUps() {
     if (deleteFollowUp.fulfilled.match(result)) loadTasks()
     setShowDeleteModal(false)
     setTaskToDelete(null)
+  }
+
+  const handleTogglePause = async (task) => {
+    const result = await dispatch(updateFollowUp({ id: task.id, data: { is_paused: !task.is_paused } }))
+    if (updateFollowUp.fulfilled.match(result)) loadTasks()
   }
 
   const confirmDelete = (task) => {
@@ -1260,6 +1284,7 @@ export default function FollowUps() {
               onComplete={openComplete}
               onEdit={openEdit}
               onDelete={confirmDelete}
+              onTogglePause={handleTogglePause}
               onConvert={selectable ? (t) => { setConvertTask(t); setShowConvertModal(true) } : undefined}
               canManage={perms.edit || perms.delete}
               canEdit={perms.edit}
@@ -1287,6 +1312,7 @@ export default function FollowUps() {
       assignedTo: filterView === 'mine' ? (currentUser?.id || '') : filterAssigned,
       managerId: '',
       leadId: '', leadLabel: '',
+      search,
     })
     setShowExportModal(true)
   }
@@ -1303,6 +1329,7 @@ export default function FollowUps() {
       if (exportFilters.assignedTo) params.assigned_to = exportFilters.assignedTo
       if (exportFilters.managerId)  params.manager_id  = exportFilters.managerId
       if (exportFilters.leadId)     params.lead_id     = exportFilters.leadId
+      if (exportFilters.search)     params.search      = exportFilters.search
 
       const res = await api.get('/export/follow-ups', { params, responseType: 'blob' })
       const url = URL.createObjectURL(res.data)
@@ -1346,6 +1373,7 @@ export default function FollowUps() {
               { key: 'pending',   label: 'Active' },
               { key: 'completed', label: 'Done' },
               { key: 'overdue',   label: 'Overdue' },
+              { key: 'paused',    label: 'Paused' },
             ].map(tab => (
               <button key={tab.key}
                 onClick={() => { setFilterStatus(tab.key); setPage(1) }}
@@ -1371,6 +1399,14 @@ export default function FollowUps() {
               />
             </div>
           )}
+
+          {/* Search */}
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
+              placeholder="Search task, lead..."
+              className="w-full pl-9 pr-4 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand placeholder-gray-400" />
+          </div>
 
           <button onClick={loadTasks}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-[#e2e8f0] dark:border-[#2a2a2a] text-gray-400 hover:text-brand hover:border-brand transition-colors">
@@ -1582,11 +1618,13 @@ export default function FollowUps() {
                         <span className={`text-xs px-2 py-1 rounded-lg
                           ${category === 'completed' ? 'bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400' :
                             category === 'overdue' ? 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400' :
+                            category === 'paused' ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400' :
                             category === 'today' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' :
                             'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
                         >
                           {category === 'completed' ? 'Done' :
                             category === 'overdue' ? 'Overdue' :
+                            category === 'paused' ? 'Paused' :
                             category === 'today' ? 'Today' : 'Upcoming'}
                         </span>
                       </td>
@@ -1636,6 +1674,14 @@ export default function FollowUps() {
                                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
                                     {editLoading === task.id ? <Loader2 size={14} className="animate-spin" /> : <Edit2 size={14} />}
                                     Edit
+                                  </button>
+                                )}
+                                {perms.edit && !task.is_completed && (
+                                  <button
+                                    onClick={() => { handleTogglePause(task); setOpenMenuTaskId(null)}}
+                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                    {task.is_paused ? <PlayCircle size={14} /> : <PauseCircle size={14} />}
+                                    {task.is_paused ? 'Resume' : 'Pause'}
                                   </button>
                                 )}
                                 {perms.delete && (
@@ -1842,6 +1888,15 @@ export default function FollowUps() {
             onSearch={searchExportLeads}
             placeholder="Any lead"
           />
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Search</label>
+            <input
+              value={exportFilters.search}
+              onChange={e => setExportFilters(f => ({ ...f, search: e.target.value }))}
+              placeholder="Task title, lead name, or phone"
+              className="w-full px-3 py-2 text-sm bg-card text-card-foreground border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:border-brand placeholder-gray-400"
+            />
+          </div>
         </div>
       </ExportModal>
 
